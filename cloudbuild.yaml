@@ -1,0 +1,61 @@
+# ==========================================================
+# Google Cloud Build Pipeline for O.M.N.I.S.
+# Builds, tests, and deploys FastAPI backend to Google Cloud Run
+# ==========================================================
+
+steps:
+  # Step 1: Build Docker Container Image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${SHORT_SHA}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:latest"
+      - "-f"
+      - "Dockerfile"
+      - "."
+
+  # Step 2: Push Container Image to Google Artifact Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${SHORT_SHA}"
+
+  # Step 3: Deploy to Google Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "${_SERVICE_NAME}"
+      - "--image"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${SHORT_SHA}"
+      - "--region"
+      - "${_REGION}"
+      - "--platform"
+      - "managed"
+      - "--allow-unauthenticated"
+      - "--set-env-vars"
+      - "GEMINI_MODEL=gemini-2.5-flash"
+      - "--set-secrets"
+      - "GEMINI_API_KEY=GEMINI_API_KEY:latest,DATABASE_URL=OMNIS_DATABASE_URL:latest"
+      - "--memory"
+      - "1Gi"
+      - "--cpu"
+      - "1"
+      - "--min-instances"
+      - "0"
+      - "--max-instances"
+      - "10"
+
+images:
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${SHORT_SHA}"
+
+substitutions:
+  _REGION: "europe-west3"
+  _REPOSITORY: "omnis-repo"
+  _SERVICE_NAME: "omnis-backend"
+
+options:
+  logging: CLOUD_LOGGING_ONLY

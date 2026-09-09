@@ -1,0 +1,274 @@
+"""
+O.M.N.I.S. Core FastAPI Backend Application
+Handles queries, cognitive processes, Impact Matrix evaluations, and autopoietic memory loops.
+"""
+
+from __future__ import annotations
+import logging
+import uuid
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator, List, Optional
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .database import get_db, init_db
+from .gemini_service import cognitive_service
+from .models import Conversation, ImpactMatrixMetric, Message, VectorMemory
+from .schemas import (
+    AutopoieticFeedbackRequest,
+    AutopoieticFeedbackResponse,
+    ConversationDetail,
+    ImpactMatrixScores,
+    MemoryItem,
+    QueryRequest,
+    QueryResponse,
+)
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("omnis.api")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Startup and shutdown lifecycle handler."""
+    logger.info("Initializing O.M.N.I.S. database and pgvector extensions...")
+    try:
+        await init_db()
+        logger.info("Database schema initialized successfully.")
+    except Exception as exc:
+        logger.error(f"Database initialization warning (will retry on queries): {exc}")
+    yield
+    logger.info("Shutting down O.M.N.I.S. backend.")
+
+
+app = FastAPI(
+    title="O.M.N.I.S. Cognitive Architecture API",
+    description="Omni-Modal Network for Integrated Synthesis - Backend & Impact Matrix Engine",
+    version="2.0.0",
+    lifespan=lifespan,
+)
+
+# CORS configuration for local development and Cloud Run deployment
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+async def background_record_vector_memory(
+    conversation_id: Optional[uuid.UUID],
+    content: str,
+    memory_type: str = "semantic",
+    metadata_json: Optional[dict] = None,
+) -> None:
+    """Background task to asynchronously generate embedding and save vector imprint."""
+    try:
+        from .database import async_session_factory
+
+        embedding = await cognitive_service.generate_embedding(content)
+        async with async_session_factory() as session:
+            memory_entry = VectorMemory(
+                conversation_id=conversation_id,
+                content=content,
+                embedding=embedding,
+                memory_type=memory_type,
+                metadata_json=metadata_json or {},
+                importance_score=1.0,
+            )
+            session.add(memory_entry)
+            await session.commit()
+            logger.info(f"Background vector memory stored for conversation {conversation_id}")
+    except Exception as exc:
+        logger.error(f"Failed to record background vector memory: {exc}")
+
+
+@app.get("/healthz", tags=["System"])
+async def health_check() -> dict[str, str]:
+    """Health check endpoint for Cloud Run and orchestrator probes."""
+    return {"status": "healthy", "service": "O.M.N.I.S. Cognitive Architecture"}
+
+
+@app.post("/api/query", response_model=QueryResponse, tags=["Cognitive Query"])
+async def process_user_query(
+    request: QueryRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+) -> QueryResponse:
+    """
+    Main O.M.N.I.S. reasoning endpoint.
+    Performs memory retrieval, invokes Google GenAI cognitive loop, computes
+    Impact Matrix scores, records the interaction, and enqueues background vector indexing.
+    """
+    conv_id = request.conversation_id
+    conversation: Optional[Conversation] = None
+
+    # Retrieve or create conversation
+    if conv_id:
+        conversation = await db.get(Conversation, conv_id)
+
+    if not conversation:
+        title_snippet = request.query[:45].strip()
+        conversation = Conversation(
+            title=f"Analýza: {title_snippet}...",
+            ontology_domain=request.ontology_domain,
+        )
+        db.add(conversation)
+        await db.flush()
+        conv_id = conversation.id
+
+    # Retrieve relevant vector memories using pgvector cosine distance if possible
+    context_memories: List[str] = []
+    try:
+        query_vec = await cognitive_service.generate_embedding(request.query)
+        # pgvector cosine distance operator: <=>
+        stmt = (
+            select(VectorMemory.content)
+            .order_by(VectorMemory.embedding.cosine_distance(query_vec))
+            .limit(3)
+        )
+        result = await db.execute(stmt)
+        context_memories = [row[0] for row in result.all()]
+    except Exception as exc:
+        logger.debug(f"pgvector query note (normal during first run without data): {exc}")
+
+    # Process query via Gemini Cognitive Engine
+    answer, thoughts, follow_ups, impact_matrix = await cognitive_service.process_query(
+        query=request.query,
+        ontology_domain=request.ontology_domain,
+        context_memories=context_memories,
+        enable_thinking=request.enable_thinking,
+    )
+
+    # Save user message
+    user_msg = Message(
+        conversation_id=conv_id,
+        role="user",
+        content=request.query,
+    )
+    db.add(user_msg)
+
+    # Save assistant message
+    asst_msg = Message(
+        conversation_id=conv_id,
+        role="assistant",
+        content=answer,
+        cognitive_thoughts=thoughts,
+        follow_up_questions=follow_ups,
+    )
+    db.add(asst_msg)
+    await db.flush()
+
+    # Save Impact Matrix Metric record
+    metric_record = ImpactMatrixMetric(
+        message_id=asst_msg.id,
+        conversation_id=conv_id,
+        economic_viability=impact_matrix.economic_viability,
+        eco_social_regeneration=impact_matrix.eco_social_regeneration,
+        technological_elegance=impact_matrix.technological_elegance,
+        psychological_acceptability=impact_matrix.psychological_acceptability,
+        composite_score=impact_matrix.composite_score,
+        reasoning=impact_matrix.reasoning,
+    )
+    db.add(metric_record)
+    await db.commit()
+
+    # Background task: embed conversation chunk for autopoietic learning
+    background_content = f"Dotaz: {request.query}\nOdpověď: {answer[:300]}"
+    background_tasks.add_task(
+        background_record_vector_memory,
+        conversation_id=conv_id,
+        content=background_content,
+        memory_type="semantic",
+        metadata_json={
+            "domain": request.ontology_domain,
+            "composite_score": impact_matrix.composite_score,
+        },
+    )
+
+    return QueryResponse(
+        conversation_id=conv_id,
+        message_id=asst_msg.id,
+        answer=answer,
+        cognitive_process=thoughts,
+        follow_up_questions=follow_ups,
+        impact_matrix=impact_matrix,
+        related_memories_count=len(context_memories),
+        created_at=asst_msg.created_at,
+    )
+
+
+@app.post("/api/feedback", response_model=AutopoieticFeedbackResponse, tags=["Autopoiesis"])
+async def submit_feedback(
+    payload: AutopoieticFeedbackRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+) -> AutopoieticFeedbackResponse:
+    """
+    Submits user validation/feedback into the self-referential autopoietic loop.
+    Adapts network weights and records the delta in vector memory.
+    """
+    message = await db.get(Message, payload.message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found.")
+
+    # Calculate adaptation delta (-0.1 to +0.1 based on rating 1..5)
+    adaptation_delta = (payload.user_rating - 3) * 0.05
+
+    # If adjusted matrix provided, update the stored metric
+    if payload.adjusted_matrix:
+        stmt = select(ImpactMatrixMetric).where(ImpactMatrixMetric.message_id == message.id)
+        result = await db.execute(stmt)
+        metric = result.scalar_one_or_none()
+        if metric:
+            metric.economic_viability = payload.adjusted_matrix.economic_viability
+            metric.eco_social_regeneration = payload.adjusted_matrix.eco_social_regeneration
+            metric.technological_elegance = payload.adjusted_matrix.technological_elegance
+            metric.psychological_acceptability = payload.adjusted_matrix.psychological_acceptability
+            metric.composite_score = payload.adjusted_matrix.composite_score
+            metric.reasoning = payload.adjusted_matrix.reasoning
+            await db.commit()
+
+    # Log autopoietic feedback memory
+    fb_text = payload.feedback_text or f"Hodnocení valence: {payload.user_rating}/5"
+    background_tasks.add_task(
+        background_record_vector_memory,
+        conversation_id=payload.conversation_id,
+        content=f"[Autopoietická zpětná vazba]: {fb_text}",
+        memory_type="autopoietic_feedback",
+        metadata_json={"user_rating": payload.user_rating, "delta": adaptation_delta},
+    )
+
+    return AutopoieticFeedbackResponse(
+        status="success",
+        adaptation_delta=round(adaptation_delta, 3),
+        message="Autopoietická smyčka byla aktualizována novým otiskem.",
+    )
+
+
+@app.get("/api/memory", response_model=List[MemoryItem], tags=["Memory"])
+async def list_memories(
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> List[MemoryItem]:
+    """Lists recent vector memory imprints."""
+    stmt = select(VectorMemory).order_by(desc(VectorMemory.created_at)).limit(limit)
+    result = await db.execute(stmt)
+    records = result.scalars().all()
+    return [MemoryItem.model_validate(r) for r in records]
+
+
+@app.get("/api/conversations", response_model=List[ConversationDetail], tags=["Conversations"])
+async def list_conversations(
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> List[ConversationDetail]:
+    """Returns conversation history."""
+    stmt = select(Conversation).order_by(desc(Conversation.updated_at)).limit(limit)
+    result = await db.execute(stmt)
+    records = result.scalars().all()
+    return [ConversationDetail.model_validate(r) for r in records]

@@ -1,0 +1,6 @@
+{
+  "name": "O.M.N.I.S.",
+  "description": "O.M.N.I.S. - Kognitivní architektura a dashboard s Maticí dopadů",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
