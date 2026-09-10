@@ -20,10 +20,15 @@ from .schemas import (
     AutopoieticFeedbackRequest,
     AutopoieticFeedbackResponse,
     ConversationDetail,
+    ConvergenceEvaluationRequest,
+    ConvergenceEvaluationResponse,
     ImpactMatrixScores,
+    ImpactScore,
     MemoryItem,
+    OmnisEntityIngestion,
     QueryRequest,
     QueryResponse,
+    SolutionCandidate,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -88,6 +93,7 @@ async def background_record_vector_memory(
 
 
 @app.get("/healthz", tags=["System"])
+@app.get("/api/health-check", tags=["System"])
 async def health_check() -> dict[str, str]:
     """Health check endpoint for Cloud Run and orchestrator probes."""
     return {"status": "healthy", "service": "O.M.N.I.S. Cognitive Architecture"}
@@ -272,3 +278,105 @@ async def list_conversations(
     result = await db.execute(stmt)
     records = result.scalars().all()
     return [ConversationDetail.model_validate(r) for r in records]
+
+
+# ==========================================================
+# Epistemic Layer Ingestion (Blueprint Page 3-4)
+# ==========================================================
+
+@app.post("/api/epistemic/ingest", tags=["OMNIS Epistemic Layer"])
+async def ingest_epistemic_data(
+    payload: OmnisEntityIngestion,
+    background_tasks: BackgroundTasks,
+) -> dict:
+    """
+    Epistemická (Poznávací) vrstva:
+    Sběr a ontologické mapování heterogenních dat (tvrdá, měkká, heuristická).
+    Eliminuje sémantický šum před vstupem do syntetické roviny.
+    """
+    summary = (
+        f"Entity: {payload.omnis_entity_id} | Purpose: {payload.fundamental_purpose} | "
+        f"Hard: {list(payload.epistemic_data_layer.hard_data.parameters.keys())} | "
+        f"Soft: {list(payload.epistemic_data_layer.soft_data.parameters.keys())}"
+    )
+    background_tasks.add_task(
+        background_record_vector_memory,
+        conversation_id=None,
+        content=f"[Epistemic Ingest]: {summary}",
+        memory_type="epistemic_entity",
+        metadata_json=payload.model_dump(),
+    )
+    return {
+        "status": "assimilated",
+        "omnis_entity_id": payload.omnis_entity_id,
+        "message": "Entita byla úspěšně asimilována do epistemické roviny bez sémantického šumu.",
+    }
+
+
+# ==========================================================
+# Fáze IV: Synergická Konvergence - Guardrail (Blueprint Page 9-11)
+# ==========================================================
+
+phase4_router = APIRouter(prefix="/omnis/phase-4", tags=["OMNIS Phase IV - Convergence"])
+
+
+@phase4_router.post("/evaluate-matrix", response_model=ConvergenceEvaluationResponse)
+async def evaluate_impact_matrix(payload: ConvergenceEvaluationRequest):
+    """
+    Fáze IV (Synergická Konvergence) dle blueprintu (str. 10-11):
+    Deterministický výstupní validátor (Guardrail).
+    Váhy:
+      - Ekonomická životaschopnost: 0.3
+      - Technologická elegance: 0.3
+      - Ekologicko-sociální dopad: 0.2
+      - Psychologická přijatelnost: 0.2
+      - Penalizace za každou adversarial zranitelnost: -0.5
+    """
+    if not payload.candidates:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Seznam kandidátů pro vyhodnocení je prázdný.",
+        )
+
+    rankings = []
+    for cand in payload.candidates:
+        s = cand.scores
+        avg_score = (
+            s.economic_viability * 0.3
+            + s.tech_elegance * 0.3
+            + s.social_ecological_impact * 0.2
+            + s.psychological_acceptance * 0.2
+        )
+        penalty = len(cand.adversarial_vulnerabilities) * 0.5
+        final_score = max(0.0, avg_score - penalty)
+
+        rankings.append(
+            {
+                "candidate_id": cand.candidate_id,
+                "title": cand.title,
+                "final_score": round(final_score, 2),
+                "avg_before_penalty": round(avg_score, 2),
+                "vulnerabilities_count": len(cand.adversarial_vulnerabilities),
+                "passed": final_score >= payload.minimum_threshold,
+                "candidate_object": cand,
+            }
+        )
+
+    rankings.sort(key=lambda x: x["final_score"], reverse=True)
+    passed_candidates = [r for r in rankings if r["passed"]]
+    optimal = passed_candidates[0]["candidate_object"] if passed_candidates else None
+
+    return ConvergenceEvaluationResponse(
+        selected_optimal_candidate=optimal,
+        weighted_rankings=[
+            {k: v for k, v in r.items() if k != "candidate_object"} for r in rankings
+        ],
+        status=(
+            "SUCCESS"
+            if optimal
+            else "WARNING: Žádný kandidát nepřekročil prahovou hodnotu."
+        ),
+    )
+
+
+app.include_router(phase4_router)

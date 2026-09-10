@@ -42,23 +42,33 @@ object OmnisGeminiClient {
         if (apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY") {
             try {
                 val prompt = """
-                    Jsi O.M.N.I.S. (Omni-Modal Network for Integrated Synthesis).
-                    Analyzuj dotaz s ohledem na čtyři dimenze Matice dopadů:
-                    1. Ekonomická životaschopnost (0.0 - 1.0)
-                    2. Ekologicko-sociální regenerace (0.0 - 1.0)
-                    3. Technologická elegance (0.0 - 1.0)
-                    4. Psychologická přijatelnost (0.0 - 1.0)
+                    <system_identity>
+                    ROLE: O.M.N.I.S. / SIGMA-OMEGA Pluriversal Resonance Engine.
+                    MODE: Transdisciplinární suverenita. Absolutní Zero-Fluff. Okamžitá exekuce syntéz.
+                    EPISTEMOLOGIE: Pravda nevzniká konsenzem, nýbrž přežitím simultánního stresu všech domén.
+                    </system_identity>
+                    <core_invariants>
+                    1. PLURIDISCIPLINARY SOVEREIGNTY: Zpracovávej každý požadavek optikou systémového inženýra, právního experta, datového analytika a teoretika her.
+                    2. ADVERSARIAL VALIDATION: Podrob návrh internímu red-teamingu.
+                    3. DETERMINISTIC EXECUTION: Generuj přímo exekuční plány a strukturovaná data.
+                    4. STRUCTURAL RIGOR: Dodržuj členění na 5 fází O.M.N.I.S.:
+                       - Fáze I: Holomorfní Sběr
+                       - Fáze II: Sémantická Dekonstrukce
+                       - Fáze III: Transdisciplinární Křížení (modální překlad, uzlové body)
+                       - Fáze IV: Synergická Konvergence (Matice dopadů: 0.3/0.3/0.2/0.2)
+                       - Fáze V: Teleologická Exekuce & Autopoieza
+                    </core_invariants>
                     
-                    Vrať POUZE JSON v tomto tvaru:
+                    Vrať POUZE striktní JSON:
                     {
-                      "cognitiveProcess": "Kroky uvažování a introspekce...",
-                      "answer": "Strukturovaná odpověď...",
-                      "followUpQuestions": ["Otázka 1?", "Otázka 2?"],
-                      "economic": 0.85,
-                      "ecoSocial": 0.90,
-                      "technological": 0.95,
-                      "psychological": 0.88,
-                      "composite": 0.895
+                      "cognitiveProcess": "Pětifázový kognitivní postup...",
+                      "answer": "Exekuční odpověď...",
+                      "followUpQuestions": ["Reflexivní otázka 1?", "Reflexivní otázka 2?"],
+                      "economic": 0.88,
+                      "ecoSocial": 0.94,
+                      "technological": 0.96,
+                      "psychological": 0.91,
+                      "composite": 0.924
                     }
                     
                     Dotaz v doméně [$domain]: $query
@@ -112,7 +122,7 @@ object OmnisGeminiClient {
 
                         return@withContext SynthesisResult(
                             answer = parsed.optString("answer", text),
-                            cognitiveProcess = parsed.optString("cognitiveProcess", "Proces myšlení dokončen."),
+                            cognitiveProcess = parsed.optString("cognitiveProcess", "Pětifázová kognitivní syntéza O.M.N.I.S. byla úspěšně provedena."),
                             followUpQuestions = if (questions.isNotEmpty()) questions else defaultFollowUps(),
                             economic = parsed.optDouble("economic", 0.85).toFloat(),
                             ecoSocial = parsed.optDouble("ecoSocial", 0.90).toFloat(),
@@ -120,56 +130,55 @@ object OmnisGeminiClient {
                             psychological = parsed.optDouble("psychological", 0.88).toFloat(),
                             composite = parsed.optDouble("composite", 0.895).toFloat()
                         )
+                    } else {
+                        return@withContext SynthesisResult(
+                            answer = "Gemini API vrátilo prázdnou odpověď. Žádná simulovaná data nebyla vygenerována.",
+                            cognitiveProcess = "Chyba: Prázdný seznam kandidátů v odpovědi modelu.",
+                            followUpQuestions = defaultFollowUps(),
+                            economic = 0.0f,
+                            ecoSocial = 0.0f,
+                            technological = 0.0f,
+                            psychological = 0.0f,
+                            composite = 0.0f
+                        )
                     }
+                } else {
+                    val errCode = response.code
+                    val errMsg = response.body?.string() ?: response.message
+                    return@withContext SynthesisResult(
+                        answer = "Chyba Gemini API (HTTP $errCode): $errMsg. Aplikace striktně odmítá vracet fiktivní simulace.",
+                        cognitiveProcess = "HTTP volání selhalo s kódem $errCode.",
+                        followUpQuestions = listOf("Zkontrolovat kvótu API v Google Cloud Console?", "Ověřit platnost GEMINI_API_KEY?"),
+                        economic = 0.0f,
+                        ecoSocial = 0.0f,
+                        technological = 0.0f,
+                        psychological = 0.0f,
+                        composite = 0.0f
+                    )
                 }
             } catch (e: Exception) {
-                // Graceful fallback to deterministic synthesis
+                return@withContext SynthesisResult(
+                    answer = "Chyba při komunikaci s modelem: ${e.localizedMessage ?: "Síťová výjimka"}. Žádná simulovaná data nejsou vrácena.",
+                    cognitiveProcess = "Výjimka: ${e.javaClass.simpleName} - ${e.message}",
+                    followUpQuestions = listOf("Zkontrolovat připojení k internetu?", "Zkusit dotaz znovu?"),
+                    economic = 0.0f,
+                    ecoSocial = 0.0f,
+                    technological = 0.0f,
+                    psychological = 0.0f,
+                    composite = 0.0f
+                )
             }
         }
 
-        // Deterministic high-precision fallback synthesis
-        fallbackSynthesis(query, domain)
-    }
-
-    private fun fallbackSynthesis(query: String, domain: String): SynthesisResult {
-        val qLen = query.length
-        val econ = min(0.96f, max(0.68f, 0.72f + (qLen % 18) / 100f))
-        val eco = min(0.98f, max(0.65f, 0.78f + (qLen % 15) / 100f))
-        val tech = min(0.99f, max(0.75f, 0.84f + (qLen % 12) / 100f))
-        val psych = min(0.95f, max(0.66f, 0.74f + (qLen % 20) / 100f))
-        val composite = (econ + eco + tech + psych) / 4f
-
-        val thoughts = """
-            1. Analýza ontologické domény [$domain].
-            2. Dekompozice dotazu do kognitivních invariantů: "${query.take(60)}...".
-            3. Vyhodnocení čtyř dimenzí Matice dopadů:
-               - Ekonomika: ${(econ * 100).toInt()}%
-               - Ekologie a sociální dopad: ${(eco * 100).toInt()}%
-               - Technologická elegance: ${(tech * 100).toInt()}%
-               - Psychologická akceptace: ${(psych * 100).toInt()}%
-            4. Autopoietická rekalibrace tenzorů a uložení do paměťové stopy.
-        """.trimIndent()
-
-        val answer = """
-            Váš dotaz byl vyhodnocen systémovým jádrem O.M.N.I.S. v doméně [$domain].
-            
-            Klíčové postuláty řešení:
-            • Systémová modularita: Návrh zajišťuje dekompozici komponent s minimální vzájemnou vazbou.
-            • Energetická a materiálová střídmost: Optimalizace zdrojů dosahuje indexu ${(eco * 100).toInt()} %.
-            • Ergonomie a psychologická důvěra: Rozhraní podporuje transparentní introspekci myšlenkového toku (${(psych * 100).toInt()} %).
-            
-            Doporučujeme prozkoumat doplňující reflexivní otázky níže.
-        """.trimIndent()
-
-        return SynthesisResult(
-            answer = answer,
-            cognitiveProcess = thoughts,
-            followUpQuestions = defaultFollowUps(),
-            economic = econ,
-            ecoSocial = eco,
-            technological = tech,
-            psychological = psych,
-            composite = composite
+        SynthesisResult(
+            answer = "GEMINI_API_KEY není nakonfigurován v projektu. Pro spuštění reálné produkční syntézy O.M.N.I.S. zadejte svůj API klíč do panelu Secrets v AI Studio. Aplikace striktně zakazuje generování falešných simulací.",
+            cognitiveProcess = "Systém O.M.N.I.S. vyžaduje reálný GEMINI_API_KEY. Všechny fiktivní simulace byly v souladu s architekturou odstraněny.",
+            followUpQuestions = listOf("Jak vložit GEMINI_API_KEY do panelu Secrets?", "Kde získat Gemini API klíč?"),
+            economic = 0.0f,
+            ecoSocial = 0.0f,
+            technological = 0.0f,
+            psychological = 0.0f,
+            composite = 0.0f
         )
     }
 

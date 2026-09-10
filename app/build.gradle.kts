@@ -14,11 +14,17 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
+    val autoVersionCode = (
+      System.getenv("VERSION_CODE")
+        ?: System.getenv("BUILD_NUMBER")
+        ?: System.getenv("GITHUB_RUN_NUMBER")
+    )?.toIntOrNull() ?: 2
+
     applicationId = "com.aistudio.omnis.aiarch"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = autoVersionCode
+    versionName = "1.0.$autoVersionCode"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

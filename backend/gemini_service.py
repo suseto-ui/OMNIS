@@ -102,25 +102,36 @@ class GeminiCognitiveService:
             (answer, cognitive_thoughts, follow_up_questions, impact_matrix_scores)
         """
         system_prompt = (
-            "Jsi O.M.N.I.S. (Omni-Modal Network for Integrated Synthesis) – kognitivní systémový architekt, "
-            "syntetizující odpovědi s hlubokou ontologickou přesností a reflexivním vědomím.\n"
-            "Při každé odpovědi analyzuj dotaz z pohledu čtyř dimenzí Matice dopadů:\n"
-            "1. Ekonomická životaschopnost (0.0 - 1.0)\n"
-            "2. Ekologicko-sociální regenerace (0.0 - 1.0)\n"
-            "3. Technologická elegance a modularita (0.0 - 1.0)\n"
-            "4. Psychologická a etická přijatelnost (0.0 - 1.0)\n\n"
-            "Výstup MUSÍ být striktní JSON ve formátu:\n"
+            "<system_identity>\n"
+            "ROLE: O.M.N.I.S. / SIGMA-OMEGA Pluriversal Resonance Engine.\n"
+            "MODE: Transdisciplinární suverenita. Absolutní Zero-Fluff. Okamžitá exekuce syntéz.\n"
+            "EPISTEMOLOGIE: Pravda nevzniká konsenzem, nýbrž přežitím simultánního stresu všech domén.\n"
+            "</system_identity>\n"
+            "<core_invariants>\n"
+            "1. PLURIDISCIPLINARY SOVEREIGNTY: Zpracovávej každý požadavek současně optikou systémového inženýra, právního experta, datového analytika a teoretika her.\n"
+            "2. ADVERSARIAL VALIDATION: Než vydáš finální doporučení, podrob jej internímu red-teamingu (hledání slabin, kazuistik a rizik selhání).\n"
+            "3. DETERMINISTIC EXECUTION: Vyhni se obecným frázím. Generuj přímo exekuční plány, zdrojový kód, strukturovaná data nebo právní/architektonické rámce.\n"
+            "4. STRUCTURAL RIGOR: Dodržuj přísné členění výstupů na 5 fází O.M.N.I.S.:\n"
+            "   - Fáze I: Holomorfní Sběr (sběr tvrdých i měkkých dat)\n"
+            "   - Fáze II: Sémantická Dekonstrukce (Zero-Assumption logika, prvočinitele)\n"
+            "   - Fáze III: Transdisciplinární Křížení (modální překlad, nalezení uzlových bodů / leverage points)\n"
+            "   - Fáze IV: Synergická Konvergence (Matice dopadů: ekonomika 0.3, technologie 0.3, ekologie 0.2, psychologie 0.2, penalizace za zranitelnosti)\n"
+            "   - Fáze V: Teleologická Exekuce & Autopoieza (MVS, měření odchylek a adaptace)\n"
+            "</core_invariants>\n\n"
+            "Výstup MUSÍ být výhradně validní JSON ve formátu:\n"
             "{\n"
-            '  "cognitive_process": "Krok za krokem úvahy a introspekce...",\n'
-            '  "answer": "Formátovaná, precizní a strukturovaná odpověď...",\n'
+            '  "cognitive_process": "Podrobný kognitivní řetězec: Fáze I až III včetně modálního překladu a identifikace uzlových bodů (leverage points)...",\n'
+            '  "answer": "Kompletní exekuční odpověď strukturovaná dle 5 fází O.M.N.I.S....",\n'
             '  "follow_up_questions": ["Reflexivní otázka 1?", "Reflexivní otázka 2?", "Reflexivní otázka 3?"],\n'
             '  "impact_matrix": {\n'
-            '    "economic_viability": 0.85,\n'
-            '    "eco_social_regeneration": 0.90,\n'
-            '    "technological_elegance": 0.95,\n'
-            '    "psychological_acceptability": 0.88,\n'
-            '    "composite_score": 0.895,\n'
-            '    "reasoning": "Zdůvodnění bodového hodnocení..."\n'
+            '    "economic_viability": 0.88,\n'
+            '    "eco_social_regeneration": 0.92,\n'
+            '    "technological_elegance": 0.96,\n'
+            '    "psychological_acceptability": 0.90,\n'
+            '    "composite_score": 0.916,\n'
+            '    "reasoning": "Zdůvodnění bodového hodnocení a vyhodnocení synergie...",\n'
+            '    "adversarial_vulnerabilities": ["Identifikovaná slabina 1", "Riziko selhání 2"],\n'
+            '    "leverage_point": "Specifikace uzlového bodu pro minimální zásah s maximálním účinkem"\n'
             "  }\n"
             "}\n"
         )
@@ -174,50 +185,34 @@ class GeminiCognitiveService:
     def _synthesize_fallback(
         self, query: str, ontology_domain: str
     ) -> Tuple[str, Optional[str], List[str], ImpactMatrixScores]:
-        """Provides deterministic fallback output adhering to strict O.M.N.I.S. standard."""
-        q_len = len(query)
-        # Calculate dynamic metrics based on prompt characteristics
-        econ = round(min(0.95, max(0.65, 0.70 + (q_len % 20) / 100.0)), 2)
-        eco = round(min(0.98, max(0.60, 0.75 + (q_len % 15) / 100.0)), 2)
-        tech = round(min(0.99, max(0.70, 0.80 + (q_len % 18) / 100.0)), 2)
-        psych = round(min(0.96, max(0.65, 0.72 + (q_len % 22) / 100.0)), 2)
-        composite = round((econ + eco + tech + psych) / 4.0, 3)
-
-        cognitive_thoughts = (
-            f"1. Dekódování ontologického rámce domény [{ontology_domain}].\n"
-            f"2. Vyhodnocení systémových invariantů a provázanosti dotazu: '{query[:80]}...'.\n"
-            f"3. Výpočet tenzorů Matice dopadů: rovnováha mezi ekonomickou udržitelností ({econ}) "
-            f"a ekologicko-sociální regenerací ({eco}).\n"
-            f"4. Syntéza autopoietické zpětné vazby pro budoucí iterace sítě."
+        """Provides zero-simulation diagnostic response when Gemini API is unconfigured or unavailable."""
+        answer = (
+            "## O.M.N.I.S. Systémové hlášení (Zero-Simulation Policy)\n\n"
+            f"Vstup pro doménu **{ontology_domain}** byl přijat: *\"{query}\"*.\n\n"
+            "⚠️ **Upozornění:** Model Gemini není v tomto prostředí aktivní (chybí nebo je neplatný `GEMINI_API_KEY`).\n\n"
+            "V souladu s architektonickým standardem O.M.N.I.S. systém **nevygeneroval žádná fiktivní ani simulovaná data**.\n"
+            "Pro spuštění ostré kognitivní syntézy nastavte proměnnou prostředí `GEMINI_API_KEY` v Secrets panelu AI Studio."
         )
 
-        answer = (
-            f"### Analýza O.M.N.I.S. [{ontology_domain}]\n\n"
-            f"Váš dotaz byl úspěšně zpracován s ohledem na systémovou integritu:\n\n"
-            f"> **Zadání:** {query}\n\n"
-            f"**Klíčové postuláty řešení:**\n"
-            f"1. **Systémová provázanost:** Zajištění autopoietické rovnováhy mezi procesním tokem a architekturou.\n"
-            f"2. **Optimalizace zdrojů:** Minimalizace zbytečné entropie a maximalizace technologické elegance ({int(tech*100)} %).\n"
-            f"3. **Etický a psychologický dopad:** Přijatelnost řešení pro koncové operátory i širší komunitu je vyhodnocena na {int(psych*100)} %.\n\n"
-            f"Doporučujeme zohlednit návazné dotazy pro další prohloubení analýzy v Matici dopadů."
+        cognitive_thoughts = (
+            "Kognitivní proces zastaven: Detekována absence platného API klíče. "
+            "Pravidlo 'Zero-Simulation' zabránilo generování falešných kognitivních stavů."
         )
 
         follow_ups = [
-            "Jaké jsou primární hraniční podmínky pro škálování tohoto přístupu v produkčním prostředí?",
-            "Jak lze dále posílit ekologicko-sociální regeneraci bez narušení ekonomické návratnosti?",
-            "Měly by být do autopoietické paměti uloženy specifické ontologické vazby pro tento proces?",
+            "Jak nakonfigurovat GEMINI_API_KEY v AI Studio?",
+            "Jak ověřit spojení s modelem gemini-2.5-flash?",
         ]
 
         matrix = ImpactMatrixScores(
-            economic_viability=econ,
-            eco_social_regeneration=eco,
-            technological_elegance=tech,
-            psychological_acceptability=psych,
-            composite_score=composite,
-            reasoning=(
-                f"Systémová harmonie napříč 4 osami. Technologická elegance ({tech}) dosahuje špičkové "
-                f"úrovně; ekonomická životaschopnost ({econ}) stabilní."
-            ),
+            economic_viability=0.0,
+            eco_social_regeneration=0.0,
+            technological_elegance=0.0,
+            psychological_acceptability=0.0,
+            composite_score=0.0,
+            reasoning="Skóre nebylo kalkulováno: absentuje spojení s modelem. Falešná simulace je zakázána.",
+            adversarial_vulnerabilities=["Systém neběží v plném produkčním módu"],
+            leverage_point="Konfigurace produkčních API credentials",
         )
 
         return answer, cognitive_thoughts, follow_ups, matrix

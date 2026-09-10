@@ -20,7 +20,12 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  ExternalLink,
+  ShieldAlert,
+  Zap,
+  Filter,
+  FileCode,
+  Check,
+  X,
 } from "lucide-react";
 
 interface ImpactMatrixScores {
@@ -30,6 +35,8 @@ interface ImpactMatrixScores {
   psychological_acceptability: number;
   composite_score: number;
   reasoning: string;
+  adversarial_vulnerabilities?: string[];
+  leverage_point?: string;
 }
 
 interface MessageItem {
@@ -42,28 +49,55 @@ interface MessageItem {
   created_at: string;
 }
 
+interface CandidateSolution {
+  candidate_id: string;
+  title: string;
+  description: string;
+  economic: number; // 0-10
+  tech: number; // 0-10
+  eco: number; // 0-10
+  psych: number; // 0-10
+  vulnerabilities: string[];
+}
+
 export default function App() {
   const [messages, setMessages] = useState<MessageItem[]>([
     {
       id: "initial-msg",
       role: "assistant",
       content:
-        "Vítejte v O.M.N.I.S. (Omni-Modal Network for Integrated Synthesis). Systém je aktivní v režimu přímé ontologické syntézy s reálným vyhodnocováním čtyřdimenzionální Matice dopadů a autopoietické paměti.",
+        "Vítejte v O.M.N.I.S. (Operativní Multimodální Nástroj pro Integrovanou Synergii).\n\n" +
+        "Systém operuje jako pluriversální kognitivní engine v pětifázovém cyklu:\n" +
+        "• Fáze I: Holomorfní Sběr (hard & soft data)\n" +
+        "• Fáze II: Sémantická Dekonstrukce (Zero-Assumption logika)\n" +
+        "• Fáze III: Transdisciplinární Křížení (modální překlad, leverage points)\n" +
+        "• Fáze IV: Synergická Konvergence (Matice dopadů s adversarial guardrailem)\n" +
+        "• Fáze V: Teleologická Exekuce & Autopoieza (MVS & sebekalibrace)",
       cognitive_process:
-        "1. Start subsystému kognitivní architektury.\n2. Inicializace tenzorů: Ekonomika, Ekologie, Technologie, Psychologie.\n3. Napojení na vektorový prostor pgvector aktivováno.",
+        "### Pětifázový cyklus O.M.N.I.S.\n" +
+        "1. Holomorfní Sběr: Asimilace epistemických dat v doméně SYSTEMS_INTELLIGENCE.\n" +
+        "2. Sémantická Dekonstrukce: Odstranění kognitivních zkreslení a dogmat; převod na fundamentální prvočinitele.\n" +
+        "3. Transdisciplinární Křížení: Modální překlad parametrů. Nalezen uzlový bod (leverage point): Asynchronní orchestrace s nulovým sémantickým šumem.\n" +
+        "4. Synergická Konvergence: Matice dopadů (váhy 0.3/0.3/0.2/0.2): Ekon=88%, Tech=96%, Ekol=94%, Psych=91%. Vážené skóre: 92.4%.\n" +
+        "5. Teleologická Exekuce: Inicializace paměťových vektorů v pgvector.",
       follow_up_questions: [
+        "Jak funguje výpočet penalizací za adversarial zranitelnosti v Fázi IV?",
         "Jak navrhnout distribuovanou architekturu s nulovou energetickou stopou?",
-        "Jak provázat ekonomické pobídky s ekologickou regenerací v AI clusterech?",
-        "Můžeme simulovat dopad decentralizovaných modelů na psychologickou důvěru uživatelů?",
+        "Můžeme provést modální překlad sociologického napětí do termodynamického tlaku?",
       ],
       impact_matrix: {
         economic_viability: 0.88,
         eco_social_regeneration: 0.94,
         technological_elegance: 0.96,
         psychological_acceptability: 0.91,
-        composite_score: 0.923,
+        composite_score: 0.924,
         reasoning:
-          "Základní výchozí harmonie kognitivní sítě. Optimální parametry ve všech čtyřech sledovaných osách.",
+          "Základní výchozí harmonie kognitivní sítě. Vážené skóre přesahuje 90 % bez jakýchkoliv kompromisů.",
+        adversarial_vulnerabilities: [
+          "Možné sycophancy zkreslení při absenci odděleného hodnotitele",
+        ],
+        leverage_point:
+          "Zavedení asynchronního validačního uzlu na rozhraní Epistemické a Syntetické roviny",
       },
       created_at: new Date().toISOString(),
     },
@@ -73,12 +107,142 @@ export default function App() {
   const [ontologyDomain, setOntologyDomain] = useState("SYSTEMS_INTELLIGENCE");
   const [enableThinking, setEnableThinking] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"chat" | "matrix" | "memory">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "matrix" | "guardrail" | "memory">("chat");
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({
     "initial-msg": true,
   });
   const [feedbackRating, setFeedbackRating] = useState<Record<string, number>>({});
   const [feedbackSubmitted, setFeedbackSubmitted] = useState<Record<string, boolean>>({});
+
+  // Fáze IV: Guardrail Candidate Testing State
+  const [candidates, setCandidates] = useState<CandidateSolution[]>([
+    {
+      candidate_id: "cand-1",
+      title: "Asynchronní Multi-agentní pipeline O.M.N.I.S.",
+      description: "Paralelní dekonstrukce vstupů specializovanými agenty se syntetickým překladem.",
+      economic: 8.8,
+      tech: 9.6,
+      eco: 9.0,
+      psych: 9.2,
+      vulnerabilities: ["Sycophancy bias u nekritických výstupů"],
+    },
+    {
+      candidate_id: "cand-2",
+      title: "Monolitická synchronní pipeline",
+      description: "Sekvenční zpracování v jediném velkém kontextovém okně bez kognitivní diverzity.",
+      economic: 6.5,
+      tech: 5.8,
+      eco: 6.0,
+      psych: 6.2,
+      vulnerabilities: [
+        "Vysoká latence",
+        "Riziko halucinací při dlouhém kontextu",
+        "Chybí modální překlad",
+      ],
+    },
+  ]);
+  const [guardrailResults, setGuardrailResults] = useState<any>(null);
+  const [evaluatingGuardrail, setEvaluatingGuardrail] = useState(false);
+
+  // Real Database Memory & Epistemic Layer state
+  const [memories, setMemories] = useState<any[]>([]);
+  const [loadingMemories, setLoadingMemories] = useState(false);
+  const [epistemicPurpose, setEpistemicPurpose] = useState("Optimalizace energetického toku v distribuované síti");
+  const [epistemicDomain, setEpistemicDomain] = useState("SYSTEMS_INTELLIGENCE");
+  const [epistemicHardParam, setEpistemicHardParam] = useState("efficiency: 94.2%, latency_ms: 12");
+  const [epistemicSoftParam, setEpistemicSoftParam] = useState("sociological_vector: low_friction, psychological_state: high_trust");
+  const [epistemicSensoryParam, setEpistemicSensoryParam] = useState("intuition_notes: Asynchronní uzel eliminuje degradaci");
+  const [ingestStatus, setIngestStatus] = useState<string | null>(null);
+  const [isIngesting, setIsIngesting] = useState(false);
+
+  // Backend health verification state
+  const [backendHealth, setBackendHealth] = useState<"checking" | "connected" | "disconnected">("checking");
+  const [backendLatency, setBackendLatency] = useState<number | null>(null);
+
+  const fetchRealMemories = async () => {
+    setLoadingMemories(true);
+    try {
+      const resp = await fetch("/api/memory");
+      if (resp.ok) {
+        const data = await resp.json();
+        setMemories(data);
+      }
+    } catch (err) {
+      console.error("Chyba při načítání paměti z backendu:", err);
+    } finally {
+      setLoadingMemories(false);
+    }
+  };
+
+  useEffect(() => {
+    const checkBackendHealth = async () => {
+      const startTime = performance.now();
+      try {
+        const resp = await fetch("/api/health-check");
+        if (resp.ok) {
+          const latency = Math.round(performance.now() - startTime);
+          setBackendLatency(latency);
+          setBackendHealth("connected");
+        } else {
+          setBackendHealth("disconnected");
+        }
+      } catch (err) {
+        setBackendHealth("disconnected");
+      }
+    };
+
+    checkBackendHealth();
+    fetchRealMemories();
+  }, []);
+
+  const handleIngestEpistemic = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsIngesting(true);
+    setIngestStatus(null);
+    try {
+      const payload = {
+        omnis_entity_id: `omnis-${Date.now().toString(36)}`,
+        fundamental_purpose: epistemicPurpose,
+        ontology_domain: epistemicDomain,
+        epistemic_data_layer: {
+          hard_data: {
+            description: "Tvrdá numerická telemetrie",
+            strict_typing: true,
+            parameters: { metrics: epistemicHardParam },
+          },
+          soft_data: {
+            description: "Sociální a psychologické atributy",
+            strict_typing: false,
+            parameters: { context: epistemicSoftParam },
+          },
+          sensory_heuristic: {
+            description: "Senzorické vstupy a heuristické poznámky",
+            strict_typing: false,
+            parameters: { heuristic: epistemicSensoryParam },
+          },
+        },
+      };
+
+      const resp = await fetch("/api/epistemic/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (resp.ok) {
+        const resData = await resp.json();
+        setIngestStatus(`✅ Úspěšně uloženo do pgvector (ID: ${resData.record_id || resData.status})`);
+        await fetchRealMemories();
+      } else {
+        const err = await resp.json().catch(() => null);
+        setIngestStatus(`⚠️ Chyba serveru (${resp.status}): ${err?.detail || resp.statusText}`);
+      }
+    } catch (e: any) {
+      setIngestStatus(`⚠️ Chyba spojení: ${e?.message}`);
+    } finally {
+      setIsIngesting(false);
+    }
+  };
 
   // Active matrix being displayed or inspected in detail
   const latestMatrix =
@@ -139,34 +303,16 @@ export default function App() {
 
       setMessages((prev) => [...prev, assistantMessage]);
       setExpandedThoughts((prev) => ({ ...prev, [assistantMessage.id]: true }));
-    } catch (error) {
-      // Local client-side fallback to guarantee continuity
-      const fallbackMatrix: ImpactMatrixScores = {
-        economic_viability: 0.84,
-        eco_social_regeneration: 0.89,
-        technological_elegance: 0.95,
-        psychological_acceptability: 0.87,
-        composite_score: 0.888,
-        reasoning:
-          "Lokální kognitivní syntéza O.M.N.I.S. Vyhodnoceno s maximální technologickou elegancí.",
-      };
-
-      const fallbackMsg: MessageItem = {
-        id: "fallback-" + Date.now(),
+    } catch (error: any) {
+      const errMsg: MessageItem = {
+        id: "err-" + Date.now(),
         role: "assistant",
-        content: `### Syntéza O.M.N.I.S. [${ontologyDomain}]\n\nVáš požadavek: "${text}" byl zpracován.\n\n- **Technologická modularita:** Navržená dekompozice minimalizuje provázanost rozhraní.\n- **Systémová homeostáza:** Rovnováha udržena na indexu ${fallbackMatrix.composite_score * 100} %.\n\n*Poznámka: Backend API reagoval v lokálním režimu.*`,
-        cognitive_process:
-          "1. Lokální inference bez prodlevy.\n2. Normalizace tenzorů Matice dopadů.\n3. Uložení autopoietického stavu.",
-        follow_up_questions: [
-          "Jaké jsou bezpečnostní invarianty tohoto subsystému?",
-          "Lze zvýšit ekologickou regeneraci o 10 %?",
-        ],
-        impact_matrix: fallbackMatrix,
+        content: `⚠️ **Chyba O.M.N.I.S. API:** ${error?.message || "Spojení se serverem selhalo"}.\n\nSystém striktně odmítá vracet fiktivní či simulovaná data. Zkontrolujte prosím připojení k serveru a konfiguraci GEMINI_API_KEY v Secrets panelu AI Studio.`,
+        cognitive_process: `Volání backendu selhalo: ${error?.message || "Neznámá chyba"}. Žádná simulace nebyla vygenerována.`,
+        follow_up_questions: ["Opakovat dotaz?", "Zkontrolovat stav serveru?"],
         created_at: new Date().toISOString(),
       };
-
-      setMessages((prev) => [...prev, fallbackMsg]);
-      setExpandedThoughts((prev) => ({ ...prev, [fallbackMsg.id]: true }));
+      setMessages((prev) => [...prev, errMsg]);
     } finally {
       setIsLoading(false);
     }
@@ -191,6 +337,55 @@ export default function App() {
     }
   };
 
+  // Run Phase IV Guardrail Evaluation
+  const runGuardrailEvaluation = async () => {
+    setEvaluatingGuardrail(true);
+    const payload = {
+      candidates: candidates.map((c) => ({
+        candidate_id: c.candidate_id,
+        title: c.title,
+        description: c.description,
+        scores: {
+          economic_viability: c.economic,
+          tech_elegance: c.tech,
+          social_ecological_impact: c.eco,
+          psychological_acceptance: c.psych,
+        },
+        adversarial_vulnerabilities: c.vulnerabilities,
+      })),
+      minimum_threshold: 7.0,
+    };
+
+    try {
+      const resp = await fetch("/omnis/phase-4/evaluate-matrix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setGuardrailResults(data);
+      } else {
+        const err = await resp.json().catch(() => null);
+        setGuardrailResults({
+          selected_optimal_candidate: null,
+          weighted_rankings: [],
+          status: `Chyba API (${resp.status}): ${err?.detail || resp.statusText}. Žádná simulace nebyla provedena.`,
+          error: true,
+        });
+      }
+    } catch (err: any) {
+      setGuardrailResults({
+        selected_optimal_candidate: null,
+        weighted_rankings: [],
+        status: `Chyba připojení k /omnis/phase-4/evaluate-matrix: ${err?.message || "Server nedostupný"}.`,
+        error: true,
+      });
+    } finally {
+      setEvaluatingGuardrail(false);
+    }
+  };
+
   return (
     <div className="flex h-screen w-full bg-[#080c14] text-slate-100 overflow-hidden font-sans">
       {/* LEFT COLUMN: Sidebar Navigation & System Telemetry */}
@@ -207,10 +402,10 @@ export default function App() {
               <h1 className="text-xl font-bold tracking-wider text-white flex items-center gap-2">
                 O.M.N.I.S.
                 <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-[#00E5FF]/10 text-[#00E5FF] border border-[#00E5FF]/30">
-                  v2.5
+                  SIGMA v2.5
                 </span>
               </h1>
-              <p className="text-xs text-slate-400 font-mono">Cognitive Matrix Engine</p>
+              <p className="text-xs text-slate-400 font-mono">Pluriversal Resonance Engine</p>
             </div>
           </div>
 
@@ -258,7 +453,7 @@ export default function App() {
             </p>
           </div>
 
-          {/* Navigation Tabs */}
+          {/* Navigation Tabs (Aligned with Blueprint) */}
           <div className="space-y-1">
             <button
               onClick={() => setActiveTab("chat")}
@@ -269,7 +464,7 @@ export default function App() {
               }`}
             >
               <MessageSquare className="h-4 w-4" />
-              Kognitivní Chat & Proud
+              Kognitivní Chat & Fáze
             </button>
 
             <button
@@ -285,6 +480,18 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setActiveTab("guardrail")}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === "guardrail"
+                  ? "bg-[#00E5FF]/10 text-[#00E5FF] border border-[#00E5FF]/30 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-[#0f172a]"
+              }`}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Fáze IV: Guardrail Validátor
+            </button>
+
+            <button
               onClick={() => setActiveTab("memory")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 activeTab === "memory"
@@ -293,7 +500,7 @@ export default function App() {
               }`}
             >
               <Database className="h-4 w-4" />
-              Vektorová Paměť (pgvector)
+              Epistemická & Vektorová Paměť
             </button>
           </div>
         </div>
@@ -301,21 +508,40 @@ export default function App() {
         {/* Live Telemetry Status Box */}
         <div className="p-3.5 rounded-xl bg-[#090d16] border border-[#1e293b] space-y-2">
           <div className="flex items-center justify-between text-xs font-mono">
-            <span className="text-slate-400">Homeostáza:</span>
+            <span className="text-slate-400">Architektura:</span>
             <span className="text-emerald-400 font-semibold flex items-center gap-1">
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              SYNCHRONNÍ
+              SIGMA-OMEGA
             </span>
           </div>
           <div className="flex items-center justify-between text-xs font-mono">
-            <span className="text-slate-400">Vektorový otisk:</span>
-            <span className="text-[#00E5FF]">768-dim</span>
+            <span className="text-slate-400">Backend API:</span>
+            {backendHealth === "checking" && (
+              <span className="text-amber-400 flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
+                Ověřuji...
+              </span>
+            )}
+            {backendHealth === "connected" && (
+              <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                ONLINE {backendLatency !== null ? `(${backendLatency}ms)` : ""}
+              </span>
+            )}
+            {backendHealth === "disconnected" && (
+              <span className="text-rose-400 font-semibold flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-rose-500" />
+                OFFLINE
+              </span>
+            )}
           </div>
           <div className="flex items-center justify-between text-xs font-mono">
-            <span className="text-slate-400">Index harmonie:</span>
-            <span className="text-[#7C4DFF] font-bold">
-              {(latestMatrix.composite_score * 100).toFixed(1)}%
-            </span>
+            <span className="text-slate-400">Guardrail váhy:</span>
+            <span className="text-[#00E5FF]">30/30/20/20</span>
+          </div>
+          <div className="flex items-center justify-between text-xs font-mono">
+            <span className="text-slate-400">Vektorový prostor:</span>
+            <span className="text-[#7C4DFF] font-bold">pgvector 768d</span>
           </div>
         </div>
       </aside>
@@ -327,15 +553,16 @@ export default function App() {
           <div className="flex items-center gap-3">
             <span className="h-2.5 w-2.5 rounded-full bg-[#00E5FF]" />
             <h2 className="text-sm font-semibold tracking-wide text-slate-200">
-              {activeTab === "chat" && "Kognitivní dialog a introspekce v reálném čase"}
-              {activeTab === "matrix" && "Detailní dekompozice čtyřdimenzionální Matice dopadů"}
-              {activeTab === "memory" && "Sémantické vektory a autopoietická paměť"}
+              {activeTab === "chat" && "Pětifázový kognitivní cyklus O.M.N.I.S. (Fáze I až V)"}
+              {activeTab === "matrix" && "Matice dopadů: 4 ortogonální dimenze & kompozitní index"}
+              {activeTab === "guardrail" && "Fáze IV: Synergická Konvergence – Výstupní Guardrail"}
+              {activeTab === "memory" && "Epistemická rovina & Vektorová paměť (PostgreSQL + pgvector)"}
             </h2>
           </div>
 
           <div className="flex items-center gap-4 text-xs font-mono text-slate-400">
             <span className="hidden sm:inline-block px-2.5 py-1 rounded bg-[#0f172a] border border-[#1e293b]">
-              PostgreSQL + pgvector
+              POST /omnis/phase-4/evaluate-matrix
             </span>
             <span className="hidden sm:inline-block px-2.5 py-1 rounded bg-[#0f172a] border border-[#1e293b]">
               Google GenAI SDK
@@ -373,7 +600,7 @@ export default function App() {
                         ) : (
                           <>
                             <Brain className="h-3.5 w-3.5 text-[#7C4DFF]" />
-                            O.M.N.I.S. Core
+                            O.M.N.I.S. Core [SIGMA-OMEGA]
                           </>
                         )}
                       </span>
@@ -392,7 +619,7 @@ export default function App() {
                         >
                           <span className="flex items-center gap-2 text-[#00E5FF]">
                             <Cpu className="h-3.5 w-3.5" />
-                            Kognitivní introspekce & myšlenkový řetězec
+                            Kognitivní introspekce & Pětifázový cyklus
                           </span>
                           {expandedThoughts[msg.id] ? (
                             <ChevronUp className="h-3.5 w-3.5" />
@@ -408,34 +635,65 @@ export default function App() {
                       </div>
                     )}
 
+                    {/* Leverage Point Banner */}
+                    {msg.impact_matrix?.leverage_point && (
+                      <div className="mb-3 p-3 rounded-lg bg-[#00E5FF]/10 border border-[#00E5FF]/30 flex items-start gap-2.5">
+                        <Zap className="h-4 w-4 text-[#00E5FF] mt-0.5 flex-shrink-0" />
+                        <div>
+                          <span className="text-[10px] font-mono uppercase font-bold text-[#00E5FF]">
+                            Uzlový Bod (Leverage Point)
+                          </span>
+                          <p className="text-xs text-slate-200 mt-0.5">
+                            {msg.impact_matrix.leverage_point}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Main Content */}
                     <div className="text-sm leading-relaxed whitespace-pre-line prose prose-invert max-w-none">
                       {msg.content}
                     </div>
 
+                    {/* Adversarial Vulnerabilities Alert */}
+                    {msg.impact_matrix?.adversarial_vulnerabilities &&
+                      msg.impact_matrix.adversarial_vulnerabilities.length > 0 && (
+                        <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-1">
+                          <span className="text-[10px] font-mono uppercase font-bold text-amber-400 flex items-center gap-1.5">
+                            <ShieldAlert className="h-3.5 w-3.5" />
+                            Adversarial Red-Teaming (Rizika selhání)
+                          </span>
+                          <ul className="text-xs text-slate-300 list-disc list-inside space-y-0.5">
+                            {msg.impact_matrix.adversarial_vulnerabilities.map((v, i) => (
+                              <li key={i}>{v}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
                     {/* Mini Impact Matrix Preview Bar */}
                     {msg.impact_matrix && (
                       <div className="mt-4 pt-4 border-t border-[#1e293b]/60 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
                         <div className="bg-[#0b1120] p-2 rounded-lg border border-[#1e293b]">
-                          <span className="text-slate-400 block">Ekonomika:</span>
+                          <span className="text-slate-400 block">Ekonomika (0.3):</span>
                           <span className="text-emerald-400 font-bold">
                             {(msg.impact_matrix.economic_viability * 100).toFixed(0)}%
                           </span>
                         </div>
                         <div className="bg-[#0b1120] p-2 rounded-lg border border-[#1e293b]">
-                          <span className="text-slate-400 block">Ekologie:</span>
-                          <span className="text-teal-400 font-bold">
-                            {(msg.impact_matrix.eco_social_regeneration * 100).toFixed(0)}%
-                          </span>
-                        </div>
-                        <div className="bg-[#0b1120] p-2 rounded-lg border border-[#1e293b]">
-                          <span className="text-slate-400 block">Technologie:</span>
+                          <span className="text-slate-400 block">Technologie (0.3):</span>
                           <span className="text-cyan-400 font-bold">
                             {(msg.impact_matrix.technological_elegance * 100).toFixed(0)}%
                           </span>
                         </div>
                         <div className="bg-[#0b1120] p-2 rounded-lg border border-[#1e293b]">
-                          <span className="text-slate-400 block">Psychologie:</span>
+                          <span className="text-slate-400 block">Ekologie (0.2):</span>
+                          <span className="text-teal-400 font-bold">
+                            {(msg.impact_matrix.eco_social_regeneration * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="bg-[#0b1120] p-2 rounded-lg border border-[#1e293b]">
+                          <span className="text-slate-400 block">Psychologie (0.2):</span>
                           <span className="text-indigo-400 font-bold">
                             {(msg.impact_matrix.psychological_acceptability * 100).toFixed(0)}%
                           </span>
@@ -498,7 +756,7 @@ export default function App() {
                 <div className="flex items-center space-x-3 p-4 bg-[#0f172a]/60 rounded-2xl border border-[#1e293b] max-w-sm animate-pulse">
                   <RefreshCw className="h-4 w-4 text-[#00E5FF] animate-spin" />
                   <span className="text-xs font-mono text-slate-300">
-                    Probíhá syntéza O.M.N.I.S. & výpočet tenzorů...
+                    Probíhá pětifázová syntéza SIGMA & výpočet tenzorů...
                   </span>
                 </div>
               )}
@@ -544,12 +802,12 @@ export default function App() {
             <div className="p-6 rounded-2xl bg-gradient-to-r from-[#0f172a] via-[#111c38] to-[#0f172a] border border-[#1e293b] flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
               <div>
                 <span className="text-xs font-mono uppercase tracking-widest text-[#00E5FF] font-semibold">
-                  Čtyřdimenzionální model
+                  Čtyřdimenzionální model (Váhy 30/30/20/20)
                 </span>
                 <h3 className="text-2xl font-bold text-white mt-1">Matice Dopadů O.M.N.I.S.</h3>
                 <p className="text-xs text-slate-400 mt-2 max-w-xl">
-                  Holistické hodnocení řešení napříč 4 ortogonálními osami: ekonomickou, ekologicko-sociální,
-                  technologickou a psychologickou.
+                  Holistické hodnocení řešení bez kompromisů napříč 4 ortogonálními osami:
+                  ekonomická (0.3), technologická (0.3), ekologicko-sociální (0.2) a psychologická (0.2).
                 </p>
               </div>
 
@@ -564,7 +822,7 @@ export default function App() {
 
             {/* 4 Interactive Dimension Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Dimension 1: Economic */}
+              {/* Dimension 1: Economic (Weight 0.3) */}
               <div className="p-6 rounded-2xl bg-[#0f172a] border border-[#1e293b] space-y-4 shadow-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -573,7 +831,7 @@ export default function App() {
                     </div>
                     <div>
                       <h4 className="font-semibold text-sm text-white">Ekonomická Životaschopnost</h4>
-                      <p className="text-[11px] text-slate-400">Efektivita nákladů a návratnost zdrojů</p>
+                      <p className="text-[11px] text-slate-400">Váha 0.3 | Efektivita nákladů a návratnost</p>
                     </div>
                   </div>
                   <span className="text-xl font-bold font-mono text-emerald-400">
@@ -588,31 +846,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Dimension 2: Ecological & Social */}
-              <div className="p-6 rounded-2xl bg-[#0f172a] border border-[#1e293b] space-y-4 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
-                      <Leaf className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-sm text-white">Ekologicko-Sociální Regenerace</h4>
-                      <p className="text-[11px] text-slate-400">Udržitelnost a regenerativní potenciál</p>
-                    </div>
-                  </div>
-                  <span className="text-xl font-bold font-mono text-teal-400">
-                    {(latestMatrix.eco_social_regeneration * 100).toFixed(0)}%
-                  </span>
-                </div>
-                <div className="w-full bg-[#090d16] rounded-full h-3 overflow-hidden border border-[#1e293b]">
-                  <div
-                    className="bg-teal-400 h-full rounded-full transition-all duration-700"
-                    style={{ width: `${latestMatrix.eco_social_regeneration * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Dimension 3: Technological Elegance */}
+              {/* Dimension 2: Technological Elegance (Weight 0.3) */}
               <div className="p-6 rounded-2xl bg-[#0f172a] border border-[#1e293b] space-y-4 shadow-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -621,7 +855,7 @@ export default function App() {
                     </div>
                     <div>
                       <h4 className="font-semibold text-sm text-white">Technologická Elegance</h4>
-                      <p className="text-[11px] text-slate-400">Modularita, spolehlivost a čistota architektury</p>
+                      <p className="text-[11px] text-slate-400">Váha 0.3 | Modularita, čistota a determinismus</p>
                     </div>
                   </div>
                   <span className="text-xl font-bold font-mono text-[#00E5FF]">
@@ -636,7 +870,31 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Dimension 4: Psychological & Ethical Acceptability */}
+              {/* Dimension 3: Ecological & Social (Weight 0.2) */}
+              <div className="p-6 rounded-2xl bg-[#0f172a] border border-[#1e293b] space-y-4 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                      <Leaf className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-sm text-white">Ekologicko-Sociální Regenerace</h4>
+                      <p className="text-[11px] text-slate-400">Váha 0.2 | Udržitelnost a regenerace biosféry</p>
+                    </div>
+                  </div>
+                  <span className="text-xl font-bold font-mono text-teal-400">
+                    {(latestMatrix.eco_social_regeneration * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <div className="w-full bg-[#090d16] rounded-full h-3 overflow-hidden border border-[#1e293b]">
+                  <div
+                    className="bg-teal-400 h-full rounded-full transition-all duration-700"
+                    style={{ width: `${latestMatrix.eco_social_regeneration * 100}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Dimension 4: Psychological & Ethical Acceptability (Weight 0.2) */}
               <div className="p-6 rounded-2xl bg-[#0f172a] border border-[#1e293b] space-y-4 shadow-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -645,7 +903,7 @@ export default function App() {
                     </div>
                     <div>
                       <h4 className="font-semibold text-sm text-white">Psychologická Přijatelnost</h4>
-                      <p className="text-[11px] text-slate-400">Etický dopad, důvěra a kognitivní ergonomie</p>
+                      <p className="text-[11px] text-slate-400">Váha 0.2 | Etický dopad a kognitivní ergonomie</p>
                     </div>
                   </div>
                   <span className="text-xl font-bold font-mono text-indigo-400">
@@ -674,63 +932,308 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 3: Semantic Vector Memory (pgvector) */}
+        {/* Tab 3: Fáze IV Guardrail Validator */}
+        {activeTab === "guardrail" && (
+          <div className="flex-1 overflow-y-auto p-8 space-y-6 max-w-5xl mx-auto w-full">
+            <div className="p-6 rounded-2xl bg-[#0f172a] border border-[#1e293b] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <span className="text-xs font-mono uppercase tracking-widest text-[#00E5FF] font-semibold">
+                  Blueprint Fáze IV (str. 9-11)
+                </span>
+                <h3 className="text-xl font-bold text-white mt-1">
+                  Výstupní Guardrail & Adversarial Penalizace
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 max-w-xl">
+                  Endpoint <code className="text-[#00E5FF]">/omnis/phase-4/evaluate-matrix</code> aplikuje
+                  váhy 0.3/0.3/0.2/0.2 a penalizaci <code className="text-amber-400">-0.5 bodu</code> za každou
+                  zranitelnost. Práh akceptace: <span className="text-[#00E5FF] font-mono">7.0</span> / 10.0.
+                </p>
+              </div>
+
+              <button
+                onClick={runGuardrailEvaluation}
+                disabled={evaluatingGuardrail}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#00E5FF] to-[#7C4DFF] text-black font-semibold text-xs flex items-center gap-2 hover:opacity-90 disabled:opacity-50"
+              >
+                {evaluatingGuardrail ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ShieldCheck className="h-4 w-4" />
+                )}
+                Spustit Guardrail Validaci
+              </button>
+            </div>
+
+            {/* Candidates List */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-mono uppercase tracking-wider text-slate-400">
+                Návrhy kandidátů z Fáze III
+              </h4>
+
+              {candidates.map((cand, idx) => (
+                <div
+                  key={cand.candidate_id}
+                  className="p-5 rounded-2xl bg-[#0f172a] border border-[#1e293b] space-y-3 font-mono"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-white font-sans flex items-center gap-2">
+                      <span className="text-[#00E5FF]">#{idx + 1}</span> {cand.title}
+                    </span>
+                    <span className="text-xs text-slate-400">ID: {cand.candidate_id}</span>
+                  </div>
+                  <p className="text-xs text-slate-300 font-sans">{cand.description}</p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-2">
+                    <div className="p-2 rounded bg-[#090d16] border border-[#1e293b]">
+                      <span className="text-slate-400 block text-[10px]">Ekon (0.3):</span>
+                      <span className="text-emerald-400 font-bold">{cand.economic} / 10</span>
+                    </div>
+                    <div className="p-2 rounded bg-[#090d16] border border-[#1e293b]">
+                      <span className="text-slate-400 block text-[10px]">Tech (0.3):</span>
+                      <span className="text-cyan-400 font-bold">{cand.tech} / 10</span>
+                    </div>
+                    <div className="p-2 rounded bg-[#090d16] border border-[#1e293b]">
+                      <span className="text-slate-400 block text-[10px]">Ekol (0.2):</span>
+                      <span className="text-teal-400 font-bold">{cand.eco} / 10</span>
+                    </div>
+                    <div className="p-2 rounded bg-[#090d16] border border-[#1e293b]">
+                      <span className="text-slate-400 block text-[10px]">Psych (0.2):</span>
+                      <span className="text-indigo-400 font-bold">{cand.psych} / 10</span>
+                    </div>
+                  </div>
+
+                  {cand.vulnerabilities.length > 0 && (
+                    <div className="text-xs text-amber-400 bg-amber-500/10 p-2.5 rounded border border-amber-500/20">
+                      <span className="font-bold block text-[10px] uppercase">
+                        Adversarial Zranitelnosti ({cand.vulnerabilities.length}x = penalizace -
+                        {cand.vulnerabilities.length * 0.5}):
+                      </span>
+                      <span className="text-slate-300">{cand.vulnerabilities.join(", ")}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Guardrail Output Results */}
+            {guardrailResults && (
+              <div className="p-6 rounded-2xl bg-[#090d16] border border-[#00E5FF]/40 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#00E5FF] flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Výsledek Guardrailu: {guardrailResults.status}
+                  </span>
+                  {guardrailResults.selected_optimal_candidate && (
+                    <span className="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-mono">
+                      OPTIMÁLNÍ ŘEŠENÍ VYBRÁNO
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-2 font-mono text-xs">
+                  {guardrailResults.weighted_rankings.map((r: any) => (
+                    <div
+                      key={r.candidate_id}
+                      className={`p-3 rounded-lg border flex items-center justify-between ${
+                        r.passed
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                          : "bg-red-500/10 border-red-500/30 text-red-300"
+                      }`}
+                    >
+                      <div>
+                        <span className="font-bold">{r.title}</span>
+                        <div className="text-[11px] text-slate-400">
+                          Před penalizací: {r.avg_before_penalty} | Zranitelnosti: {r.vulnerabilities_count}x
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold">Skóre: {r.final_score} / 10</div>
+                        <span className="text-[10px] font-bold">
+                          {r.passed ? "PROŠLO GUARDRAILEM" : "ZABLOKOVÁNO POD 7.0"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 4: Semantic Vector Memory (pgvector) & Epistemic Ingest */}
         {activeTab === "memory" && (
           <div className="flex-1 overflow-y-auto p-8 space-y-6 max-w-5xl mx-auto w-full">
             <div className="p-6 rounded-2xl bg-[#0f172a] border border-[#1e293b]">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <Database className="h-5 w-5 text-[#00E5FF]" />
-                Autopoietická Paměť (PostgreSQL + pgvector)
+                Epistemická & Vektorová Paměť (pgvector)
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                Zde jsou zobrazeny sémantické otisky uložené s 768-dimenzionálními vektory embeddingů.
-                Systém využívá pgvector pro kosinovou vzdálenost při vyhledávání kontextu.
+                Uchovává historické kontexty, precedensy a tenzorové matice dopadů v 768-dimenzionálním prostoru.
+                Využívá operátor kosinové vzdálenosti <code className="text-[#00E5FF]">&lt;=&gt;</code> pro sémantické vyhledávání.
               </p>
             </div>
 
-            <div className="space-y-4">
-              {[
-                {
-                  id: "vec-1",
-                  type: "semantic_imprint",
-                  domain: "SYSTEMS_INTELLIGENCE",
-                  text: "Zajištění autopoietické rovnováhy mezi procesním tokem a architekturou.",
-                  vector_preview: "[0.0241, -0.0512, 0.0894, ... 768 dimenzí]",
-                  score: 0.94,
-                },
-                {
-                  id: "vec-2",
-                  type: "autopoietic_feedback",
-                  domain: "CYBERNETIC_SYNTHESIS",
-                  text: "Zpětná vazba: Adaptace vah v kognitivním uzlu Matice dopadů o +0.05 delta.",
-                  vector_preview: "[0.0118, -0.0345, 0.0712, ... 768 dimenzí]",
-                  score: 0.91,
-                },
-                {
-                  id: "vec-3",
-                  type: "episodic_memory",
-                  domain: "REGENERATIVE_TECH",
-                  text: "Výpočet tenzorů Matice dopadů s minimalizací energetické entropie.",
-                  vector_preview: "[0.0432, -0.0210, 0.0931, ... 768 dimenzí]",
-                  score: 0.88,
-                },
-              ].map((mem) => (
-                <div
-                  key={mem.id}
-                  className="p-5 rounded-2xl bg-[#0f172a] border border-[#1e293b] space-y-3 font-mono"
-                >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-[#00E5FF] px-2 py-0.5 rounded bg-[#00E5FF]/10 border border-[#00E5FF]/30">
-                      {mem.type}
-                    </span>
-                    <span className="text-slate-400">Relevance: {(mem.score * 100).toFixed(0)}%</span>
+            {/* Epistemic Schema Representation (Blueprint Page 3-4) */}
+            <div className="p-5 rounded-2xl bg-[#090d16] border border-[#1e293b] space-y-2">
+              <span className="text-xs font-mono uppercase text-[#00E5FF] font-bold flex items-center gap-1.5">
+                <FileCode className="h-4 w-4" />
+                Epistemický Datový Model (JSON Schema Blueprint str. 3-4)
+              </span>
+              <pre className="text-[11px] font-mono text-slate-300 bg-[#080c14] p-3 rounded-lg overflow-x-auto border border-[#1e293b]/60">
+{`{
+  "omnis_entity_id": "omnis-epistemic-01",
+  "fundamental_purpose": "string_semantic_deconstruction",
+  "epistemic_data_layer": {
+    "hard_data": {
+      "description": "Tvrdá numerická data - statistiky, fyzikální měření",
+      "strict_typing": true,
+      "parameters": { "metric_name": "value_and_unit" }
+    },
+    "soft_data": {
+      "description": "Měkká data - lidské emoce, sociokulturní kontext",
+      "strict_typing": false,
+      "parameters": { "sociological_vector": "string", "psychological_state": "string" }
+    },
+    "sensory_heuristic": {
+      "description": "Senzorické vjemy i intuitivní heuristika",
+      "strict_typing": false,
+      "parameters": { "intuition_notes": "string", "sensory_input_raw": "string" }
+    }
+  }
+}`}
+              </pre>
+            </div>
+
+            {/* Epistemic Real Ingestion Form */}
+            <div className="p-5 rounded-2xl bg-[#0f172a] border border-[#1e293b] space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono uppercase text-[#00E5FF] font-bold flex items-center gap-1.5">
+                  <Database className="h-4 w-4" />
+                  Aktivní Ingestace do Epistemické Roviny (POST /api/epistemic/ingest)
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">Zero-Simulation Protocol</span>
+              </div>
+              <form onSubmit={handleIngestEpistemic} className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-mono text-slate-400">Fundamentální účel:</label>
+                    <input
+                      type="text"
+                      value={epistemicPurpose}
+                      onChange={(e) => setEpistemicPurpose(e.target.value)}
+                      className="w-full bg-[#080c14] border border-[#1e293b] rounded-lg px-3 py-2 text-xs text-slate-200 mt-1 focus:outline-none focus:border-[#00E5FF]"
+                      required
+                    />
                   </div>
-                  <p className="text-sm font-sans text-slate-200">{mem.text}</p>
-                  <div className="text-[11px] text-slate-500 bg-[#090d16] p-2.5 rounded-lg border border-[#1e293b]/60">
-                    Vektor: {mem.vector_preview}
+                  <div>
+                    <label className="text-[11px] font-mono text-slate-400">Ontologická doména:</label>
+                    <select
+                      value={epistemicDomain}
+                      onChange={(e) => setEpistemicDomain(e.target.value)}
+                      className="w-full bg-[#080c14] border border-[#1e293b] rounded-lg px-3 py-2 text-xs text-slate-200 mt-1 focus:outline-none focus:border-[#00E5FF]"
+                    >
+                      <option value="SYSTEMS_INTELLIGENCE">SYSTEMS_INTELLIGENCE</option>
+                      <option value="CYBERNETIC_SYNTHESIS">CYBERNETIC_SYNTHESIS</option>
+                      <option value="REGENERATIVE_TECH">REGENERATIVE_TECH</option>
+                      <option value="QUANTUM_LOGIC">QUANTUM_LOGIC</option>
+                    </select>
                   </div>
                 </div>
-              ))}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[11px] font-mono text-slate-400">Hard Data (statistika, metriky):</label>
+                    <input
+                      type="text"
+                      value={epistemicHardParam}
+                      onChange={(e) => setEpistemicHardParam(e.target.value)}
+                      className="w-full bg-[#080c14] border border-[#1e293b] rounded-lg px-3 py-2 text-xs text-slate-200 mt-1 focus:outline-none focus:border-[#00E5FF]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-mono text-slate-400">Soft Data (sociální/emoční stav):</label>
+                    <input
+                      type="text"
+                      value={epistemicSoftParam}
+                      onChange={(e) => setEpistemicSoftParam(e.target.value)}
+                      className="w-full bg-[#080c14] border border-[#1e293b] rounded-lg px-3 py-2 text-xs text-slate-200 mt-1 focus:outline-none focus:border-[#00E5FF]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-mono text-slate-400">Sensory Heuristic (intuitivní vjem):</label>
+                    <input
+                      type="text"
+                      value={epistemicSensoryParam}
+                      onChange={(e) => setEpistemicSensoryParam(e.target.value)}
+                      className="w-full bg-[#080c14] border border-[#1e293b] rounded-lg px-3 py-2 text-xs text-slate-200 mt-1 focus:outline-none focus:border-[#00E5FF]"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    type="submit"
+                    disabled={isIngesting}
+                    className="px-4 py-2 bg-gradient-to-r from-[#00E5FF] to-[#7C4DFF] text-black font-semibold text-xs rounded-lg hover:opacity-90 transition-all flex items-center gap-2"
+                  >
+                    {isIngesting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Database className="h-3.5 w-3.5" />}
+                    <span>Uložit reálná data do pgvector</span>
+                  </button>
+                  {ingestStatus && (
+                    <span className="text-xs font-mono text-slate-300">{ingestStatus}</span>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            {/* Live Database Memory Records */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-mono uppercase text-slate-400 tracking-wider flex items-center gap-2">
+                  Reálné paměťové otisky v databázi ({memories.length})
+                </h4>
+                <button
+                  onClick={fetchRealMemories}
+                  disabled={loadingMemories}
+                  className="text-xs font-mono text-[#00E5FF] hover:underline flex items-center gap-1"
+                >
+                  <RefreshCw className={`h-3 w-3 ${loadingMemories ? "animate-spin" : ""}`} />
+                  Aktualizovat z databáze
+                </button>
+              </div>
+
+              {loadingMemories && memories.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 font-mono text-xs">
+                  Načítám reálné záznamy z databáze...
+                </div>
+              ) : memories.length === 0 ? (
+                <div className="p-8 rounded-2xl bg-[#0f172a]/40 border border-[#1e293b] text-center text-slate-400 text-xs">
+                  V databázi zatím nejsou žádné paměťové záznamy. Vložte nová data přes formulář výše nebo proveďte dotaz v chatu. Žádné simulované položky nejsou zobrazeny.
+                </div>
+              ) : (
+                memories.map((mem) => (
+                  <div
+                    key={mem.id}
+                    className="p-5 rounded-2xl bg-[#0f172a] border border-[#1e293b] space-y-3 font-mono"
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[#00E5FF] px-2 py-0.5 rounded bg-[#00E5FF]/10 border border-[#00E5FF]/30">
+                        {mem.memory_type || "epistemic_imprint"}
+                      </span>
+                      <span className="text-slate-400">
+                        {mem.created_at ? new Date(mem.created_at).toLocaleString() : ""}
+                      </span>
+                    </div>
+                    <p className="text-sm font-sans text-slate-200">{mem.content}</p>
+                    {mem.metadata && (
+                      <div className="text-[11px] text-slate-500 bg-[#090d16] p-2.5 rounded-lg border border-[#1e293b]/60">
+                        Metadata: {JSON.stringify(mem.metadata)}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
