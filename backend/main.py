@@ -8,13 +8,15 @@ import logging
 import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, List, Optional
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .database import get_db, init_db
 from .gemini_service import cognitive_service
+from .omnis_pipeline import assemble_omnis_cognitive_cycle
+from .token_service import token_telemetry_service
 from .models import Conversation, ImpactMatrixMetric, Message, VectorMemory
 from .schemas import (
     AutopoieticFeedbackRequest,
@@ -143,7 +145,7 @@ async def process_user_query(
         logger.debug(f"pgvector query note (normal during first run without data): {exc}")
 
     # Process query via Gemini Cognitive Engine
-    answer, thoughts, follow_ups, impact_matrix = await cognitive_service.process_query(
+    answer, thoughts, follow_ups, impact_matrix, consequence_forensics, token_stats = await cognitive_service.process_query(
         query=request.query,
         ontology_domain=request.ontology_domain,
         context_memories=context_memories,
@@ -203,9 +205,45 @@ async def process_user_query(
         cognitive_process=thoughts,
         follow_up_questions=follow_ups,
         impact_matrix=impact_matrix,
+        consequence_forensics=consequence_forensics,
+        token_usage=token_stats,
         related_memories_count=len(context_memories),
         created_at=asst_msg.created_at,
     )
+
+
+@app.post("/api/omnis/synthesize-5phases", tags=["OMNIS 5-Phase Engine"])
+async def synthesize_five_phases(request: QueryRequest) -> dict:
+    """
+    Vykoná a vrátí detailní rozpad všech 5 fází kognitivního cyklu O.M.N.I.S.
+    včetně prospektivní forenzní analýzy rizik (T+1 až T+N):
+      1. Sémantická dekonstrukce
+      2. Transdisciplinární křížení (Oktagon 8 domén)
+      3. Okamžitý akční plán (Win-Win-Win)
+      4. Deterministická exekuce
+      5. Autopoietická reflexe a 4D Matice dopadů
+      + Prospektivní forenzní analýza následků
+    """
+    output = assemble_omnis_cognitive_cycle(
+        raw_query=request.query,
+        ontology_domain=request.ontology_domain,
+    )
+    from dataclasses import asdict
+    return {
+        "status": "success",
+        "ontology_domain": request.ontology_domain,
+        "query": request.query,
+        "phase1": asdict(output.phase1),
+        "phase2": asdict(output.phase2),
+        "phase3": asdict(output.phase3),
+        "phase4": asdict(output.phase4),
+        "phase5": asdict(output.phase5),
+        "risk_forensics": asdict(output.risk_forensics) if output.risk_forensics else None,
+        "formatted_answer": output.formatted_answer,
+        "cognitive_process": output.cognitive_process,
+        "follow_up_questions": output.follow_up_questions,
+        "composite_score": output.composite_score,
+    }
 
 
 @app.post("/api/feedback", response_model=AutopoieticFeedbackResponse, tags=["Autopoiesis"])
@@ -380,3 +418,67 @@ async def evaluate_impact_matrix(payload: ConvergenceEvaluationRequest):
 
 
 app.include_router(phase4_router)
+
+
+# ==========================================================
+# Dev & Diagnostic Laboratoř (Token Telemetrie & Test Prompty)
+# Interní vývojový modul - není určen pro produkci
+# ==========================================================
+
+dev_router = APIRouter(prefix="/api/dev", tags=["Development & Diagnostics"])
+
+
+@dev_router.get("/token-telemetry")
+async def get_token_telemetry():
+    """Vrací kumulativní statistiky spotřeby tokenů pro aktuální instanci."""
+    return token_telemetry_service.get_telemetry()
+
+
+@dev_router.post("/estimate-tokens")
+async def estimate_query_tokens(payload: dict):
+    """Vypočítá předpokládanou spotřebu tokenů pro zadaný dotaz."""
+    query = payload.get("query", "")
+    include_sys = payload.get("include_system_prompt", True)
+    include_mem = payload.get("include_memory_context", True)
+    return token_telemetry_service.estimate_query_tokens(
+        query=query,
+        include_system_prompt=include_sys,
+        include_memory_context=include_mem,
+    )
+
+
+@dev_router.post("/reset-tokens")
+async def reset_token_telemetry():
+    """Resetuje relaci počítadla tokenů."""
+    token_telemetry_service.reset_telemetry()
+    return {"status": "reset_successful", "message": "Počítadlo tokenů bylo vynulováno."}
+
+
+app.include_router(dev_router)
+
+# ==========================================================
+# Static Frontend Serving (Cloud Run & Web Production)
+# ==========================================================
+
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+if os.path.exists(frontend_dist):
+    assets_dir = os.path.join(frontend_dist, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        if full_path.startswith("api") or full_path.startswith("omnis") or full_path in ("docs", "redoc", "openapi.json"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        file_path = os.path.join(frontend_dist, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        index_file = os.path.join(frontend_dist, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+        raise HTTPException(status_code=404, detail="Frontend dist not found")
+

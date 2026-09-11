@@ -156,6 +156,43 @@ class ImpactMatrixScores(BaseModel):
 
 
 
+class RiskVectorSchema(BaseModel):
+    domain: str
+    vector: str
+    severity: str = "LOW"
+    probability: str = "LOW"
+    mitigation: str
+    cascade_timeline: str = "T+30_days"
+    entropy_impact: float = 0.05
+
+
+class ConsequenceForensicsSchema(BaseModel):
+    risk_index: float = Field(0.042, description="Kompozitní index rizika (0.0 až 1.0)")
+    risk_level: str = Field("SAFE", description="SAFE, ELEVATED, CRITICAL")
+    horizon: str = Field("T+30_days", description="Horizont kaskádových dopadů")
+    t_plus_1_systemic_drift: str = Field(
+        ..., description="Měření odchylky od First Principles v T+1"
+    )
+    asymmetric_failure_modes: List[str] = Field(
+        default_factory=list, description="Asymetrické módy selhání a SPOF"
+    )
+    regulatory_compliance_deltas: List[str] = Field(
+        default_factory=list, description="Regulační odchylky a compliance delty"
+    )
+    thermodynamic_entropy_spike: str = Field(
+        ..., description="Nárůst entropie a termodynamických nákladů"
+    )
+    identified_vectors: List[RiskVectorSchema] = Field(
+        default_factory=list, description="Jednotlivé identifikované rizikové vektory"
+    )
+    mitigation_directives: List[str] = Field(
+        default_factory=list, description="Okamžité zmírňující direktivy"
+    )
+    automatic_countermeasure_deployed: bool = Field(
+        True, description="Indikátor automatického nasazení protiopatření"
+    )
+
+
 class QueryRequest(BaseModel):
     """User prompt query with ontological parameters."""
     query: str = Field(..., min_length=2, max_length=10000, description="Uživatelský dotaz")
@@ -167,6 +204,13 @@ class QueryRequest(BaseModel):
     enable_thinking: bool = Field(
         default=True, description="Povolit hloubkový introspektivní kognitivní proces"
     )
+
+
+class TokenUsageStats(BaseModel):
+    prompt_tokens: int = Field(0, description="Vstupní tokeny dotazu a systémového promptu")
+    completion_tokens: int = Field(0, description="Výstupní tokeny generované odpovědi")
+    total_tokens: int = Field(0, description="Celkový součet tokenů pro tento dotaz")
+    cost_usd: float = Field(0.0, description="Odhadované finanční náklady v USD")
 
 
 class QueryResponse(BaseModel):
@@ -181,6 +225,12 @@ class QueryResponse(BaseModel):
         default_factory=list, description="Reflexivní doplňující otázky"
     )
     impact_matrix: ImpactMatrixScores
+    consequence_forensics: Optional[ConsequenceForensicsSchema] = Field(
+        None, description="Prospektivní forenzní analýza rizik T+1 až T+N"
+    )
+    token_usage: Optional[TokenUsageStats] = Field(
+        None, description="Metrika spotřeby tokenů pro tento dotaz"
+    )
     related_memories_count: int = 0
     created_at: datetime
 

@@ -11,13 +11,17 @@ export default {
     extend: {
       colors: {
         omnis: {
-          bg: "#080c14",
-          panel: "#0f172a",
-          border: "#1e293b",
-          primary: "#00E5FF",
-          accent: "#7C4DFF",
+          bg: "#060913",
+          surface: "#0A0F1D",
+          panel: "#0F172A",
+          card: "#141E33",
+          border: "#1E2D4A",
+          primary: "#00F0FF",
+          accent: "#A855F7",
+          secondary: "#3B82F6",
           warning: "#F59E0B",
           success: "#10B981",
+          danger: "#F43F5E",
         },
       },
     },
