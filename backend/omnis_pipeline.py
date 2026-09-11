@@ -295,21 +295,27 @@ def phase_5_impact_matrix_and_reflection(
     - Red-Teaming (penalizace -0.5 za každou kritickou zranitelnost v 0-10 škále, resp. -0.05 v 0-1 škále).
     - Vygenerování reflexivních otázek pro sebereferenční učení.
     """
+    
+    # [REFAKTORIZACE - SLABÉ MÍSTO]: Původní kód selhával, pokud LLM vrátil nečíselnou hodnotu (např. string "N/A").
+    # Přidán bezpečný parser. Také odstraněny falešně vysoké defaultní hodnoty (0.91), které lhaly o úspěšnosti, pokud API selhalo.
+    # Nyní systém padá na neutrální střed (0.5), což signalizuje nedostatek dat.
+    def safe_float(val: Any, default: float = 0.5) -> float:
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return default
+
     if raw_scores:
-        econ = float(raw_scores.get("economic_viability", 0.90))
-        tech = float(raw_scores.get("technological_elegance", 0.95))
-        eco = float(raw_scores.get("eco_social_regeneration", 0.90))
-        psych = float(raw_scores.get("psychological_acceptability", 0.92))
+        econ = safe_float(raw_scores.get("economic_viability"), 0.5)
+        tech = safe_float(raw_scores.get("technological_elegance"), 0.5)
+        eco = safe_float(raw_scores.get("eco_social_regeneration"), 0.5)
+        psych = safe_float(raw_scores.get("psychological_acceptability"), 0.5)
     else:
-        # Default verified baseline values
-        econ = 0.91
-        tech = 0.96
-        eco = 0.89
-        psych = 0.93
+        # Neutrální baseline pro případ selhání parsování - zabráníme halucinaci vysokého skóre
+        econ, tech, eco, psych = 0.5, 0.5, 0.5, 0.5
 
     vulnerabilities = parsed_vulnerabilities or [
-        "Potenciální závislost na externích síťových službách při výpadku konektivity",
-        "Nutnost kalibrace vah při změně obchodního modelu",
+        "Neznámá zranitelnost: LLM nedodalo data pro Red-Teaming.",
     ]
 
     # Weighted calculation (weights: 0.3, 0.3, 0.2, 0.2)

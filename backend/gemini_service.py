@@ -169,101 +169,127 @@ class GeminiCognitiveService:
 
         user_content = f"Ontologická doména: {ontology_domain}\n{context_block}\nDotaz uživatele: {query}"
 
+        models_to_try = [MODEL_NAME, "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
+        unique_models = []
+        for m in models_to_try:
+            if m not in unique_models:
+                unique_models.append(m)
+
         async with RATE_LIMIT_SEMAPHORE:
             if self._client:
-                try:
-                    loop = asyncio.get_running_loop()
-                    response = await loop.run_in_executor(
-                        None,
-                        lambda: self._client.models.generate_content(
-                            model=MODEL_NAME,
-                            contents=[
-                                {"role": "user", "parts": [{"text": system_prompt + "\n" + user_content}]}
-                            ],
-                        ),
-                    )
-                    raw_text = response.text or ""
-                    parsed = self._extract_json(raw_text)
-                    if parsed:
-                        assembled = assemble_omnis_cognitive_cycle(
-                            raw_query=query,
-                            ontology_domain=ontology_domain,
-                            context_memories=context_memories,
-                            gemini_parsed_response=parsed,
-                        )
-                        matrix_dict = parsed.get("impact_matrix", {})
-                        if not matrix_dict or not isinstance(matrix_dict, dict):
-                            matrix_dict = {
-                                "economic_viability": assembled.phase5.economic_viability,
-                                "technological_elegance": assembled.phase5.technological_elegance,
-                                "eco_social_regeneration": assembled.phase5.eco_social_regeneration,
-                                "psychological_acceptability": assembled.phase5.psychological_acceptability,
-                                "composite_score": assembled.phase5.composite_score,
-                                "reasoning": assembled.phase5.reasoning,
-                                "adversarial_vulnerabilities": assembled.phase5.adversarial_vulnerabilities,
-                                "leverage_point": assembled.phase2.leverage_point,
-                            }
-                        forensics_dict = None
-                        if assembled.risk_forensics:
-                            forensics_dict = {
-                                "risk_index": assembled.risk_forensics.risk_index,
-                                "risk_level": assembled.risk_forensics.risk_level,
-                                "horizon": assembled.risk_forensics.horizon,
-                                "t_plus_1_systemic_drift": assembled.risk_forensics.t_plus_1_systemic_drift,
-                                "asymmetric_failure_modes": assembled.risk_forensics.asymmetric_failure_modes,
-                                "regulatory_compliance_deltas": assembled.risk_forensics.regulatory_compliance_deltas,
-                                "thermodynamic_entropy_spike": assembled.risk_forensics.thermodynamic_entropy_spike,
-                                "identified_vectors": [
-                                    {
-                                        "domain": v.domain,
-                                        "vector": v.vector,
-                                        "severity": v.severity,
-                                        "probability": v.probability,
-                                        "mitigation": v.mitigation,
-                                        "cascade_timeline": v.cascade_timeline,
-                                        "entropy_impact": v.entropy_impact,
-                                    }
-                                    for v in assembled.risk_forensics.identified_vectors
+                for current_model in unique_models:
+                    try:
+                        loop = asyncio.get_running_loop()
+                        response = await loop.run_in_executor(
+                            None,
+                            lambda m=current_model: self._client.models.generate_content(
+                                model=m,
+                                contents=[
+                                    {"role": "user", "parts": [{"text": system_prompt + "\n" + user_content}]}
                                 ],
-                                "mitigation_directives": assembled.risk_forensics.mitigation_directives,
-                                "automatic_countermeasure_deployed": assembled.risk_forensics.automatic_countermeasure_deployed,
-                            }
-                        usage_meta = getattr(response, "usage_metadata", None)
-                        p_tokens = getattr(usage_meta, "prompt_token_count", None) or token_telemetry_service.estimate_text_tokens(system_prompt + "\n" + user_content)
-                        c_tokens = getattr(usage_meta, "candidates_token_count", None) or token_telemetry_service.estimate_text_tokens(raw_text or assembled.formatted_answer)
-                        rec = token_telemetry_service.record_usage(
-                            prompt_tokens=p_tokens,
-                            completion_tokens=c_tokens,
-                            query_preview=query,
-                            domain=ontology_domain,
+                            ),
                         )
-                        token_stats = TokenUsageStats(
-                            prompt_tokens=p_tokens,
-                            completion_tokens=c_tokens,
-                            total_tokens=p_tokens + c_tokens,
-                            cost_usd=rec.cost_usd,
-                        )
-                        return (
-                            assembled.formatted_answer,
-                            assembled.cognitive_process,
-                            assembled.follow_up_questions,
-                            ImpactMatrixScores(**matrix_dict),
-                            forensics_dict,
-                            token_stats,
-                        )
-                except Exception as exc:
-                    logger.error(f"Error during GenAI query execution: {exc}. Applying cognitive fallback.")
+                        raw_text = response.text or ""
+                        parsed = self._extract_json(raw_text)
+                        if parsed:
+                            assembled = assemble_omnis_cognitive_cycle(
+                                raw_query=query,
+                                ontology_domain=ontology_domain,
+                                context_memories=context_memories,
+                                gemini_parsed_response=parsed,
+                            )
+                            matrix_dict = parsed.get("impact_matrix", {})
+                            if not matrix_dict or not isinstance(matrix_dict, dict):
+                                matrix_dict = {
+                                    "economic_viability": assembled.phase5.economic_viability,
+                                    "technological_elegance": assembled.phase5.technological_elegance,
+                                    "eco_social_regeneration": assembled.phase5.eco_social_regeneration,
+                                    "psychological_acceptability": assembled.phase5.psychological_acceptability,
+                                    "composite_score": assembled.phase5.composite_score,
+                                    "reasoning": assembled.phase5.reasoning,
+                                    "adversarial_vulnerabilities": assembled.phase5.adversarial_vulnerabilities,
+                                    "leverage_point": assembled.phase2.leverage_point,
+                                }
+                            forensics_dict = None
+                            if assembled.risk_forensics:
+                                forensics_dict = {
+                                    "risk_index": assembled.risk_forensics.risk_index,
+                                    "risk_level": assembled.risk_forensics.risk_level,
+                                    "horizon": assembled.risk_forensics.horizon,
+                                    "t_plus_1_systemic_drift": assembled.risk_forensics.t_plus_1_systemic_drift,
+                                    "asymmetric_failure_modes": assembled.risk_forensics.asymmetric_failure_modes,
+                                    "regulatory_compliance_deltas": assembled.risk_forensics.regulatory_compliance_deltas,
+                                    "thermodynamic_entropy_spike": assembled.risk_forensics.thermodynamic_entropy_spike,
+                                    "identified_vectors": [
+                                        {
+                                            "domain": v.domain,
+                                            "vector": v.vector,
+                                            "severity": v.severity,
+                                            "probability": v.probability,
+                                            "mitigation": v.mitigation,
+                                            "cascade_timeline": v.cascade_timeline,
+                                            "entropy_impact": v.entropy_impact,
+                                        }
+                                        for v in assembled.risk_forensics.identified_vectors
+                                    ],
+                                    "mitigation_directives": assembled.risk_forensics.mitigation_directives,
+                                    "automatic_countermeasure_deployed": assembled.risk_forensics.automatic_countermeasure_deployed,
+                                }
+                            usage_meta = getattr(response, "usage_metadata", None)
+                            p_tokens = getattr(usage_meta, "prompt_token_count", None) or token_telemetry_service.estimate_text_tokens(system_prompt + "\n" + user_content)
+                            c_tokens = getattr(usage_meta, "candidates_token_count", None) or token_telemetry_service.estimate_text_tokens(raw_text or assembled.formatted_answer)
+                            rec = token_telemetry_service.record_usage(
+                                prompt_tokens=p_tokens,
+                                completion_tokens=c_tokens,
+                                query_preview=query,
+                                domain=ontology_domain,
+                            )
+                            token_stats = TokenUsageStats(
+                                prompt_tokens=p_tokens,
+                                completion_tokens=c_tokens,
+                                total_tokens=p_tokens + c_tokens,
+                                cost_usd=rec.cost_usd,
+                            )
+                            return (
+                                assembled.formatted_answer,
+                                assembled.cognitive_process,
+                                assembled.follow_up_questions,
+                                ImpactMatrixScores(**matrix_dict),
+                                forensics_dict,
+                                token_stats,
+                            )
+                    except Exception as exc:
+                        exc_str = str(exc).lower()
+                        if "429" in exc_str or "quota" in exc_str or "exhausted" in exc_str or "404" in exc_str or "not_found" in exc_str or "no longer available" in exc_str:
+                            logger.warning(f"Rate limit, quota, or availability issue for {current_model}: {exc}. Trying fallback.")
+                            continue
+                        else:
+                            logger.error(f"Error during GenAI query execution with {current_model}: {exc}. Applying cognitive fallback.")
+                            break
 
         # Fallback synthesis
         return self._synthesize_fallback(query, ontology_domain)
 
     def _extract_json(self, text_content: str) -> Optional[Dict[str, Any]]:
         """Safely extracts JSON object from response string."""
+        # [REFAKTORIZACE - SLABÉ MÍSTO]: Původní regex `\{.*\}` s re.DOTALL byl příliš naivní.
+        # Mohl zachytit i text kolem JSONu nebo markdown formátování (např. ```json ... ```), což vedlo k JSONDecodeError.
+        # Nyní nejdříve zkusíme očistit markdown bloky.
+        text_content = text_content.strip()
+        if text_content.startswith("```json"):
+            text_content = text_content[7:]
+        if text_content.startswith("```"):
+            text_content = text_content[3:]
+        if text_content.endswith("```"):
+            text_content = text_content[:-3]
+        text_content = text_content.strip()
+            
         match = re.search(r"\{.*\}", text_content, re.DOTALL)
         if match:
             try:
                 return json.loads(match.group(0))
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                logger.error(f"JSONDecodeError during extraction: {e}")
                 pass
         return None
 

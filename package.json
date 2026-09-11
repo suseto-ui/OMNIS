@@ -2,7 +2,11 @@
   "name": "omnis-platform",
   "version": "2.0.0",
   "private": true,
+  "workspaces": [
+    "frontend"
+  ],
   "scripts": {
+    "postinstall": "npm --prefix frontend install",
     "dev": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
     "build:prod": "npm --prefix frontend run build:prod",

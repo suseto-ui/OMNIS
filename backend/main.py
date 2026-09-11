@@ -183,7 +183,15 @@ async def process_user_query(
         reasoning=impact_matrix.reasoning,
     )
     db.add(metric_record)
-    await db.commit()
+    
+    # [REFAKTORIZACE - SLABÉ MÍSTO]: Pokud došlo k chybě při zápisu do databáze (např. výpadek spojení),
+    # původní kód způsobil pád celé API (500) a uživatel přišel o vygenerovanou odpověď.
+    # Nyní používáme safe commit block: při chybě se provede rollback, odpovíme uživateli, ale aspoň nepřijdeme o data v UI.
+    try:
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        logger.error(f"Chyba při zápisu konverzace do DB: {exc}. Odpověď přesto vracíme.")
 
     # Background task: embed conversation chunk for autopoietic learning
     background_content = f"Dotaz: {request.query}\nOdpověď: {answer[:300]}"
@@ -465,20 +473,32 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
-if os.path.exists(frontend_dist):
-    assets_dir = os.path.join(frontend_dist, "assets")
+
+# [REFAKTORIZACE - SLABÉ MÍSTO]: Pokud frontend nebyl vygenerován v momentě startu backendu
+# (což se stává v Docker CI/CD pipelines), tento if-block způsobil, že backend nikdy 
+# nezačal servírovat frontend, ani když se složka dist objevila později.
+# Odstraněn load-time check z hlavní route - nyní zachytáváme vše a ověřujeme existenci 
+# souboru až v době requestu.
+
+assets_dir = os.path.join(frontend_dist, "assets")
+try:
     if os.path.exists(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+except Exception:
+    pass
 
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        if full_path.startswith("api") or full_path.startswith("omnis") or full_path in ("docs", "redoc", "openapi.json"):
-            raise HTTPException(status_code=404, detail="Not Found")
-        file_path = os.path.join(frontend_dist, full_path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
-        index_file = os.path.join(frontend_dist, "index.html")
-        if os.path.exists(index_file):
-            return FileResponse(index_file)
-        raise HTTPException(status_code=404, detail="Frontend dist not found")
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa(full_path: str):
+    if full_path.startswith("api") or full_path.startswith("omnis") or full_path in ("docs", "redoc", "openapi.json"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    
+    file_path = os.path.join(frontend_dist, full_path)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+        
+    index_file = os.path.join(frontend_dist, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+        
+    raise HTTPException(status_code=404, detail="Frontend aplikace zatím nebyla zkompilována.")
 
