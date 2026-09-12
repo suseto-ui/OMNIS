@@ -169,15 +169,22 @@ class GeminiCognitiveService:
 
         user_content = f"Ontologická doména: {ontology_domain}\n{context_block}\nDotaz uživatele: {query}"
 
-        models_to_try = [MODEL_NAME, "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
+        models_to_try = [
+            MODEL_NAME,
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro"
+        ]
         unique_models = []
         for m in models_to_try:
-            if m not in unique_models:
+            if m and m not in unique_models:
                 unique_models.append(m)
 
         async with RATE_LIMIT_SEMAPHORE:
             if self._client:
-                for current_model in unique_models:
+                for idx, current_model in enumerate(unique_models):
                     try:
                         loop = asyncio.get_running_loop()
                         response = await loop.run_in_executor(
@@ -198,6 +205,13 @@ class GeminiCognitiveService:
                                 context_memories=context_memories,
                                 gemini_parsed_response=parsed,
                             )
+                            
+                            # Pokud došlo k fallbacku (použili jsme jiný než první model), přidáme info
+                            fallback_notice = ""
+                            if idx > 0:
+                                fallback_notice = f"> ⚡ **Dynamický Fallback Engine aktivován:** Primární model nedostupný. Syntéza zpracována modelem `{current_model}`.\n\n"
+                                assembled.formatted_answer = fallback_notice + assembled.formatted_answer
+                                assembled.cognitive_process = f"[SYSTEM: Switched to {current_model} due to primary unavailability]\n" + assembled.cognitive_process
                             matrix_dict = parsed.get("impact_matrix", {})
                             if not matrix_dict or not isinstance(matrix_dict, dict):
                                 matrix_dict = {

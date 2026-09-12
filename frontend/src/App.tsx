@@ -46,6 +46,7 @@ import {
 import DevPromptLab, { TokenTelemetryState } from "./DevPromptLab";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { omnisEngine } from "./omnisEngine";
+import { OctagonDashboard } from "./OctagonDashboard";
 
 // ==========================================================
 // TYPES & SCHEMAS
@@ -173,7 +174,7 @@ export default function App() {
         "Vítejte v operačním prostředí O.M.N.I.S. (Operativní Multimodální Nástroj pro Integrovanou Synergii).\n\n" +
         "Systém transformuje komplexní vstupy skrze **5 deterministických fází**:\n\n" +
         "1. **Sémantická Dekonstrukce:** Očištění problému od kognitivních zkreslení a dogmat; rozpad na prvočinitele (First Principles).\n" +
-        "2. **Transdisciplinární Křížení:** Modální překlad mezi 4 doménami (systémy, ekonomie, psychologie, ekologie) a nalezení pákového uzlového bodu (*leverage point*).\n" +
+        "2. **Transdisciplinární Křížení:** Modální překlad napříč 8 doménami Oktagonu a nalezení pákového uzlového bodu (*leverage point*).\n" +
         "3. **Okamžitý Akční Plán:** Formulace Win-Win-Win strategie s maximálním pákovým efektem při minimálním úsilí.\n" +
         "4. **Deterministická Exekuce:** Přímý kód, exaktní direktivy a systémová architektura bez zbytečného balastu (Zero-Fluff).\n" +
         "5. **Autopoietická Reflexe & 4D Matice:** Výpočet integrálního indexu (váhy 30/30/20/20), Red-Teaming penalizace a sebereferenční paměťová smyčka.",
@@ -218,7 +219,7 @@ export default function App() {
   const [enableThinking, setEnableThinking] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "chat" | "phases" | "matrix" | "forensics" | "guardrail" | "memory" | "dev_lab"
+    "chat" | "phases" | "octagon" | "matrix" | "forensics" | "guardrail" | "memory" | "dev_lab"
   >("chat");
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({
     "initial-msg": true,
@@ -231,6 +232,31 @@ export default function App() {
   const [refinePrompt, setRefinePrompt] = useState("");
   const [isRefining, setIsRefining] = useState(false);
 
+  // Hidden Dev Lab State
+  const [isDevModeUnlocked, setIsDevModeUnlocked] = useState(false);
+  const devClickCount = useRef(0);
+  const devClickTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  const handleSecretDevClick = () => {
+    if (isDevModeUnlocked) return;
+    
+    devClickCount.current += 1;
+    
+    if (devClickTimeout.current) clearTimeout(devClickTimeout.current);
+    devClickTimeout.current = setTimeout(() => {
+      devClickCount.current = 0;
+    }, 1000);
+
+    if (devClickCount.current >= 10) {
+      setIsDevModeUnlocked(true);
+      try {
+        localStorage.setItem("omnis_dev_mode", "true");
+      } catch (_) {}
+      setActiveTab("dev_lab");
+      devClickCount.current = 0;
+    }
+  };
+
   // Cumulative Token Telemetry State (Synced with Backend /api/dev/token-telemetry)
   const [tokenTelemetry, setTokenTelemetry] = useState<TokenTelemetryState>({
     cumulative_prompt_tokens: 1250,
@@ -242,15 +268,18 @@ export default function App() {
     recent_records: [],
   });
 
-  const fetchTokenTelemetry = async () => {
+  const fetchTokenTelemetry = async (signal?: AbortSignal) => {
     try {
-      const resp = await fetch("/api/dev/token-telemetry");
+      const resp = await fetch("/api/dev/token-telemetry", { signal });
       if (resp.ok) {
         const data = await resp.json();
         setTokenTelemetry(data);
+        try {
+          localStorage.setItem("omnis_telemetry_cache", JSON.stringify(data));
+        } catch (_) {}
       }
     } catch (err) {
-      console.warn("Token telemetry fetch failed:", err);
+      // Tichý fallback bez blokování
     }
   };
 
@@ -326,45 +355,78 @@ export default function App() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const fetchRealMemories = async () => {
+  const fetchRealMemories = async (signal?: AbortSignal) => {
     setLoadingMemories(true);
     try {
-      const resp = await fetch("/api/memory");
+      const resp = await fetch("/api/memory", { signal });
       if (resp.ok) {
         const data = await resp.json();
         setMemories(data);
       }
-    } catch (err) {
-      console.error("Chyba při načítání paměti z backendu:", err);
+    } catch (_) {
+      // Tichý fallback - neblokovat inicializaci UI
     } finally {
       setLoadingMemories(false);
     }
   };
 
-  const checkBackendHealth = async () => {
+  const checkBackendHealth = async (signal?: AbortSignal) => {
     const startTime = performance.now();
     try {
-      const resp = await fetch("/api/health-check");
+      const resp = await fetch("/api/health-check", { signal });
       if (resp.ok) {
         const latency = Math.max(8, Math.round(performance.now() - startTime));
         setBackendLatency(latency);
         setBackendHealth("connected");
         return;
       }
-    } catch (err) {
-      // Fallback to active client-side cognitive engine
+    } catch (_) {
+      // Okamžitý fallback na aktivní klientský Sigma-Omega engine
     }
     const latency = Math.max(12, Math.round(performance.now() - startTime));
     setBackendLatency(latency);
-    setBackendHealth("connected");
+    setBackendHealth("disconnected");
   };
 
   useEffect(() => {
-    checkBackendHealth();
-    fetchRealMemories();
-    fetchTokenTelemetry();
-    const interval = setInterval(checkBackendHealth, 30000);
-    return () => clearInterval(interval);
+    // 1. Okamžitá obnova rozepsaného konceptu a telemetrie z localStorage
+    try {
+      const savedDraft = localStorage.getItem("omnis_draft_query");
+      if (savedDraft) {
+        setInputQuery(savedDraft);
+      }
+      const savedTelemetry = localStorage.getItem("omnis_telemetry_cache");
+      if (savedTelemetry) {
+        setTokenTelemetry(JSON.parse(savedTelemetry));
+      }
+      if (localStorage.getItem("omnis_dev_mode") === "true") {
+        setIsDevModeUnlocked(true);
+      }
+    } catch (_) {}
+
+    // 2. Bleskový start: neblokující volání s pevným 1200ms limitem
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
+
+    const initFast = async () => {
+      try {
+        await Promise.allSettled([
+          checkBackendHealth(controller.signal),
+          fetchRealMemories(controller.signal),
+          fetchTokenTelemetry(controller.signal),
+        ]);
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    initFast();
+    const interval = setInterval(() => checkBackendHealth(), 30000);
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -436,6 +498,23 @@ export default function App() {
     }
   };
 
+  // systemSelfHeal: Self-healing protocol to re-synthesize response if 4D Matrix is missing
+  const systemSelfHeal = async (queryText: string, domain: string, attempt = 1): Promise<any> => {
+    try {
+      const response = await fetch("/api/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `[SELF-HEAL PROTOCOL v${attempt}]: ` + queryText,
+          ontology_domain: domain,
+          enable_thinking: enableThinking,
+        }),
+      });
+      if (response.ok) return await response.json();
+    } catch (_) {}
+    return await omnisEngine.processQuery(`[SELF-HEAL PROTOCOL v${attempt}]: ` + queryText, domain, enableThinking);
+  };
+
   // Main Query Pipeline Handler
   const handleSendQuery = async (queryToSend?: string) => {
     const text = (queryToSend || inputQuery).trim();
@@ -450,6 +529,9 @@ export default function App() {
 
     setMessages((prev) => [...prev, userMessage]);
     setInputQuery("");
+    try {
+      localStorage.removeItem("omnis_draft_query");
+    } catch (_) {}
     setIsLoading(true);
 
     try {
@@ -473,6 +555,12 @@ export default function App() {
 
       if (!data) {
         data = await omnisEngine.processQuery(text, ontologyDomain, enableThinking);
+      }
+
+      // Check if 4D matrix is missing or zero, trigger self-heal
+      if (!data.impact_matrix || data.impact_matrix.composite_score === 0) {
+        console.warn("O.M.N.I.S. Self-Heal: Empty 4D Matrix detected. Triggering re-synthesis...");
+        data = await systemSelfHeal(text, ontologyDomain);
       }
 
       const assistantMessage: MessageItem = {
@@ -519,8 +607,8 @@ export default function App() {
     }
   };
 
-  const handleRefineMessage = async (msgId: string, originalContent: string) => {
-    const instruction = refinePrompt.trim();
+  const handleRefineMessage = async (msgId: string, originalContent: string, directInstruction?: string) => {
+    const instruction = (directInstruction || refinePrompt).trim();
     if (!instruction || isRefining) return;
     setIsRefining(true);
     try {
@@ -717,14 +805,21 @@ export default function App() {
               <Menu className="w-5 h-5" />
             </button>
 
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-[#00F0FF]/20 via-[#A855F7]/20 to-[#00F0FF]/30 border border-[#00F0FF]/40 shadow-[0_0_15px_rgba(0,240,255,0.25)]">
+            <div 
+              className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-[#00F0FF]/20 via-[#A855F7]/20 to-[#00F0FF]/30 border border-[#00F0FF]/40 shadow-[0_0_15px_rgba(0,240,255,0.25)] cursor-pointer"
+              onClick={handleSecretDevClick}
+              title="O.M.N.I.S. Core"
+            >
               <Brain className="w-6 h-6 text-[#00F0FF] animate-pulse" />
               <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-[#10B981] rounded-full border-2 border-[#0A0F1D]" />
             </div>
 
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg sm:text-xl tracking-wider bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#10B981] bg-clip-text text-transparent">
+                <span 
+                  onClick={handleSecretDevClick}
+                  className="font-extrabold text-lg sm:text-xl tracking-wider bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#10B981] bg-clip-text text-transparent cursor-pointer select-none"
+                >
                   O.M.N.I.S.
                 </span>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-[#A855F7]/20 border border-[#A855F7]/40 text-[#A855F7] font-mono font-semibold hidden sm:inline-block">
@@ -771,15 +866,17 @@ export default function App() {
             </div>
 
             {/* Live Session Token Telemetry Widget */}
-            <button
-              onClick={() => setActiveTab("dev_lab")}
-              title="Klikněte pro přechod do Vývojové Laboratoře a kalkulátoru tokenů"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-950/40 border border-cyan-500/40 text-xs font-mono text-[#00F0FF] hover:border-[#00F0FF] transition-all shadow-[0_0_10px_rgba(0,240,255,0.15)]"
-            >
-              <Zap className="w-3.5 h-3.5 text-[#00F0FF]" />
-              <span className="font-bold">{tokenTelemetry.cumulative_total_tokens.toLocaleString()}</span>
-              <span className="text-[10px] text-slate-400 hidden sm:inline">tok</span>
-            </button>
+            {isDevModeUnlocked && (
+              <button
+                onClick={() => setActiveTab("dev_lab")}
+                title="Klikněte pro přechod do Vývojové Laboratoře a kalkulátoru tokenů"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-950/40 border border-cyan-500/40 text-xs font-mono text-[#00F0FF] hover:border-[#00F0FF] transition-all shadow-[0_0_10px_rgba(0,240,255,0.15)] animate-in fade-in zoom-in duration-300"
+              >
+                <Zap className="w-3.5 h-3.5 text-[#00F0FF]" />
+                <span className="font-bold">{tokenTelemetry.cumulative_total_tokens.toLocaleString()}</span>
+                <span className="text-[10px] text-slate-400 hidden sm:inline">tok</span>
+              </button>
+            )}
 
             {/* Export JSON */}
             <button
@@ -1027,7 +1124,14 @@ export default function App() {
               {[
                 { id: "chat", label: "Konzole & Chat", icon: MessageSquare, badge: null },
                 { id: "phases", label: "5 Fází O.M.N.I.S.", icon: Workflow, badge: "Architektura" },
+                { id: "octagon", label: "Transdisciplinární Oktagon", icon: Activity, badge: "Live" },
                 { id: "matrix", label: "4D Matice Dopadů", icon: BarChart3, badge: `${(latestMatrix.composite_score * 100).toFixed(0)}%` },
+                ...(isDevModeUnlocked ? [{
+                  id: "dev_lab",
+                  label: "Dev Prompt Studio & Telemetrie",
+                  icon: FlaskConical,
+                  badge: "DEV ONLY",
+                }] : []),
                 {
                   id: "forensics",
                   label: "Forenzní Analýza Rizik",
@@ -1036,12 +1140,6 @@ export default function App() {
                 },
                 { id: "guardrail", label: "Fáze IV: Guardrail", icon: ShieldCheck, badge: `${candidates.length}` },
                 { id: "memory", label: "Epistemická Paměť", icon: Database, badge: `${memories.length}` },
-                {
-                  id: "dev_lab",
-                  label: "Dev Prompt Studio & Telemetrie",
-                  icon: FlaskConical,
-                  badge: "DEV ONLY",
-                },
               ].map((t) => {
                 const IconComponent = t.icon;
                 const isActive = activeTab === t.id;
@@ -1342,33 +1440,75 @@ export default function App() {
                           </div>
                         )}
 
-                        {/* Refinement & Iteration Control */}
+                        {/* Refinement & Iteration Control with Quick 1-Click Action Chips */}
                         {!isUser && (
-                          <div className="mt-3 pt-3 border-t border-slate-800/80">
+                          <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-mono font-bold text-slate-400 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-[#00F0FF]" />
+                                Rychlé upřesnění výstupu (1-klik):
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-500">
+                                Sigma-Omega Re-synthesis
+                              </span>
+                            </div>
+
+                            {/* 1-Click Refinement Chips */}
+                            <div className="flex flex-wrap gap-1.5">
+                              {[
+                                {
+                                  label: "⚡ Zkrátit do 3 bodů",
+                                  instruction: "Přeformuluj tento výstup striktně do 3 prioritních, přímo exekuovatelných odrážek bez omáčky.",
+                                },
+                                {
+                                  label: "💻 Doplnit produkční kód",
+                                  instruction: "Doplň k tomuto řešení kompletní, funkční a typově bezpečný produkční kód (Clean Architecture / Zero-Defect).",
+                                },
+                                {
+                                  label: "💰 Finanční model a návratnost",
+                                  instruction: "Rozpracuj finanční kalkulaci, odhad marže, časovou návratnost a model nezávislého příjmu.",
+                                },
+                                {
+                                  label: "🛡️ Forenzní audit rizik",
+                                  instruction: "Proveď hloubkovou analýzu rizik a formuluj konkrétní bezpečnostní a systémové záruky.",
+                                },
+                              ].map((chip, cIdx) => (
+                                <button
+                                  key={cIdx}
+                                  disabled={isRefining}
+                                  onClick={() => handleRefineMessage(msg.id, msg.content, chip.instruction)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-[#00F0FF]/60 text-xs font-mono text-slate-300 hover:text-[#00F0FF] transition-all flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  {chip.label}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Custom Refine Toggle Button */}
                             <button
                               onClick={() => setRefiningMessageId(refiningMessageId === msg.id ? null : msg.id)}
-                              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-gradient-to-r from-cyan-950/50 to-blue-950/50 border border-cyan-500/30 text-xs font-mono text-[#00F0FF] hover:border-cyan-400 hover:bg-cyan-950/80 transition-all shadow-[0_0_10px_rgba(0,240,255,0.15)]"
+                              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-gradient-to-r from-cyan-950/40 to-blue-950/40 border border-cyan-500/30 text-xs font-mono text-[#00F0FF] hover:border-cyan-400 hover:bg-cyan-950/70 transition-all"
                             >
-                              <Sliders className="w-4 h-4 text-[#00F0FF]" />
-                              <span>{refiningMessageId === msg.id ? "Zavřít panel vylepšení" : "⚡ Vylepšit / Refaktorovat tento výstup"}</span>
+                              <Sliders className="w-3.5 h-3.5 text-[#00F0FF]" />
+                              <span>{refiningMessageId === msg.id ? "Skrýt panel vlastního pokynu" : "✏️ Zadat vlastní instrukci k úpravě"}</span>
                             </button>
 
                             {refiningMessageId === msg.id && (
-                              <div className="mt-3 p-3.5 rounded-xl bg-slate-950/90 border border-[#00F0FF]/40 space-y-3 shadow-xl">
+                              <div className="p-3 rounded-xl bg-slate-950/95 border border-[#00F0FF]/50 space-y-2.5 shadow-xl animate-in fade-in duration-200">
                                 <div className="flex items-center justify-between text-xs font-mono text-[#00F0FF]">
-                                  <span className="flex items-center gap-1.5 font-bold">
+                                  <span className="font-bold flex items-center gap-1.5">
                                     <Sparkles className="w-3.5 h-3.5 text-[#00F0FF]" />
-                                    Iterativní refaktoring výstupu O.M.N.I.S.
+                                    Vlastní instrukce pro refaktoring
                                   </span>
-                                  <span className="text-[10px] text-slate-400">Sigma-Omega Engine</span>
+                                  <span className="text-[10px] text-slate-400">Zero-Fluff Engine</span>
                                 </div>
                                 <div className="flex gap-2">
                                   <input
                                     type="text"
                                     value={refinePrompt}
                                     onChange={(e) => setRefinePrompt(e.target.value)}
-                                    placeholder="Např.: Přidej zdrojový kód v Pythonu, zkrátit do 3 bodů..."
-                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-[#00F0FF]"
+                                    placeholder="Např.: Přidej TypeScript rozhraní, vyčísli přesný cashflow plán..."
+                                    className="flex-1 bg-slate-900 border border-slate-700 focus:border-[#00F0FF] rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none"
                                   />
                                   <button
                                     onClick={() => handleRefineMessage(msg.id, msg.content)}
@@ -1383,7 +1523,7 @@ export default function App() {
                                     ) : (
                                       <>
                                         <Send className="w-3.5 h-3.5" />
-                                        <span>Aplikovat</span>
+                                        <span>Exekuovat</span>
                                       </>
                                     )}
                                   </button>
@@ -1400,9 +1540,9 @@ export default function App() {
               </div>
 
               {/* Quick Scenario Presets Bar */}
-              <div className="px-4 py-2 border-t border-slate-800/60 bg-slate-950/40 overflow-x-auto">
+              <div className="px-4 py-2.5 border-t border-slate-800/80 bg-slate-950/60 overflow-x-auto">
                 <div className="flex items-center gap-2 min-w-max">
-                  <span className="text-[11px] font-mono text-slate-400 uppercase flex items-center gap-1">
+                  <span className="text-[11px] font-mono text-[#00F0FF] uppercase flex items-center gap-1 font-bold">
                     <Sparkles className="w-3 h-3 text-[#00F0FF]" /> Rychlé scénáře:
                   </span>
                   {quickPresets.map((p, idx) => {
@@ -1411,7 +1551,7 @@ export default function App() {
                       <button
                         key={idx}
                         onClick={() => handleApplyPreset(p.prompt, p.domain)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-xs text-slate-300 hover:text-white transition-all"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-[#00F0FF]/50 text-xs text-slate-200 hover:text-white transition-all shadow-sm"
                       >
                         <IconComp className="w-3 h-3 text-[#00F0FF]" />
                         <span>{p.label}</span>
@@ -1421,8 +1561,47 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Input Area */}
-              <div className="p-4 bg-slate-950/80 border-t border-slate-800">
+              {/* Enhanced Interactive Input Console */}
+              <div className="p-3 sm:p-4 bg-[#080D1A] border-t border-slate-800/90 space-y-2">
+                {/* Control bar above textarea: Domain select, auto-save status, clear button */}
+                <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs font-mono">
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400 text-[11px]">Kognitivní doména:</span>
+                    <select
+                      value={ontologyDomain}
+                      onChange={(e) => setOntologyDomain(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 text-[#00F0FF] text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-[#00F0FF]"
+                    >
+                      <option value="SYSTEMS_INTELLIGENCE">🌐 Systémová inteligence</option>
+                      <option value="CYBERNETICS">⚙️ Kybernetika & Řízení</option>
+                      <option value="COGNITIVE_SCI">🧠 Kognitivní věda</option>
+                      <option value="BIO_ECOLOGICAL">🌱 Bio-ekologické systémy</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] text-emerald-400/80 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Auto-záloha aktivní
+                    </span>
+
+                    {inputQuery.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInputQuery("");
+                          try {
+                            localStorage.removeItem("omnis_draft_query");
+                          } catch (_) {}
+                        }}
+                        className="text-[11px] text-rose-400 hover:text-rose-300 font-mono underline"
+                      >
+                        Vymazat text
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -1434,25 +1613,33 @@ export default function App() {
                     <textarea
                       rows={2}
                       value={inputQuery}
-                      onChange={(e) => setInputQuery(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setInputQuery(val);
+                        try {
+                          localStorage.setItem("omnis_draft_query", val);
+                        } catch (_) {}
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
                           e.preventDefault();
                           handleSendQuery();
                         }
                       }}
-                      placeholder="Zadejte komplexní dotaz nebo problém pro 5-fázový cyklus O.M.N.I.S...."
-                      className="w-full bg-[#0A0F1D] border border-slate-800 focus:border-[#00F0FF] focus:ring-1 focus:ring-[#00F0FF] rounded-2xl p-3 text-sm text-slate-100 placeholder-slate-500 resize-none font-sans focus:outline-none transition-all"
+                      placeholder="Zadejte dotaz, problém nebo specifikaci (Enter pro odeslání, Shift+Enter pro nový řádek)..."
+                      className="w-full bg-[#0B132B] border border-slate-700/80 focus:border-[#00F0FF] focus:ring-1 focus:ring-[#00F0FF] rounded-xl p-3 text-sm text-slate-100 placeholder-slate-400 resize-none font-sans focus:outline-none transition-all shadow-inner"
                     />
-                    <span className="absolute bottom-2 right-3 text-[10px] font-mono text-slate-500">
-                      {inputQuery.length} znaků
-                    </span>
+                    <div className="absolute bottom-2 right-3 flex items-center gap-2 pointer-events-none">
+                      <span className="text-[10px] font-mono text-slate-400 bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-700">
+                        {inputQuery.length} znaků
+                      </span>
+                    </div>
                   </div>
 
                   <button
                     type="submit"
                     disabled={isLoading || !inputQuery.trim()}
-                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-semibold text-sm font-mono transition-all bg-gradient-to-r from-[#00F0FF] via-[#A855F7] to-[#00F0FF] hover:brightness-110 text-slate-950 font-bold shadow-[0_0_20px_rgba(0,240,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none shrink-0"
+                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm font-mono transition-all bg-gradient-to-r from-[#00F0FF] via-[#38BDF8] to-[#00F0FF] hover:brightness-110 text-slate-950 shadow-[0_0_20px_rgba(0,240,255,0.35)] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none shrink-0"
                   >
                     {isLoading ? (
                       <>
@@ -1468,6 +1655,15 @@ export default function App() {
                   </button>
                 </form>
               </div>
+            </div>
+          )}
+
+          {/* ========================================================
+              TAB: OCTAGON DASHBOARD
+             ======================================================== */}
+          {activeTab === "octagon" && (
+            <div className="flex-1 overflow-hidden min-h-0 relative">
+              <OctagonDashboard />
             </div>
           )}
 
@@ -1574,14 +1770,15 @@ export default function App() {
               </div>
 
               {/* Detailed View for Selected Phase */}
-              <div className="rounded-2xl bg-gradient-to-b from-[#111C35] to-[#0A0F1D] border border-slate-800 p-5 shadow-xl space-y-4">
-                {selectedPhaseDetail === 1 && (
-                  <div>
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
-                      <h3 className="text-base font-bold text-[#00F0FF] flex items-center gap-2 font-mono">
-                        <Filter className="w-5 h-5" />
-                        FÁZE I: Sémantická Dekonstrukce & Zero-Assumption Logika
-                      </h3>
+              <div className="rounded-2xl bg-gradient-to-b from-[#111C35] to-[#0A0F1D] border border-slate-800 p-5 shadow-xl space-y-4 overflow-hidden">
+                <div key={selectedPhaseDetail} className="animate-in fade-in slide-in-from-right-8 duration-500 fill-mode-both">
+                  {selectedPhaseDetail === 1 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                        <h3 className="text-base font-bold text-[#00F0FF] flex items-center gap-2 font-mono">
+                          <Filter className="w-5 h-5" />
+                          FÁZE I: Sémantická Dekonstrukce & Zero-Assumption Logika
+                        </h3>
                       <span className="text-xs px-2.5 py-1 rounded-full bg-[#00F0FF]/10 text-[#00F0FF] font-mono">
                         Funkce 1 aktivní
                       </span>
@@ -1828,6 +2025,7 @@ export default function App() {
                     </div>
                   </div>
                 )}
+                </div>
               </div>
             </div>
           )}

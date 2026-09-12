@@ -8,8 +8,8 @@
   "scripts": {
     "postinstall": "npm --prefix frontend install",
     "dev": "npm --prefix frontend run dev",
-    "build": "npm --prefix frontend run build",
-    "build:prod": "npm --prefix frontend run build:prod",
+    "build": "sh -c 'test -d frontend/node_modules/vite || npm --prefix frontend install; npm --prefix frontend run build'",
+    "build:prod": "sh -c 'test -d frontend/node_modules/vite || npm --prefix frontend install; npm --prefix frontend run build:prod'",
     "preview": "npm --prefix frontend run preview"
   }
 }

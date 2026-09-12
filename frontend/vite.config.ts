@@ -11,21 +11,14 @@ export default defineConfig({
     outDir: "dist",
     assetsDir: "assets",
     sourcemap: false,
-    minify: "terser",
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-      },
-      format: {
-        comments: false,
-      },
-    },
+    minify: "esbuild",
+    target: "es2022",
     rollupOptions: {
       output: {
         manualChunks: {
           vendor: ["react", "react-dom"],
           icons: ["lucide-react"],
+          engine: ["@google/genai"],
         },
       },
     },

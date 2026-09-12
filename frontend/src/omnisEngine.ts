@@ -49,7 +49,7 @@ export interface OmnisCognitiveResult {
 
 const SYSTEM_INSTRUCTION = `Jsi O.M.N.I.S. (Operativní Multimodální Nástroj pro Integrovanou Synergii), kognitivní architektura pracující v 5 deterministických fázích:
 Fáze 1: Sémantická Dekonstrukce (First Principles, identifikace a odstranění dogmat a zkreslení).
-Fáze 2: Transdisciplinární Křížení (Modální překlad mezi doménami Systémy, Ekonomie, Psychologie, Ekologie; nalezení pákového uzlového bodu - Leverage Point).
+Fáze 2: Transdisciplinární Křížení (Modální překlad napříč 8 doménami Oktagonu; nalezení pákového uzlového bodu - Leverage Point).
 Fáze 3: Okamžitý Akční Plán (Win-Win-Win strategie s maximálním pákovým efektem).
 Fáze 4: Deterministická Exekuce (Konkrétní kód, architektura, exaktní řešení bez zbytečného balastu - Zero Fluff).
 Fáze 5: Autopoietická Reflexe & 4D Matice Dopadů (Váhy: Ekonomika 0.3, Technologie 0.3, Eko-sociální dopad 0.2, Psychologie 0.2; penalizace za každou zranitelnost; reflexivní otázky).
@@ -104,9 +104,13 @@ export class OmnisEngine {
     let rawResponseText = "";
     const modelsToTry = [
       "gemini-2.5-flash",
+      "gemini-2.5-pro",
       "gemini-2.0-flash",
       "gemini-1.5-flash",
+      "gemini-1.5-pro"
     ];
+
+    let usedModel = "";
 
     if (this.apiKey) {
       for (const model of modelsToTry) {
@@ -144,6 +148,7 @@ export class OmnisEngine {
             const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text;
             if (textPart) {
               rawResponseText = textPart;
+              usedModel = model;
               break;
             }
           }
@@ -151,6 +156,11 @@ export class OmnisEngine {
           console.warn(`Model ${model} timeout or failed, falling back:`, err);
         }
       }
+    }
+
+    // Inform user in case of fallback from the primary model
+    if (usedModel && usedModel !== modelsToTry[0]) {
+       rawResponseText = `> ⚡ **Dynamický Fallback Klientského Enginu aktivován:** Primární model nedostupný. Přepnuto na záložní model \`${usedModel}\`.\n\n` + rawResponseText;
     }
 
     // If Gemini was not reachable or failed, synthesize zero-simulation deterministic response
