@@ -38,17 +38,29 @@ class OmnisViewModel(application: Application) : AndroidViewModel(application) {
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     // Simulation sliders for Impact Matrix tab
-    private val _simEconomic = MutableStateFlow(0.85f)
-    val simEconomic: StateFlow<Float> = _simEconomic.asStateFlow()
+    private val _simSys = MutableStateFlow(0.95f)
+    val simSys: StateFlow<Float> = _simSys.asStateFlow()
 
-    private val _simEcoSocial = MutableStateFlow(0.92f)
-    val simEcoSocial: StateFlow<Float> = _simEcoSocial.asStateFlow()
+    private val _simEcon = MutableStateFlow(0.88f)
+    val simEcon: StateFlow<Float> = _simEcon.asStateFlow()
 
-    private val _simTech = MutableStateFlow(0.96f)
-    val simTech: StateFlow<Float> = _simTech.asStateFlow()
-
-    private val _simPsych = MutableStateFlow(0.89f)
+    private val _simPsych = MutableStateFlow(0.91f)
     val simPsych: StateFlow<Float> = _simPsych.asStateFlow()
+
+    private val _simEco = MutableStateFlow(0.94f)
+    val simEco: StateFlow<Float> = _simEco.asStateFlow()
+
+    private val _simLaw = MutableStateFlow(0.98f)
+    val simLaw: StateFlow<Float> = _simLaw.asStateFlow()
+
+    private val _simSec = MutableStateFlow(0.99f)
+    val simSec: StateFlow<Float> = _simSec.asStateFlow()
+
+    private val _simPhys = MutableStateFlow(0.87f)
+    val simPhys: StateFlow<Float> = _simPhys.asStateFlow()
+
+    private val _simSoc = MutableStateFlow(0.90f)
+    val simSoc: StateFlow<Float> = _simSoc.asStateFlow()
 
     init {
         val db = OmnisDatabase.getDatabase(application)
@@ -66,13 +78,17 @@ class OmnisViewModel(application: Application) : AndroidViewModel(application) {
                     val initial = OmnisRecord(
                         role = "assistant",
                         content = "Vítejte v O.M.N.I.S. (Omni-Modal Network for Integrated Synthesis). Systém je aktivní v režimu přímé ontologické syntézy s reálným vyhodnocováním čtyřdimenzionální Matice dopadů.",
-                        cognitiveProcess = "1. Inicializace subsystému O.M.N.I.S.\n2. Napojení na ontologický rámec.\n3. Výpočet bazálních tenzorů: Eko=92%, Ekon=85%, Tech=96%, Psych=89%.",
+                        cognitiveProcess = "1. Inicializace subsystému O.M.N.I.S.\n2. Napojení na ontologický rámec.\n3. Výpočet bazálních tenzorů napříč 8 doménami.",
                         followUpQuestions = "Jak provázat ekonomické pobídky s ekologickou regenerací?|Jak navrhnout distribuovanou architekturu s nulovou energetickou stopou?",
-                        economicViability = 0.85f,
-                        ecoSocialRegeneration = 0.92f,
-                        technologicalElegance = 0.96f,
-                        psychologicalAcceptability = 0.89f,
-                        compositeScore = 0.905f,
+                        valSys = 0.95f,
+                        valEcon = 0.88f,
+                        valPsych = 0.91f,
+                        valEco = 0.94f,
+                        valLaw = 0.98f,
+                        valSec = 0.99f,
+                        valPhys = 0.87f,
+                        valSoc = 0.90f,
+                        compositeScore = 0.927f,
                         domain = "SYSTEMS_INTELLIGENCE"
                     )
                     repository.insert(initial)
@@ -93,10 +109,14 @@ class OmnisViewModel(application: Application) : AndroidViewModel(application) {
         _selectedDomain.value = domain
     }
 
-    fun setSimEconomic(v: Float) { _simEconomic.value = v }
-    fun setSimEcoSocial(v: Float) { _simEcoSocial.value = v }
-    fun setSimTech(v: Float) { _simTech.value = v }
+    fun setSimSys(v: Float) { _simSys.value = v }
+    fun setSimEcon(v: Float) { _simEcon.value = v }
     fun setSimPsych(v: Float) { _simPsych.value = v }
+    fun setSimEco(v: Float) { _simEco.value = v }
+    fun setSimLaw(v: Float) { _simLaw.value = v }
+    fun setSimSec(v: Float) { _simSec.value = v }
+    fun setSimPhys(v: Float) { _simPhys.value = v }
+    fun setSimSoc(v: Float) { _simSoc.value = v }
 
     fun sendQuery(customQuery: String? = null) {
         val query = (customQuery ?: _inputQuery.value).trim()
@@ -123,20 +143,28 @@ class OmnisViewModel(application: Application) : AndroidViewModel(application) {
                     content = result.answer,
                     cognitiveProcess = result.cognitiveProcess,
                     followUpQuestions = result.followUpQuestions.joinToString("|"),
-                    economicViability = result.economic,
-                    ecoSocialRegeneration = result.ecoSocial,
-                    technologicalElegance = result.technological,
-                    psychologicalAcceptability = result.psychological,
+                    valSys = result.valSys,
+                    valEcon = result.valEcon,
+                    valPsych = result.valPsych,
+                    valEco = result.valEco,
+                    valLaw = result.valLaw,
+                    valSec = result.valSec,
+                    valPhys = result.valPhys,
+                    valSoc = result.valSoc,
                     compositeScore = result.composite,
                     domain = _selectedDomain.value
                 )
                 repository.insert(asstRecord)
 
                 // Update simulation sliders to match latest result
-                _simEconomic.value = result.economic
-                _simEcoSocial.value = result.ecoSocial
-                _simTech.value = result.technological
-                _simPsych.value = result.psychological
+                _simSys.value = result.valSys
+                _simEcon.value = result.valEcon
+                _simPsych.value = result.valPsych
+                _simEco.value = result.valEco
+                _simLaw.value = result.valLaw
+                _simSec.value = result.valSec
+                _simPhys.value = result.valPhys
+                _simSoc.value = result.valSoc
             } catch (e: Exception) {
                 // Error handled gracefully
             } finally {

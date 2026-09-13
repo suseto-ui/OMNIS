@@ -37,7 +37,7 @@ steps:
       - "managed"
       - "--allow-unauthenticated"
       - "--set-env-vars"
-      - "GEMINI_MODEL=gemini-2.5-flash"
+      - "GEMINI_MODEL=gemini-3.1-pro-preview"
       - "--set-secrets"
       - "GEMINI_API_KEY=GEMINI_API_KEY:latest,DATABASE_URL=OMNIS_DATABASE_URL:latest"
       - "--memory"

@@ -13,10 +13,9 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://omnis_user:omnis_secure_pass@localhost:5432/omnis_db",
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("CRITICAL: DATABASE_URL environment variable is not set. Refusing to boot with empty/default credentials.")
 
 # Async engine with connection pooling and pre-ping
 engine = create_async_engine(

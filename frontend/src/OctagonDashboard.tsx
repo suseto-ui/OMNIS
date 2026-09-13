@@ -1,8 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { Activity, Zap, ShieldAlert, Cpu, Leaf, BrainCircuit, Landmark, Link2 } from "lucide-react";
 
+export interface OctagonMatrix {
+  sys: number;
+  econ: number;
+  psych: number;
+  eco: number;
+  law: number;
+  sec: number;
+  phys: number;
+  soc: number;
+}
+
 interface NodeTelemetry {
-  id: string;
+  id: keyof OctagonMatrix;
   label: string;
   icon: React.ElementType;
   value: number;
@@ -20,22 +31,35 @@ const DOMAINS: NodeTelemetry[] = [
   { id: "soc", label: "Socio-kulturní dynamika", icon: Activity, value: 90, color: "text-pink-400" },
 ];
 
-export const OctagonDashboard: React.FC = () => {
+interface OctagonDashboardProps {
+  matrix?: OctagonMatrix;
+}
+
+export const OctagonDashboard: React.FC<OctagonDashboardProps> = ({ matrix }) => {
   const [telemetry, setTelemetry] = useState<NodeTelemetry[]>(DOMAINS);
   const [activeNode, setActiveNode] = useState<string | null>(null);
 
-  // Live telemetry simulation for effect
+  // Sync with real data or simulate if none
   useEffect(() => {
-    const interval = setInterval(() => {
+    if (matrix) {
       setTelemetry((prev) =>
         prev.map((node) => ({
           ...node,
-          value: Math.min(100, Math.max(80, node.value + (Math.random() * 4 - 2))),
+          value: matrix[node.id] * 100, // Matrix values are 0-1, we want 0-100%
         }))
       );
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    } else {
+      const interval = setInterval(() => {
+        setTelemetry((prev) =>
+          prev.map((node) => ({
+            ...node,
+            value: Math.min(100, Math.max(80, node.value + (Math.random() * 4 - 2))),
+          }))
+        );
+      }, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [matrix]);
 
   return (
     <div className="p-4 sm:p-6 w-full h-full flex flex-col items-center justify-center space-y-8 animate-in fade-in duration-500">

@@ -58,11 +58,12 @@ app = FastAPI(
 )
 
 # CORS configuration for local development and Cloud Run deployment
+import os
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173,http://localhost:8000").split(","),
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -126,13 +127,79 @@ async def process_user_query(
             ontology_domain=request.ontology_domain,
         )
         db.add(conversation)
-        await db.flush()
+        await db.commit()
         conv_id = conversation.id
 
     # Retrieve relevant vector memories using pgvector cosine distance if possible
     context_memories: List[str] = []
     try:
         query_vec = await cognitive_service.generate_embedding(request.query)
+
+        # ==============================================================================
+        # VOLBA B: PGVECTOR SEMANTIC CACHING (BYPASS LLM)
+        # ==============================================================================
+        cache_stmt = (
+            select(VectorMemory)
+            .filter(VectorMemory.memory_type == "semantic_cache")
+            .filter(VectorMemory.embedding.cosine_distance(query_vec) < 0.02) # 98% shoda
+            .order_by(VectorMemory.embedding.cosine_distance(query_vec))
+            .limit(1)
+        )
+        cache_result = await db.execute(cache_stmt)
+        cached_record = cache_result.scalar_one_or_none()
+
+        if cached_record and cached_record.metadata_json:
+            import logging
+            logging.info(f"⚡ O.M.N.I.S. SEMANTIC CACHE HIT (Bypass Gemini LLM): {request.query}")
+            
+            c_meta = cached_record.metadata_json
+            
+            # Vytvorime kopii odpovedi, ale priradime novou message_id
+            cached_msg = Message(
+                conversation_id=conv_id,
+                role="assistant",
+                content=c_meta["answer"],
+                cognitive_thoughts=c_meta.get("cognitive_process", "") + "\n\n[⚡ EXEKUOVÁNO Z PGVECTOR SEMANTIC CACHE: 0ms LATENCE, $0 NÁKLAD]",
+                follow_up_questions=c_meta.get("follow_up_questions", []),
+            )
+            db.add(cached_msg)
+            await db.commit()
+            
+            from backend.schemas import QueryResponse, ImpactMatrixScores, ConsequenceForensicsSchema, TokenUsageStats
+            
+            im = c_meta.get("impact_matrix", {})
+            im_scores = ImpactMatrixScores(
+                sys=im.get("sys", 0.5), econ=im.get("econ", 0.5), psych=im.get("psych", 0.5),
+                eco=im.get("eco", 0.5), law=im.get("law", 0.5), sec=im.get("sec", 0.5),
+                phys=im.get("phys", 0.5), soc=im.get("soc", 0.5), composite_score=im.get("composite_score", 0.5),
+                reasoning=im.get("reasoning", "")
+            )
+            
+            cf_dict = c_meta.get("consequence_forensics", {})
+            cf_obj = None
+            if cf_dict:
+                cf_obj = ConsequenceForensicsSchema(
+                    horizon=cf_dict.get("horizon", "T+1"),
+                    risk_index=cf_dict.get("risk_index", 0.1),
+                    risk_level=cf_dict.get("risk_level", "SAFE"),
+                    identified_vectors=cf_dict.get("identified_vectors", []),
+                    t_plus_1_systemic_drift=cf_dict.get("t_plus_1_systemic_drift", ""),
+                    thermodynamic_entropy_spike=cf_dict.get("thermodynamic_entropy_spike", "")
+                )
+                
+            return QueryResponse(
+                conversation_id=conv_id,
+                message_id=cached_msg.id,
+                answer=c_meta["answer"],
+                cognitive_process=cached_msg.cognitive_thoughts,
+                follow_up_questions=cached_msg.follow_up_questions,
+                impact_matrix=im_scores,
+                consequence_forensics=cf_obj,
+                token_usage=TokenUsageStats(prompt_tokens=0, completion_tokens=0, total_tokens=0, cost_usd=0.0),
+                related_memories_count=1,
+                created_at=cached_msg.created_at
+            )
+        # ==============================================================================
         # pgvector cosine distance operator: <=>
         stmt = (
             select(VectorMemory.content)
@@ -175,10 +242,14 @@ async def process_user_query(
     metric_record = ImpactMatrixMetric(
         message_id=asst_msg.id,
         conversation_id=conv_id,
-        economic_viability=impact_matrix.economic_viability,
-        eco_social_regeneration=impact_matrix.eco_social_regeneration,
-        technological_elegance=impact_matrix.technological_elegance,
-        psychological_acceptability=impact_matrix.psychological_acceptability,
+        sys=impact_matrix.sys,
+        econ=impact_matrix.econ,
+        psych=impact_matrix.psych,
+        eco=impact_matrix.eco,
+        law=impact_matrix.law,
+        sec=impact_matrix.sec,
+        phys=impact_matrix.phys,
+        soc=impact_matrix.soc,
         composite_score=impact_matrix.composite_score,
         reasoning=impact_matrix.reasoning,
     )
@@ -195,6 +266,24 @@ async def process_user_query(
 
     # Background task: embed conversation chunk for autopoietic learning
     background_content = f"Dotaz: {request.query}\nOdpověď: {answer[:300]}"
+
+    # ==============================================================================
+    # CACHE MISS -> UKLÁDÁNÍ DO SEMANTIC CACHE
+    # ==============================================================================
+    cache_meta = {
+        "answer": answer,
+        "cognitive_process": thoughts,
+        "follow_up_questions": follow_ups,
+        "impact_matrix": impact_matrix.model_dump() if impact_matrix else {},
+        "consequence_forensics": consequence_forensics.model_dump() if consequence_forensics else {}
+    }
+    background_tasks.add_task(
+        background_record_vector_memory,
+        conversation_id=conv_id,
+        content=request.query, # Klicem pro vyhledavani je samotny uzivatelsky dotaz
+        memory_type="semantic_cache",
+        metadata_json=cache_meta
+    )
     background_tasks.add_task(
         background_record_vector_memory,
         conversation_id=conv_id,
@@ -277,16 +366,38 @@ async def submit_feedback(
         result = await db.execute(stmt)
         metric = result.scalar_one_or_none()
         if metric:
-            metric.economic_viability = payload.adjusted_matrix.economic_viability
-            metric.eco_social_regeneration = payload.adjusted_matrix.eco_social_regeneration
-            metric.technological_elegance = payload.adjusted_matrix.technological_elegance
-            metric.psychological_acceptability = payload.adjusted_matrix.psychological_acceptability
+            metric.sys = payload.adjusted_matrix.sys
+            metric.econ = payload.adjusted_matrix.econ
+            metric.psych = payload.adjusted_matrix.psych
+            metric.eco = payload.adjusted_matrix.eco
+            metric.law = payload.adjusted_matrix.law
+            metric.sec = payload.adjusted_matrix.sec
+            metric.phys = payload.adjusted_matrix.phys
+            metric.soc = payload.adjusted_matrix.soc
             metric.composite_score = payload.adjusted_matrix.composite_score
             metric.reasoning = payload.adjusted_matrix.reasoning
             await db.commit()
 
     # Log autopoietic feedback memory
     fb_text = payload.feedback_text or f"Hodnocení valence: {payload.user_rating}/5"
+
+    # ==============================================================================
+    # CACHE MISS -> UKLÁDÁNÍ DO SEMANTIC CACHE
+    # ==============================================================================
+    cache_meta = {
+        "answer": answer,
+        "cognitive_process": thoughts,
+        "follow_up_questions": follow_ups,
+        "impact_matrix": impact_matrix.model_dump() if impact_matrix else {},
+        "consequence_forensics": consequence_forensics.model_dump() if consequence_forensics else {}
+    }
+    background_tasks.add_task(
+        background_record_vector_memory,
+        conversation_id=conv_id,
+        content=request.query, # Klicem pro vyhledavani je samotny uzivatelsky dotaz
+        memory_type="semantic_cache",
+        metadata_json=cache_meta
+    )
     background_tasks.add_task(
         background_record_vector_memory,
         conversation_id=payload.conversation_id,
@@ -344,6 +455,24 @@ async def ingest_epistemic_data(
         f"Entity: {payload.omnis_entity_id} | Purpose: {payload.fundamental_purpose} | "
         f"Hard: {list(payload.epistemic_data_layer.hard_data.parameters.keys())} | "
         f"Soft: {list(payload.epistemic_data_layer.soft_data.parameters.keys())}"
+    )
+
+    # ==============================================================================
+    # CACHE MISS -> UKLÁDÁNÍ DO SEMANTIC CACHE
+    # ==============================================================================
+    cache_meta = {
+        "answer": answer,
+        "cognitive_process": thoughts,
+        "follow_up_questions": follow_ups,
+        "impact_matrix": impact_matrix.model_dump() if impact_matrix else {},
+        "consequence_forensics": consequence_forensics.model_dump() if consequence_forensics else {}
+    }
+    background_tasks.add_task(
+        background_record_vector_memory,
+        conversation_id=conv_id,
+        content=request.query, # Klicem pro vyhledavani je samotny uzivatelsky dotaz
+        memory_type="semantic_cache",
+        metadata_json=cache_meta
     )
     background_tasks.add_task(
         background_record_vector_memory,

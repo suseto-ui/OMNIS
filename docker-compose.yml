@@ -37,7 +37,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://omnis_user:omnis_secure_pass@db:5432/omnis_db
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      GEMINI_MODEL: gemini-2.5-flash
+      GEMINI_MODEL: gemini-3.1-pro-preview
       PORT: 8000
     ports:
       - "8000:8000"

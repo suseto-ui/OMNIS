@@ -22,7 +22,7 @@ logger.setLevel(logging.INFO)
 RATE_LIMIT_SEMAPHORE = asyncio.Semaphore(10)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
 EMBEDDING_MODEL = "text-embedding-004"
 
 
@@ -171,11 +171,12 @@ class GeminiCognitiveService:
 
         models_to_try = [
             MODEL_NAME,
-            "gemini-2.5-flash",
+            "gemini-3.1-pro-preview",
+            "gemini-3.1-flash",
+            "gemini-3.0-pro",
             "gemini-2.5-pro",
+            "gemini-2.5-flash",
             "gemini-2.0-flash",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro"
         ]
         unique_models = []
         for m in models_to_try:
@@ -215,10 +216,14 @@ class GeminiCognitiveService:
                             matrix_dict = parsed.get("impact_matrix", {})
                             if not matrix_dict or not isinstance(matrix_dict, dict):
                                 matrix_dict = {
-                                    "economic_viability": assembled.phase5.economic_viability,
-                                    "technological_elegance": assembled.phase5.technological_elegance,
-                                    "eco_social_regeneration": assembled.phase5.eco_social_regeneration,
-                                    "psychological_acceptability": assembled.phase5.psychological_acceptability,
+                                    "sys": assembled.phase5.sys,
+                                    "econ": assembled.phase5.econ,
+                                    "psych": assembled.phase5.psych,
+                                    "eco": assembled.phase5.eco,
+                                    "law": assembled.phase5.law,
+                                    "sec": assembled.phase5.sec,
+                                    "phys": assembled.phase5.phys,
+                                    "soc": assembled.phase5.soc,
                                     "composite_score": assembled.phase5.composite_score,
                                     "reasoning": assembled.phase5.reasoning,
                                     "adversarial_vulnerabilities": assembled.phase5.adversarial_vulnerabilities,
@@ -326,14 +331,18 @@ class GeminiCognitiveService:
 
         follow_ups = [
             "Jak nakonfigurovat GEMINI_API_KEY v AI Studio?",
-            "Jak ověřit spojení s modelem gemini-2.5-flash?",
+            "Jak ověřit spojení s modelem gemini-3.1-pro-preview?",
         ]
 
         matrix = ImpactMatrixScores(
-            economic_viability=0.0,
-            eco_social_regeneration=0.0,
-            technological_elegance=0.0,
-            psychological_acceptability=0.0,
+            sys=0.0,
+            econ=0.0,
+            psych=0.0,
+            eco=0.0,
+            law=0.0,
+            sec=0.0,
+            phys=0.0,
+            soc=0.0,
             composite_score=0.0,
             reasoning="Skóre nebylo kalkulováno: absentuje spojení s modelem. Falešná simulace je zakázána.",
             adversarial_vulnerabilities=["Systém neběží v plném produkčním módu"],

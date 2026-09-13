@@ -71,10 +71,14 @@ fun OmnisMainScreen(viewModel: OmnisViewModel) {
     val inputQuery by viewModel.inputQuery.collectAsStateWithLifecycle()
     val selectedDomain by viewModel.selectedDomain.collectAsStateWithLifecycle()
 
-    val simEconomic by viewModel.simEconomic.collectAsStateWithLifecycle()
-    val simEcoSocial by viewModel.simEcoSocial.collectAsStateWithLifecycle()
-    val simTech by viewModel.simTech.collectAsStateWithLifecycle()
+    val simSys by viewModel.simSys.collectAsStateWithLifecycle()
+    val simEcon by viewModel.simEcon.collectAsStateWithLifecycle()
     val simPsych by viewModel.simPsych.collectAsStateWithLifecycle()
+    val simEco by viewModel.simEco.collectAsStateWithLifecycle()
+    val simLaw by viewModel.simLaw.collectAsStateWithLifecycle()
+    val simSec by viewModel.simSec.collectAsStateWithLifecycle()
+    val simPhys by viewModel.simPhys.collectAsStateWithLifecycle()
+    val simSoc by viewModel.simSoc.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = Modifier
@@ -178,7 +182,7 @@ fun OmnisMainScreen(viewModel: OmnisViewModel) {
                     selected = activeTab == OmnisTab.MATRIX,
                     onClick = { viewModel.setTab(OmnisTab.MATRIX) },
                     icon = { Icon(Icons.Default.Info, contentDescription = "Matice Dopadů") },
-                    label = { Text("Matice (4D)", fontSize = 12.sp) },
+                    label = { Text("Matice (8D)", fontSize = 12.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = OmnisCyan,
                         selectedTextColor = OmnisCyan,
@@ -222,15 +226,23 @@ fun OmnisMainScreen(viewModel: OmnisViewModel) {
                 )
                 OmnisTab.MATRIX -> MatrixView(
                     latestRecord = records.lastOrNull { it.role == "assistant" },
-                    simEconomic = simEconomic,
-                    simEcoSocial = simEcoSocial,
-                    simTech = simTech,
+                    simSys = simSys,
+                    simEcon = simEcon,
                     simPsych = simPsych,
-                    onSimChange = { eco, ecoSoc, tech, psych ->
-                        viewModel.setSimEconomic(eco)
-                        viewModel.setSimEcoSocial(ecoSoc)
-                        viewModel.setSimTech(tech)
+                    simEco = simEco,
+                    simLaw = simLaw,
+                    simSec = simSec,
+                    simPhys = simPhys,
+                    simSoc = simSoc,
+                    onSimChange = { sys, econ, psych, eco, law, sec, phys, soc ->
+                        viewModel.setSimSys(sys)
+                        viewModel.setSimEcon(econ)
                         viewModel.setSimPsych(psych)
+                        viewModel.setSimEco(eco)
+                        viewModel.setSimLaw(law)
+                        viewModel.setSimSec(sec)
+                        viewModel.setSimPhys(phys)
+                        viewModel.setSimSoc(soc)
                     }
                 )
                 OmnisTab.MEMORY -> MemoryView(records = records)
@@ -458,17 +470,22 @@ fun ChatMessageItem(record: OmnisRecord, onQuickQuery: (String) -> Unit) {
                     lineHeight = 19.sp
                 )
 
-                // 4-Dimension Metric Badges
+                // 8-Dimension Metric Badges
                 if (!isUser && record.compositeScore > 0f) {
                     Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        MetricPill(label = "Ekon", value = record.economicViability, color = OmnisEmerald)
-                        MetricPill(label = "Ekol", value = record.ecoSocialRegeneration, color = Color(0xFF2DD4BF))
-                        MetricPill(label = "Tech", value = record.technologicalElegance, color = OmnisCyan)
-                        MetricPill(label = "Psych", value = record.psychologicalAcceptability, color = OmnisViolet)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            MetricPill("Sys", record.valSys, Color(0xFF60A5FA))
+                            MetricPill("Econ", record.valEcon, Color(0xFFFBBF24))
+                            MetricPill("Psych", record.valPsych, Color(0xFFC084FC))
+                            MetricPill("Eco", record.valEco, Color(0xFF34D399))
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            MetricPill("Law", record.valLaw, Color(0xFFFB7185))
+                            MetricPill("Sec", record.valSec, Color(0xFFEF4444))
+                            MetricPill("Phys", record.valPhys, Color(0xFFFB923C))
+                            MetricPill("Soc", record.valSoc, Color(0xFFF472B6))
+                        }
                     }
                 }
 
@@ -527,13 +544,17 @@ fun MetricPill(label: String, value: Float, color: Color) {
 @Composable
 fun MatrixView(
     latestRecord: OmnisRecord?,
-    simEconomic: Float,
-    simEcoSocial: Float,
-    simTech: Float,
+    simSys: Float,
+    simEcon: Float,
     simPsych: Float,
-    onSimChange: (Float, Float, Float, Float) -> Unit
+    simEco: Float,
+    simLaw: Float,
+    simSec: Float,
+    simPhys: Float,
+    simSoc: Float,
+    onSimChange: (Float, Float, Float, Float, Float, Float, Float, Float) -> Unit
 ) {
-    val composite = (simEconomic + simEcoSocial + simTech + simPsych) / 4f
+    val composite = (simSys + simEcon + simPsych + simEco + simLaw + simSec + simPhys + simSoc) / 8f
     val animatedComposite by animateFloatAsState(targetValue = composite, label = "composite")
 
     LazyColumn(
@@ -557,7 +578,7 @@ fun MatrixView(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "ČTYŘDIMENZIONÁLNÍ MATICE DOPADŮ",
+                        text = "OSMIDIMENZIONÁLNÍ MATICE DOPADŮ",
                         color = OmnisCyan,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -581,7 +602,7 @@ fun MatrixView(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Systémová rovnováha mezi ekonomickou životaschopností, ekologickou regenerací, technologickou elegancí a lidskou akceptací.",
+                        text = "Systémová rovnováha napříč 8 transdisciplinárními doménami.",
                         color = OmnisTextMuted,
                         fontSize = 12.sp,
                         lineHeight = 16.sp
@@ -590,7 +611,7 @@ fun MatrixView(
             }
         }
 
-        // 4 Dimension Interactive Sliders
+        // 8 Dimension Interactive Sliders
         item {
             Text(
                 text = "INTERAKTIVNÍ CO-KDYŽ SIMULACE",
@@ -603,45 +624,89 @@ fun MatrixView(
 
         item {
             DimensionSliderCard(
-                title = "Ekonomická Životaschopnost",
+                title = "Systémové inženýrství & Kybernetika",
+                desc = "Modularita, robustnost a čistota architektury",
+                value = simSys,
+                color = Color(0xFF60A5FA),
+                testTag = "slider_sys",
+                onValueChange = { onSimChange(it, simEcon, simPsych, simEco, simLaw, simSec, simPhys, simSoc) }
+            )
+        }
+
+        item {
+            DimensionSliderCard(
+                title = "Teorie her & Ekonomie",
                 desc = "Efektivita nákladů a návratnost investice",
-                value = simEconomic,
-                color = OmnisEmerald,
-                testTag = "slider_economic",
-                onValueChange = { onSimChange(it, simEcoSocial, simTech, simPsych) }
+                value = simEcon,
+                color = Color(0xFFFBBF24),
+                testTag = "slider_econ",
+                onValueChange = { onSimChange(simSys, it, simPsych, simEco, simLaw, simSec, simPhys, simSoc) }
             )
         }
 
         item {
             DimensionSliderCard(
-                title = "Ekologicko-Sociální Regenerace",
-                desc = "Udržitelnost a regenerativní potenciál biosféry",
-                value = simEcoSocial,
-                color = Color(0xFF2DD4BF),
-                testTag = "slider_ecosocial",
-                onValueChange = { onSimChange(simEconomic, it, simTech, simPsych) }
-            )
-        }
-
-        item {
-            DimensionSliderCard(
-                title = "Technologická Elegance",
-                desc = "Modularita, robustnost a čistota kódu",
-                value = simTech,
-                color = OmnisCyan,
-                testTag = "slider_tech",
-                onValueChange = { onSimChange(simEconomic, simEcoSocial, it, simPsych) }
-            )
-        }
-
-        item {
-            DimensionSliderCard(
-                title = "Psychologická Přijatelnost",
+                title = "Kognitivní vědy & Psychologie",
                 desc = "Etika, transparentnost a důvěra operátora",
                 value = simPsych,
-                color = OmnisViolet,
+                color = Color(0xFFC084FC),
                 testTag = "slider_psych",
-                onValueChange = { onSimChange(simEconomic, simEcoSocial, simTech, it) }
+                onValueChange = { onSimChange(simSys, simEcon, it, simEco, simLaw, simSec, simPhys, simSoc) }
+            )
+        }
+
+        item {
+            DimensionSliderCard(
+                title = "Regenerativní Ekologie",
+                desc = "Udržitelnost a regenerativní potenciál biosféry",
+                value = simEco,
+                color = Color(0xFF34D399),
+                testTag = "slider_eco",
+                onValueChange = { onSimChange(simSys, simEcon, simPsych, it, simLaw, simSec, simPhys, simSoc) }
+            )
+        }
+
+        item {
+            DimensionSliderCard(
+                title = "Regulace & Právo",
+                desc = "Soulad s legislativou a normami",
+                value = simLaw,
+                color = Color(0xFFFB7185),
+                testTag = "slider_law",
+                onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, it, simSec, simPhys, simSoc) }
+            )
+        }
+
+        item {
+            DimensionSliderCard(
+                title = "Zero-Trust Bezpečnost",
+                desc = "Ochrana perimetru a mitigace rizik",
+                value = simSec,
+                color = Color(0xFFEF4444),
+                testTag = "slider_sec",
+                onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, simLaw, it, simPhys, simSoc) }
+            )
+        }
+
+        item {
+            DimensionSliderCard(
+                title = "Fyzikální termodynamika",
+                desc = "Energetická entropie a fyzikální mantinely",
+                value = simPhys,
+                color = Color(0xFFFB923C),
+                testTag = "slider_phys",
+                onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, simLaw, simSec, it, simSoc) }
+            )
+        }
+
+        item {
+            DimensionSliderCard(
+                title = "Socio-kulturní dynamika",
+                desc = "Dopad na kulturní a sociální struktury",
+                value = simSoc,
+                color = Color(0xFFF472B6),
+                testTag = "slider_soc",
+                onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, simLaw, simSec, simPhys, it) }
             )
         }
     }

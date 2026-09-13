@@ -155,10 +155,14 @@ class ImpactMatrixMetric(Base):
         nullable=False,
         index=True,
     )
-    economic_viability: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
-    eco_social_regeneration: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
-    technological_elegance: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
-    psychological_acceptability: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    sys: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    econ: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    psych: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    eco: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    law: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    sec: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    phys: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    soc: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     composite_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     reasoning: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(

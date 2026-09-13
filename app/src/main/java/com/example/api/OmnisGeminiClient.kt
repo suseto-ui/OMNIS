@@ -17,10 +17,14 @@ data class SynthesisResult(
     val answer: String,
     val cognitiveProcess: String,
     val followUpQuestions: List<String>,
-    val economic: Float,
-    val ecoSocial: Float,
-    val technological: Float,
-    val psychological: Float,
+    val valSys: Float,
+    val valEcon: Float,
+    val valPsych: Float,
+    val valEco: Float,
+    val valLaw: Float,
+    val valSec: Float,
+    val valPhys: Float,
+    val valSoc: Float,
     val composite: Float
 )
 
@@ -55,7 +59,7 @@ object OmnisGeminiClient {
                        - Fáze I: Holomorfní Sběr
                        - Fáze II: Sémantická Dekonstrukce
                        - Fáze III: Transdisciplinární Křížení (modální překlad, uzlové body)
-                       - Fáze IV: Synergická Konvergence (Matice dopadů: 0.3/0.3/0.2/0.2)
+                       - Fáze IV: Synergická Konvergence (Matice dopadů v 8 doménách)
                        - Fáze V: Teleologická Exekuce & Autopoieza
                     </core_invariants>
                     
@@ -64,11 +68,15 @@ object OmnisGeminiClient {
                       "cognitiveProcess": "Pětifázový kognitivní postup...",
                       "answer": "Exekuční odpověď...",
                       "followUpQuestions": ["Reflexivní otázka 1?", "Reflexivní otázka 2?"],
-                      "economic": 0.88,
-                      "ecoSocial": 0.94,
-                      "technological": 0.96,
-                      "psychological": 0.91,
-                      "composite": 0.924
+                      "valSys": 0.95,
+                      "valEcon": 0.88,
+                      "valPsych": 0.91,
+                      "valEco": 0.94,
+                      "valLaw": 0.98,
+                      "valSec": 0.99,
+                      "valPhys": 0.87,
+                      "valSoc": 0.90,
+                      "composite": 0.927
                     }
                     
                     Dotaz v doméně [$domain]: $query
@@ -124,21 +132,23 @@ object OmnisGeminiClient {
                             answer = parsed.optString("answer", text),
                             cognitiveProcess = parsed.optString("cognitiveProcess", "Pětifázová kognitivní syntéza O.M.N.I.S. byla úspěšně provedena."),
                             followUpQuestions = if (questions.isNotEmpty()) questions else defaultFollowUps(),
-                            economic = parsed.optDouble("economic", 0.85).toFloat(),
-                            ecoSocial = parsed.optDouble("ecoSocial", 0.90).toFloat(),
-                            technological = parsed.optDouble("technological", 0.95).toFloat(),
-                            psychological = parsed.optDouble("psychological", 0.88).toFloat(),
-                            composite = parsed.optDouble("composite", 0.895).toFloat()
+                            valSys = parsed.optDouble("valSys", 0.95).toFloat(),
+                            valEcon = parsed.optDouble("valEcon", 0.88).toFloat(),
+                            valPsych = parsed.optDouble("valPsych", 0.91).toFloat(),
+                            valEco = parsed.optDouble("valEco", 0.94).toFloat(),
+                            valLaw = parsed.optDouble("valLaw", 0.98).toFloat(),
+                            valSec = parsed.optDouble("valSec", 0.99).toFloat(),
+                            valPhys = parsed.optDouble("valPhys", 0.87).toFloat(),
+                            valSoc = parsed.optDouble("valSoc", 0.90).toFloat(),
+                            composite = parsed.optDouble("composite", 0.927).toFloat()
                         )
                     } else {
                         return@withContext SynthesisResult(
                             answer = "Gemini API vrátilo prázdnou odpověď. Žádná simulovaná data nebyla vygenerována.",
                             cognitiveProcess = "Chyba: Prázdný seznam kandidátů v odpovědi modelu.",
                             followUpQuestions = defaultFollowUps(),
-                            economic = 0.0f,
-                            ecoSocial = 0.0f,
-                            technological = 0.0f,
-                            psychological = 0.0f,
+                            valSys = 0.0f, valEcon = 0.0f, valPsych = 0.0f, valEco = 0.0f,
+                            valLaw = 0.0f, valSec = 0.0f, valPhys = 0.0f, valSoc = 0.0f,
                             composite = 0.0f
                         )
                     }
@@ -149,10 +159,8 @@ object OmnisGeminiClient {
                         answer = "Chyba Gemini API (HTTP $errCode): $errMsg. Aplikace striktně odmítá vracet fiktivní simulace.",
                         cognitiveProcess = "HTTP volání selhalo s kódem $errCode.",
                         followUpQuestions = listOf("Zkontrolovat kvótu API v Google Cloud Console?", "Ověřit platnost GEMINI_API_KEY?"),
-                        economic = 0.0f,
-                        ecoSocial = 0.0f,
-                        technological = 0.0f,
-                        psychological = 0.0f,
+                        valSys = 0.0f, valEcon = 0.0f, valPsych = 0.0f, valEco = 0.0f,
+                        valLaw = 0.0f, valSec = 0.0f, valPhys = 0.0f, valSoc = 0.0f,
                         composite = 0.0f
                     )
                 }
@@ -161,10 +169,8 @@ object OmnisGeminiClient {
                     answer = "Chyba při komunikaci s modelem: ${e.localizedMessage ?: "Síťová výjimka"}. Žádná simulovaná data nejsou vrácena.",
                     cognitiveProcess = "Výjimka: ${e.javaClass.simpleName} - ${e.message}",
                     followUpQuestions = listOf("Zkontrolovat připojení k internetu?", "Zkusit dotaz znovu?"),
-                    economic = 0.0f,
-                    ecoSocial = 0.0f,
-                    technological = 0.0f,
-                    psychological = 0.0f,
+                    valSys = 0.0f, valEcon = 0.0f, valPsych = 0.0f, valEco = 0.0f,
+                    valLaw = 0.0f, valSec = 0.0f, valPhys = 0.0f, valSoc = 0.0f,
                     composite = 0.0f
                 )
             }
@@ -174,10 +180,8 @@ object OmnisGeminiClient {
             answer = "GEMINI_API_KEY není nakonfigurován v projektu. Pro spuštění reálné produkční syntézy O.M.N.I.S. zadejte svůj API klíč do panelu Secrets v AI Studio. Aplikace striktně zakazuje generování falešných simulací.",
             cognitiveProcess = "Systém O.M.N.I.S. vyžaduje reálný GEMINI_API_KEY. Všechny fiktivní simulace byly v souladu s architekturou odstraněny.",
             followUpQuestions = listOf("Jak vložit GEMINI_API_KEY do panelu Secrets?", "Kde získat Gemini API klíč?"),
-            economic = 0.0f,
-            ecoSocial = 0.0f,
-            technological = 0.0f,
-            psychological = 0.0f,
+            valSys = 0.0f, valEcon = 0.0f, valPsych = 0.0f, valEco = 0.0f,
+            valLaw = 0.0f, valSec = 0.0f, valPhys = 0.0f, valSoc = 0.0f,
             composite = 0.0f
         )
     }

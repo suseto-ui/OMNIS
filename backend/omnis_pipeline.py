@@ -52,11 +52,15 @@ class Phase4Result:
 
 @dataclass
 class Phase5Result:
-    """Fáze V: 4D Matice dopadů, Red-Teaming a reflexe."""
-    economic_viability: float
-    technological_elegance: float
-    eco_social_regeneration: float
-    psychological_acceptability: float
+    """Fáze V: 8D Matice dopadů, Red-Teaming a reflexe."""
+    sys: float
+    econ: float
+    psych: float
+    eco: float
+    law: float
+    sec: float
+    phys: float
+    soc: float
     composite_score: float
     adversarial_vulnerabilities: List[str]
     reasoning: str
@@ -286,12 +290,8 @@ def phase_5_impact_matrix_and_reflection(
     parsed_vulnerabilities: Optional[List[str]] = None,
 ) -> Phase5Result:
     """
-    FUNKCE 5: Autopoietická reflexe & 4D Matice dopadů
-    - Výpočet kompozitního skóre s váhami:
-        Ekonomická životaschopnost: 0.3
-        Technologická elegance: 0.3
-        Ekologicko-sociální regenerace: 0.2
-        Psychologická přijatelnost: 0.2
+    FUNKCE 5: Autopoietická reflexe & 8D Matice dopadů
+    - Výpočet kompozitního skóre s rovnoměrnými vahami (12.5 % na doménu) přes 8 domén.
     - Red-Teaming (penalizace -0.5 za každou kritickou zranitelnost v 0-10 škále, resp. -0.05 v 0-1 škále).
     - Vygenerování reflexivních otázek pro sebereferenční učení.
     """
@@ -306,27 +306,31 @@ def phase_5_impact_matrix_and_reflection(
             return default
 
     if raw_scores:
-        econ = safe_float(raw_scores.get("economic_viability"), 0.5)
-        tech = safe_float(raw_scores.get("technological_elegance"), 0.5)
-        eco = safe_float(raw_scores.get("eco_social_regeneration"), 0.5)
-        psych = safe_float(raw_scores.get("psychological_acceptability"), 0.5)
+        sys = safe_float(raw_scores.get("sys"), 0.5)
+        econ = safe_float(raw_scores.get("econ"), 0.5)
+        psych = safe_float(raw_scores.get("psych"), 0.5)
+        eco = safe_float(raw_scores.get("eco"), 0.5)
+        law = safe_float(raw_scores.get("law"), 0.5)
+        sec = safe_float(raw_scores.get("sec"), 0.5)
+        phys = safe_float(raw_scores.get("phys"), 0.5)
+        soc = safe_float(raw_scores.get("soc"), 0.5)
     else:
         # Neutrální baseline pro případ selhání parsování - zabráníme halucinaci vysokého skóre
-        econ, tech, eco, psych = 0.5, 0.5, 0.5, 0.5
+        sys, econ, psych, eco, law, sec, phys, soc = [0.5] * 8
 
     vulnerabilities = parsed_vulnerabilities or [
         "Neznámá zranitelnost: LLM nedodalo data pro Red-Teaming.",
     ]
 
-    # Weighted calculation (weights: 0.3, 0.3, 0.2, 0.2)
-    weighted_sum = (econ * 0.3) + (tech * 0.3) + (eco * 0.2) + (psych * 0.2)
+    # Weighted calculation (equal weights 1/8)
+    sum_scores = sys + econ + psych + eco + law + sec + phys + soc
+    weighted_sum = sum_scores / 8.0
     # Scaled penalty (e.g. 0.02 per identified vulnerability in 0..1 scale)
     penalty = len(vulnerabilities) * 0.02
     composite = max(0.0, min(1.0, round(weighted_sum - penalty, 3)))
 
     reasoning = (
-        f"Matice dopadů: Ekonomika ({round(econ, 2)} * 0.3) + Technologie ({round(tech, 2)} * 0.3) + "
-        f"Eko-Sociální ({round(eco, 2)} * 0.2) + Psychologie ({round(psych, 2)} * 0.2) "
+        f"Matice dopadů: 8 domén Oktagonu (průměr {round(weighted_sum * 100, 1)}%) "
         f"- Penalizace ({round(penalty, 3)}) = Kompozitní index {composite}."
     )
 
@@ -337,10 +341,14 @@ def phase_5_impact_matrix_and_reflection(
     ]
 
     return Phase5Result(
-        economic_viability=round(econ, 3),
-        technological_elegance=round(tech, 3),
-        eco_social_regeneration=round(eco, 3),
-        psychological_acceptability=round(psych, 3),
+        sys=round(sys, 3),
+        econ=round(econ, 3),
+        psych=round(psych, 3),
+        eco=round(eco, 3),
+        law=round(law, 3),
+        sec=round(sec, 3),
+        phys=round(phys, 3),
+        soc=round(soc, 3),
         composite_score=composite,
         adversarial_vulnerabilities=vulnerabilities,
         reasoning=reasoning,
@@ -446,7 +454,7 @@ def assemble_omnis_cognitive_cycle(
             + "\n".join(f"{i+1}. {step}" for i, step in enumerate(p3.strategic_milestones))
             + f"\n\n### 4. Výstup & Exekuce\n"
             f"```{p4.artifact_type}\n{p4.concrete_output}\n```\n\n"
-            f"### 5. Autopoietická reflexe & 4D Matice dopadů\n"
+            f"### 5. Autopoietická reflexe & 8D Matice dopadů\n"
             f"- **Kompozitní index harmonie:** {p5.composite_score * 100:.1f} %\n"
             f"- **Zdůvodnění:** {p5.reasoning}\n"
             f"- **Identifikované zranitelnosti:** {', '.join(p5.adversarial_vulnerabilities)}\n\n"
@@ -462,7 +470,7 @@ def assemble_omnis_cognitive_cycle(
         f"[Fáze II]: Nalezen pákový bod -> {p2.leverage_point}\n"
         f"[Fáze III]: Formulován Win-Win-Win plán ({p3.effort_to_leverage_ratio}).\n"
         f"[Fáze IV]: Vygenerován deterministický artefakt typu '{p4.artifact_type}'.\n"
-        f"[Fáze V]: Spočtena 4D Matice s kompozitním skóre {p5.composite_score}.\n"
+        f"[Fáze V]: Spočtena 8D Matice s kompozitním skóre {p5.composite_score}.\n"
         f"[Forenzní analýza]: Vyhodnoceny T+1..T+N kaskády (Rizikový index: {risk_results.risk_index}, Úroveň: {risk_results.risk_level})."
     )
 
