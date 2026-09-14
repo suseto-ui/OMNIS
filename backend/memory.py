@@ -35,7 +35,9 @@ async def background_record_vector_memory(
             await session.commit()
             logger.info(f"Background vector memory stored for conversation {conversation_id}")
     except Exception as exc:
-        logger.error(f"Failed to record background vector memory: {exc}")
+        # Log full exception with stacktrace for debugging and telemetry
+        logger.exception("Failed to record background vector memory: %s", exc)
+
 
 @memory_router.get("/memory", response_model=List[MemoryItem])
 async def list_memories(
@@ -46,6 +48,7 @@ async def list_memories(
     result = await db.execute(stmt)
     records = result.scalars().all()
     return [MemoryItem.model_validate(r) for r in records]
+
 
 @memory_router.get("/conversations", response_model=List[ConversationDetail])
 async def list_conversations(
