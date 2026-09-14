@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Keep generated Moshi models used for API contracts across release builds.
+-keep class com.example.api.** { *; }
+-keep @com.squareup.moshi.JsonClass class com.example.api.** { *; }

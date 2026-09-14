@@ -2,12 +2,14 @@ import os
 from fastapi import APIRouter, HTTPException, status
 from google import genai
 from google.genai import types
-from backend.schemas.hybrid_engine import UnifiedOmnisResponse
+
+from hybrid_engine import UnifiedOmnisResponse
 
 router = APIRouter(prefix="/api/v1/omnis", tags=["OMNIS Hybrid Core"])
 
 # Inicializace klienta (předpokládá nastavené prostředí GEMINI_API_KEY)
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+api_key = os.getenv("GEMINI_API_KEY")
+client = genai.Client(api_key=api_key) if api_key else None
 
 OMNIS_SYSTEM_INSTRUCTION = """
 Jsi OMNIS Core Orchestrator. Tvým úkolem je analyzovat vstup a v JEDNOM cyklu:
@@ -29,18 +31,24 @@ async def process_hybrid_intent(user_input: str) -> UnifiedOmnisResponse:
             detail="Vstupní parametr nesmí být prázdný."
         )
 
+    if client is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="GEMINI_API_KEY is not configured; hybrid orchestration is unavailable."
+        )
+
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash", # Doporučeno pro rychlost hybridní orchestrace
+            model="gemini-2.0-flash",  # Doporučeno pro rychlost hybridní orchestrace
             contents=user_input,
             config=types.GenerateContentConfig(
                 system_instruction=OMNIS_SYSTEM_INSTRUCTION,
                 response_mime_type="application/json",
                 response_schema=UnifiedOmnisResponse,
-                temperature=0.1, # Nízká teplota pro deterministický plán
+                temperature=0.1,  # Nízká teplota pro deterministický plán
             ),
         )
-        
+
         # Validace a parsování
         result = UnifiedOmnisResponse.model_validate_json(response.text)
         return result

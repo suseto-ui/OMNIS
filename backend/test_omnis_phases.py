@@ -123,7 +123,7 @@ class TestOmnisFivePhases(unittest.TestCase):
         self.assertIn("2. Transdisciplinární křížení", output.formatted_answer)
         self.assertIn("3. Okamžitý akční plán", output.formatted_answer)
         self.assertIn("4. Výstup & Exekuce", output.formatted_answer)
-        self.assertIn("5. Autopoietická reflexe & 4D Matice dopadů", output.formatted_answer)
+        self.assertIn("5. Autopoietická reflexe & 8D Matice dopadů", output.formatted_answer)
         self.assertTrue(len(output.follow_up_questions) >= 3)
         self.assertTrue(0.0 <= output.composite_score <= 1.0)
         self.assertIsNotNone(output.risk_forensics)
