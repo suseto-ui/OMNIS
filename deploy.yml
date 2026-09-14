@@ -1,0 +1,73 @@
+name: O.M.N.I.S. GitHub Actions CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: europe-west1
+  SERVICE_NAME: omnis-backend
+  REPOSITORY: omnis-repo
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run Invariant Unit Tests
+        run: |
+          pip install --no-cache-dir pytest httpx fastapi sqlalchemy pydantic google-genai asyncpg
+          export PYTHONPATH=.
+          pytest backend/test_routers.py backend/test_omnis_phases.py -v
+
+      - name: Google Cloud Authentication
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Ensure Artifact Registry Exists
+        run: |
+          gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
+            --location=${{ env.REGION }} || \
+          gcloud artifacts repositories create ${{ env.REPOSITORY }} \
+            --repository-format=docker --location=${{ env.REGION }}
+
+      - name: Build and Push Container Image
+        run: |
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+
+      - name: Run Database Migrations
+        run: |
+          # Předpokládá použití Alembic nebo podobného nástroje
+          docker run --rm \
+            -e DATABASE_URL=${{ secrets.DATABASE_URL_MIGRATION }} \
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            alembic upgrade head
+        continue-on-error: false
+
+      - name: Deploy to Google Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --ingress internal-and-cloud-load-balancing \
+            --vpc-connector omnis-vpc-conn \
+            --service-account omnis-cloud-run@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+            --set-secrets "DATABASE_URL=OMNIS_DATABASE_URL:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest"

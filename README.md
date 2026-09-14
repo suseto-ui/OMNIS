@@ -1,60 +1,23 @@
-# O.M.N.I.S. (Omni-Modal Network for Integrated Synthesis)
+# O.M.N.I.S.
 
-Kompletní produkční kognitivní architektura a systémový dashboard pro hodnocení systémových invariantů pomocí **čtyřdimenzionální Matice dopadů**.
+**O.M.N.I.S.** (Kognitivní architektura a dashboard s Maticí dopadů) je pokročilý systém navržený pro inteligentní analýzu dat a vizualizaci strategických dopadů.
 
----
+## Hlavní vlastnosti
+- **Kognitivní architektura**: Modulární systém pro zpracování a interpretaci komplexních dat.
+- **Matice dopadů**: Interaktivní dashboard pro hodnocení a predikci důsledků rozhodovacích procesů.
+- **Integrace Gemini API**: Využívá `MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API` pro pokročilé generativní a analytické úlohy na straně serveru.
 
-## 🏛️ Architektura Systému
+## Technické informace
+- **Název**: O.M.N.I.S.
+- **Prostředí**: Python 3.12 (venv)
+- **Hlavní schopnosti**: Server-side AI integrace, analýza dopadů.
 
-Aplikace je dekomponována do 4 provázaných vrstev:
+## Vývoj a správa
+Tento projekt je spravován pod účtem **suseto-ui**.
 
-1. **Databázová vrstva (PostgreSQL + pgvector):**
-   - Asynchronní SQLAlchemy 2.0 ORM modely (`Conversation`, `Message`, `VectorMemory`, `ImpactMatrixMetric`).
-   - Podpora `pgvector` pro sémantické ukládání a vyhledávání 768-dimenzionálních embeddingů (kosinová vzdálenost `<=>`).
-
-2. **Backend (Python 3.11+ / FastAPI):**
-   - Asynchronní REST API (`/api/query`, `/api/memory`, `/api/feedback`, `/api/conversations`).
-   - Pydantic v2 validace a strukturovaný ontologický výstup.
-   - Oficiální Google GenAI SDK s rate limit ochranou přes `asyncio.Semaphore(10)` a chybovým ošetřením.
-   - Background tasks pro asynchronní vektorizaci a persistenci metrik.
-
-3. **Frontend (React 18+ / Tailwind CSS / Lucide Icons):**
-   - Tmavý reaktivní cyberpunkový dashboard.
-   - Chatovací okno s real-time introspekcí kognitivních procesů a reflexivními otázkami.
-   - Interaktivní vizualizace Matice dopadů (čtyři dimenze: ekonomická životaschopnost, ekologicko-sociální regenerace, technologická elegance, psychologická přijatelnost).
-   - Autopoietická zpětná vazba a úprava vah.
-
-4. **Infrastruktura & Deployment:**
-   - Produkční multi-stage `Dockerfile` pro Google Cloud Run.
-   - `docker-compose.yml` pro lokální orchestraci (Postgres s pgvector, FastAPI, React).
-   - `cloudbuild.yaml` pro CI/CD pipeline do Google Cloud Run.
+**Kontakt:**
+- **GitHub**: suseto-ui
+- **E-mail**: suseto.servis@gmail.com
 
 ---
-
-## 🚀 Rychlé Spuštění (Lokální Vývoj)
-
-### Požadavky
-- Docker a Docker Compose
-- API klíč pro Gemini (v souboru `.env`)
-
-```bash
-# 1. Klonování a příprava prostředí
-cp .env.example .env
-
-# 2. Spuštění kompletního stacku (Postgres + pgvector, Backend, Frontend)
-docker-compose up --build
-```
-
-- **Frontend Dashboard:** http://localhost:3000
-- **FastAPI Swagger Dokumentace:** http://localhost:8000/docs
-- **PostgreSQL pgvector:** localhost:5432
-
----
-
-## ☁️ Deploy na Google Cloud Run
-
-Jednorázové nasazení přes Google Cloud Build:
-
-```bash
-gcloud builds submit --config=cloudbuild.yaml
-```
+*Poslední aktualizace dokumentace: září 2026*

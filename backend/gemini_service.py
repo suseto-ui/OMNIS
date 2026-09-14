@@ -10,6 +10,7 @@ import logging
 import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
+import base64
 
 from .schemas import ImpactMatrixScores, TokenUsageStats
 from .omnis_pipeline import assemble_omnis_cognitive_cycle
@@ -18,10 +19,75 @@ from .token_service import token_telemetry_service
 logger = logging.getLogger("omnis.gemini")
 logger.setLevel(logging.INFO)
 
+def _xor_bytes(data: bytes, key: bytes) -> bytes:
+    """Provede bitový XOR nad daty pomocí klíče."""
+    return bytes([b ^ key[i % len(key)] for i, b in enumerate(data)])
+
+def _mask_key(raw_key: str) -> str:
+    """Převede plaintext klíč na Base64-XOR formát pro bezpečnější uložení v paměti."""
+    if not raw_key: return ""
+    mask = os.environ["OMNIS_XOR_KEY"].encode()
+    xored = _xor_bytes(raw_key.encode(), mask)
+    return base64.b64encode(xored).decode()
+
+def _unmask_key(masked_key: str) -> str:
+    """Dekóduje klíč z Base64-XOR formátu zpět na plaintext pro jednorázové použití."""
+    if not masked_key: return ""
+    try:
+        mask = os.getenv("OMNIS_XOR_KEY")
+        if not mask: return ""
+        mask = mask.encode()
+        xored = base64.b64decode(masked_key.encode())
+        return _xor_bytes(xored, mask).decode()
+    except Exception:
+        return ""
+
+
+# Bezpečnostní filtr pro automatickou redakci API klíčů z logů
+class SecretMasker(logging.Filter):
+    def __init__(self, secrets: List[str]):
+        super().__init__()
+        self.secrets = [s for s in secrets if s and len(s) > 8]
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = str(record.msg)
+        for secret in self.secrets:
+            if secret in msg:
+                msg = msg.replace(secret, "[REDACTED_SECRET]")
+        record.msg = msg
+        return True
+
 # Rate limiting: max 10 concurrent requests to prevent saturation
 RATE_LIMIT_SEMAPHORE = asyncio.Semaphore(10)
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+def _load_secure_key() -> str:
+    """
+    Načte klíč s prioritou: 
+    1. /run/secrets/gemini_api_key (Docker/K8s)
+    2. Environment variable (Fallback)
+    """
+    secret_path = "/run/secrets/gemini_api_key"
+    if os.path.exists(secret_path):
+        try:
+            with open(secret_path, "r") as f:
+                return f.read().strip()
+        except Exception as e:
+            logger.error(f"Failed to read secret file: {e}")
+    
+    return os.getenv("GEMINI_API_KEY", "")
+
+GEMINI_API_KEY = _load_secure_key()
+
+# Inicializace maskování v logách
+if GEMINI_API_KEY:
+    masker = SecretMasker([GEMINI_API_KEY])
+raw_key_for_logger = _unmask_key(GEMINI_API_KEY)
+if raw_key_for_logger:
+    masker = SecretMasker([raw_key_for_logger])
+    logger.addFilter(masker)
+    # Maskování i pro root logger v případě leaking z knihoven
+    logging.getLogger().addFilter(masker)
+
 MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
 EMBEDDING_MODEL = "text-embedding-004"
 
@@ -38,13 +104,15 @@ class GeminiCognitiveService:
         self._init_client()
 
     def _init_client(self) -> None:
-        if not self.api_key:
+        raw_key = _unmask_key(self.api_key) if self.api_key else None
+        
+        if not self.api_key or not raw_key:
             logger.warning("GEMINI_API_KEY is not set. Deterministic cognitive fallback will be active.")
             return
 
         try:
             from google import genai
-            self._client = genai.Client(api_key=self.api_key)
+            self._client = genai.Client(api_key=raw_key)
             logger.info("Google GenAI client successfully initialized.")
         except Exception as exc:
             logger.warning(f"Could not initialize Google GenAI SDK client: {exc}. Using fallback.")
@@ -291,25 +359,36 @@ class GeminiCognitiveService:
 
     def _extract_json(self, text_content: str) -> Optional[Dict[str, Any]]:
         """Safely extracts JSON object from response string."""
-        # [REFAKTORIZACE - SLABÉ MÍSTO]: Původní regex `\{.*\}` s re.DOTALL byl příliš naivní.
-        # Mohl zachytit i text kolem JSONu nebo markdown formátování (např. ```json ... ```), což vedlo k JSONDecodeError.
-        # Nyní nejdříve zkusíme očistit markdown bloky.
-        text_content = text_content.strip()
-        if text_content.startswith("```json"):
-            text_content = text_content[7:]
-        if text_content.startswith("```"):
-            text_content = text_content[3:]
-        if text_content.endswith("```"):
-            text_content = text_content[:-3]
-        text_content = text_content.strip()
-            
-        match = re.search(r"\{.*\}", text_content, re.DOTALL)
-        if match:
+        if not text_content:
+            return None
+
+        # Odstranění markdown bloků ```json ... ``` nebo ``` ... ```
+        cleaned_text = re.sub(r"```(?:json)?\s*(.*?)\s*```", r"\1", text_content, flags=re.DOTALL).strip()
+        
+        # Hledání nejširšího JSON objektu pomocí vyvážených složených závorek
+        start_idx = cleaned_text.find('{')
+        end_idx = cleaned_text.rfind('}')
+        
+        if start_idx == -1 or end_idx == -1 or end_idx < start_idx:
+            # Fallback na původní regex pro jednoduché případy
+            match = re.search(r"\{.*\}", cleaned_text, re.DOTALL)
+            if not match:
+                return None
+            json_str = match.group(0)
+        else:
+            json_str = cleaned_text[start_idx : end_idx + 1]
+
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSONDecodeError: {e} | Raw extract: {json_str[:100]}...")
             try:
-                return json.loads(match.group(0))
-            except json.JSONDecodeError as e:
-                logger.error(f"JSONDecodeError during extraction: {e}")
-                pass
+                # Agresivní pokus o opravu: odstranění neplatných znaků před/za JSONem
+                json_str_fixed = re.sub(r'^[^{]*', '', json_str)
+                json_str_fixed = re.sub(r'[^}]*$', '', json_str_fixed)
+                return json.loads(json_str_fixed)
+            except:
+                return None
         return None
 
     def _synthesize_fallback(

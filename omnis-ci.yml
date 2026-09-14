@@ -1,0 +1,23 @@
+name: O.M.N.I.S. Continuous Integration
+on:
+  push:
+    branches: [ main, master ]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install test dependencies
+        run: |
+          pip install --no-cache-dir pytest httpx fastapi sqlalchemy pydantic google-genai asyncpg
+      - name: Run Integration Tests
+        run: |
+          export PYTHONPATH=.
+          pytest backend/test_routers.py backend/test_omnis_phases.py -v

@@ -9,66 +9,64 @@ Deterministic, modular implementation of the 5 core functions:
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Annotated
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from .risk_forensics import ConsequenceRiskAnalyzer, ConsequenceForensicsResult
 
 
-@dataclass
-class Phase1Result:
+class Phase1Result(BaseModel):
     """Fáze I: Očištění od předpokladů a rozpad na prvočinitele."""
     cleaned_query: str
     ontology_domain: str
     core_essence: str
     identified_assumptions: List[str]
-    hard_data_inferred: Dict[str, Any]
-    soft_data_inferred: Dict[str, Any]
+    hard_data_inferred: Dict[str, Any] = Field(default_factory=dict)
+    soft_data_inferred: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
-class Phase2Result:
+class Phase2Result(BaseModel):
     """Fáze II: Transdisciplinární křížení a nalezení pákového bodu."""
     domain_mappings: Dict[str, str]
     leverage_point: str
     nonlinear_synergies: List[str]
 
 
-@dataclass
-class Phase3Result:
+class Phase3Result(BaseModel):
     """Fáze III: Win-Win-Win akční plán s minimálním úsilím."""
     win_win_win_rationale: str
     strategic_milestones: List[str]
     effort_to_leverage_ratio: str
 
 
-@dataclass
-class Phase4Result:
+class Phase4Result(BaseModel):
     """Fáze IV: Deterministický výstup (konkrétní kód, direktiva, architektura)."""
     artifact_type: str
     execution_steps: List[str]
     concrete_output: str
 
+NormalizedScore = Annotated[float, Field(ge=0.0, le=1.0)]
 
-@dataclass
-class Phase5Result:
+class Phase5Result(BaseModel):
     """Fáze V: 8D Matice dopadů, Red-Teaming a reflexe."""
-    sys: float
-    econ: float
-    psych: float
-    eco: float
-    law: float
-    sec: float
-    phys: float
-    soc: float
-    composite_score: float
+    model_config = ConfigDict(extra="allow")
+    
+    sys: NormalizedScore
+    econ: NormalizedScore
+    psych: NormalizedScore
+    eco: NormalizedScore
+    law: NormalizedScore
+    sec: NormalizedScore
+    phys: NormalizedScore
+    soc: NormalizedScore
+    composite_score: NormalizedScore
+    
     adversarial_vulnerabilities: List[str]
     reasoning: str
     reflexive_questions: List[str]
 
 
-@dataclass
-class OmnisAssemblyOutput:
+class OmnisAssemblyOutput(BaseModel):
     """Složený výstup všech 5 fází O.M.N.I.S. včetně prospektivní forenzní analýzy rizik."""
     phase1: Phase1Result
     phase2: Phase2Result

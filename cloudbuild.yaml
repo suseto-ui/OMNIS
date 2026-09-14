@@ -4,17 +4,37 @@
 # ==========================================================
 
 steps:
+  # Step 0: Run Unit and Integration Tests (Zero-Simulation verification)
+  - name: "python:3.11-slim"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        pip install --no-cache-dir pytest httpx fastapi sqlalchemy pydantic google-genai asyncpg
+        export PYTHONPATH=.
+        pytest backend/test_routers.py backend/test_omnis_phases.py -v
+
+  # Step 0.5: Resolve existing Cloud Run service URL to a workspace file
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        URL=$$(gcloud run services describe ${_SERVICE_NAME} --region=${_REGION} --format='value(status.url)' 2>/dev/null || echo "")
+        echo "$$URL" > /workspace/backend_url.txt
+
   # Step 1: Build Docker Container Image
   - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
     args:
-      - "build"
-      - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${SHORT_SHA}"
-      - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:latest"
-      - "-f"
-      - "Dockerfile"
-      - "."
+      - "-c"
+      - |
+        docker build \
+          --build-arg VITE_API_URL="$$(cat /workspace/backend_url.txt)" \
+          -t "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${SHORT_SHA}" \
+          -t "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:latest" \
+          -f "Dockerfile" \
+          .
 
   # Step 2: Push Container Image to Google Artifact Registry
   - name: "gcr.io/cloud-builders/docker"
@@ -35,7 +55,8 @@ steps:
       - "${_REGION}"
       - "--platform"
       - "managed"
-      - "--allow-unauthenticated"
+      - "--ingress"
+      - "internal-and-cloud-load-balancing"
       - "--set-env-vars"
       - "GEMINI_MODEL=gemini-3.1-pro-preview"
       - "--set-secrets"
@@ -49,13 +70,26 @@ steps:
       - "--max-instances"
       - "10"
 
+  # Step 4: Send success notification to Slack or Discord via Webhook
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        SERVICE_URL=$$(cat /workspace/backend_url.txt)
+        # Pro Discord použijte klíč \"content\". Pokud posíláte do Slacku, změňte klíč níže na \"text\".
+        PAYLOAD="{\"content\": \"🚀 **O.M.N.I.S. byl úspěšně nasazen na Cloud Run!**\\n\\n• **Služba:** ${_SERVICE_NAME}\\n• **Region:** ${_REGION}\\n• **Commit:** ${SHORT_SHA}\\n• **URL aplikace:** $$SERVICE_URL\"}"
+        curl -X POST -H "Content-Type: application/json" -d "$$PAYLOAD" "${_WEBHOOK_URL}"
+
 images:
   - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${SHORT_SHA}"
 
 substitutions:
-  _REGION: "europe-west3"
+  _REGION: "europe-west1"
+  _BQ_LOCATION: "europe-west1"
   _REPOSITORY: "omnis-repo"
   _SERVICE_NAME: "omnis-backend"
+  _WEBHOOK_URL: "https://discord.com/api/webhooks/VASE_DISCORD_NEBO_SLACK_URL"
 
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -93,18 +93,15 @@ class TestOmnisFivePhases(unittest.TestCase):
         p4 = phase_4_deterministic_execution(p1, p2, p3)
 
         raw_scores = {
-            "economic_viability": 0.90,
-            "technological_elegance": 0.95,
-            "eco_social_regeneration": 0.85,
-            "psychological_acceptability": 0.90,
+            "sys": 0.90, "econ": 0.90, "psych": 0.90, "eco": 0.90,
+            "law": 0.90, "sec": 0.90, "phys": 0.90, "soc": 0.90,
         }
         res = phase_5_impact_matrix_and_reflection(
             p1, p2, p3, p4, raw_scores=raw_scores, parsed_vulnerabilities=["Riziko latence"]
         )
         self.assertIsInstance(res, Phase5Result)
-        # Expected: (0.90*0.3) + (0.95*0.3) + (0.85*0.2) + (0.90*0.2) - (1 * 0.02)
-        # = 0.27 + 0.285 + 0.17 + 0.18 - 0.02 = 0.885
-        self.assertAlmostEqual(res.composite_score, 0.885, places=2)
+        # Expected: (0.90 * 8 / 8) - (1 * 0.02) = 0.90 - 0.02 = 0.88
+        self.assertAlmostEqual(res.composite_score, 0.88, places=2)
         self.assertTrue(0.0 <= res.composite_score <= 1.0)
         self.assertTrue(len(res.reflexive_questions) >= 3)
         self.assertIn("Riziko latence", res.adversarial_vulnerabilities)

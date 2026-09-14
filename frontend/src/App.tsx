@@ -17,6 +17,21 @@ export default function App() {
 
   const [tokenTelemetry, setTokenTelemetry] = useState({ cumulative_prompt_tokens: 0, cumulative_completion_tokens: 0, cumulative_total_tokens: 0, total_queries_executed: 0, estimated_total_cost_usd: 0, estimated_total_cost_czk: 0, recent_records: [] });
 
+  const fetchTelemetry = useCallback(async () => {
+    try {
+      const res = await fetch("/api/dev/token-telemetry");
+      if (res.ok) {
+        const data = await res.json();
+        setTokenTelemetry(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch telemetry", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "dev_lab") fetchTelemetry();
+  }, [activeTab, fetchTelemetry]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -187,8 +202,11 @@ export default function App() {
             currentDomain={ontologyDomain}
             onSelectDomain={setOntologyDomain}
             sessionTokenTelemetry={tokenTelemetry}
-            onRefreshTelemetry={async () => {}}
-            onResetTelemetry={async () => setTokenTelemetry({ cumulative_prompt_tokens: 0, cumulative_completion_tokens: 0, cumulative_total_tokens: 0, total_queries_executed: 0, estimated_total_cost_usd: 0, estimated_total_cost_czk: 0, recent_records: [] })}
+            onRefreshTelemetry={fetchTelemetry}
+            onResetTelemetry={async () => {
+              await fetch("/api/dev/reset-tokens", { method: "POST" });
+              fetchTelemetry();
+            }}
           /></div>}
         {activeTab === "octagon" && <div className="flex-1 overflow-auto"><OctagonDashboard /></div>}
         
