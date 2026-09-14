@@ -1,6 +1,7 @@
 package com.example.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.api.OmnisGeminiClient
@@ -36,6 +37,10 @@ class OmnisViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    // Simple error channel for UI to observe
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
     // Simulation sliders for Impact Matrix tab
     private val _simSys = MutableStateFlow(0.95f)
@@ -77,7 +82,7 @@ class OmnisViewModel(application: Application) : AndroidViewModel(application) {
                 if (list.isEmpty()) {
                     val initial = OmnisRecord(
                         role = "assistant",
-                        content = "Vítejte v O.M.N.I.S. (Omni-Modal Network for Integrated Synthesis). Systém je aktivní v režimu přímé ontologické syntézy s reálným vyhodnocováním čtyřdimenzionální Matice dopadů.",
+                        content = "Vítejte v O.M.N.I.S. (Omni-Modal Network for Integrated Synthesis). Systém je aktivní v režimu přímé ontologické syntézy s reálným vyhodnocováním č[...]",
                         cognitiveProcess = "1. Inicializace subsystému O.M.N.I.S.\n2. Napojení na ontologický rámec.\n3. Výpočet bazálních tenzorů napříč 8 doménami.",
                         followUpQuestions = "Jak provázat ekonomické pobídky s ekologickou regenerací?|Jak navrhnout distribuovanou architekturu s nulovou energetickou stopou?",
                         valSys = 0.95f,
@@ -124,6 +129,7 @@ class OmnisViewModel(application: Application) : AndroidViewModel(application) {
 
         _inputQuery.value = ""
         _isLoading.value = true
+        _errorMessage.value = null
 
         viewModelScope.launch {
             try {
@@ -166,7 +172,9 @@ class OmnisViewModel(application: Application) : AndroidViewModel(application) {
                 _simPhys.value = result.valPhys
                 _simSoc.value = result.valSoc
             } catch (e: Exception) {
-                // Error handled gracefully
+                // Log error and surface to UI via errorMessage flow
+                Log.e("OmnisViewModel", "sendQuery failed", e)
+                _errorMessage.value = e.localizedMessage ?: e.toString()
             } finally {
                 _isLoading.value = false
             }
