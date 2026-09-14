@@ -1,4 +1,6 @@
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy import select
@@ -33,13 +35,16 @@ async def process_user_query(
 
     if not conversation:
         title_snippet = request.query[:45].strip()
+        conv_id = uuid.uuid4()
         conversation = Conversation(
+            id=str(conv_id),
             title=f"Analýza: {title_snippet}...",
             ontology_domain=request.ontology_domain,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         db.add(conversation)
         await db.commit()
-        conv_id = conversation.id
 
     context_memories: List[str] = []
     try:
@@ -118,18 +123,31 @@ async def process_user_query(
         enable_thinking=request.enable_thinking,
     )
 
-    user_msg = Message(conversation_id=conv_id, role="user", content=request.query)
+    user_msg = Message(
+        id=str(uuid.uuid4()),
+        conversation_id=str(conv_id),
+        role="user",
+        content=request.query,
+        created_at=datetime.now(timezone.utc),
+    )
     db.add(user_msg)
 
     asst_msg = Message(
-        conversation_id=conv_id, role="assistant", content=answer,
-        cognitive_thoughts=thoughts, follow_up_questions=follow_ups,
+        id=str(uuid.uuid4()),
+        conversation_id=str(conv_id),
+        role="assistant",
+        content=answer,
+        cognitive_thoughts=thoughts,
+        follow_up_questions=follow_ups,
+        created_at=datetime.now(timezone.utc),
     )
     db.add(asst_msg)
     await db.flush()
 
     metric_record = ImpactMatrixMetric(
-        message_id=asst_msg.id, conversation_id=conv_id,
+        id=str(uuid.uuid4()),
+        message_id=str(asst_msg.id),
+        conversation_id=str(conv_id),
         sys=impact_matrix.sys, econ=impact_matrix.econ, psych=impact_matrix.psych,
         eco=impact_matrix.eco, law=impact_matrix.law, sec=impact_matrix.sec,
         phys=impact_matrix.phys, soc=impact_matrix.soc,
@@ -144,10 +162,15 @@ async def process_user_query(
         logger.error(f"Chyba při zápisu konverzace do DB: {exc}. Odpověď přesto vracíme.")
 
     background_content = f"Dotaz: {request.query}\nOdpověď: {answer[:300]}"
+    consequence_forensics_dump = (
+        consequence_forensics.model_dump()
+        if hasattr(consequence_forensics, "model_dump")
+        else (consequence_forensics or {})
+    )
     cache_meta = {
         "answer": answer, "cognitive_process": thoughts, "follow_up_questions": follow_ups,
         "impact_matrix": impact_matrix.model_dump() if impact_matrix else {},
-        "consequence_forensics": consequence_forensics.model_dump() if consequence_forensics else {}
+        "consequence_forensics": consequence_forensics_dump,
     }
     background_tasks.add_task(background_record_vector_memory, conversation_id=conv_id, content=request.query, memory_type="semantic_cache", metadata_json=cache_meta)
     background_tasks.add_task(background_record_vector_memory, conversation_id=conv_id, content=background_content, memory_type="semantic", metadata_json={"domain": request.ontology_domain, "composite_score": impact_matrix.composite_score})

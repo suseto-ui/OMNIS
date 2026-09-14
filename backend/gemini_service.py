@@ -25,21 +25,34 @@ def _xor_bytes(data: bytes, key: bytes) -> bytes:
 
 def _mask_key(raw_key: str) -> str:
     """Převede plaintext klíč na Base64-XOR formát pro bezpečnější uložení v paměti."""
-    if not raw_key: return ""
-    mask = os.environ["OMNIS_XOR_KEY"].encode()
-    xored = _xor_bytes(raw_key.encode(), mask)
-    return base64.b64encode(xored).decode()
+    if not raw_key:
+        return ""
+    mask = os.environ.get("OMNIS_XOR_KEY")
+    if not mask:
+        logger.warning("OMNIS_XOR_KEY is not set; mask operations are disabled.")
+        return ""
+    try:
+        mask_b = mask.encode()
+        xored = _xor_bytes(raw_key.encode(), mask_b)
+        return base64.b64encode(xored).decode()
+    except Exception:
+        logger.exception("Failed to mask key")
+        return ""
+
 
 def _unmask_key(masked_key: str) -> str:
     """Dekóduje klíč z Base64-XOR formátu zpět na plaintext pro jednorázové použití."""
-    if not masked_key: return ""
+    if not masked_key:
+        return ""
     try:
         mask = os.getenv("OMNIS_XOR_KEY")
-        if not mask: return ""
-        mask = mask.encode()
+        if not mask:
+            return ""
+        mask_b = mask.encode()
         xored = base64.b64decode(masked_key.encode())
-        return _xor_bytes(xored, mask).decode()
+        return _xor_bytes(xored, mask_b).decode()
     except Exception:
+        logger.exception("Failed to unmask key")
         return ""
 
 
@@ -62,7 +75,7 @@ RATE_LIMIT_SEMAPHORE = asyncio.Semaphore(10)
 
 def _load_secure_key() -> str:
     """
-    Načte klíč s prioritou: 
+    Načte klíč s prioritou:
     1. /run/secrets/gemini_api_key (Docker/K8s)
     2. Environment variable (Fallback)
     """
@@ -71,10 +84,13 @@ def _load_secure_key() -> str:
         try:
             with open(secret_path, "r") as f:
                 return f.read().strip()
-        except Exception as e:
-            logger.error(f"Failed to read secret file: {e}")
-    
-    return os.getenv("GEMINI_API_KEY", "")
+        except Exception:
+            logger.exception("Failed to read secret file")
+    try:
+        return os.getenv("GEMINI_API_KEY", "")
+    except Exception:
+        logger.exception("Failed to read GEMINI_API_KEY environment variable")
+        return ""
 
 GEMINI_API_KEY = _load_secure_key()
 
@@ -105,7 +121,7 @@ class GeminiCognitiveService:
 
     def _init_client(self) -> None:
         raw_key = _unmask_key(self.api_key) if self.api_key else None
-        
+
         if not self.api_key or not raw_key:
             logger.warning("GEMINI_API_KEY is not set. Deterministic cognitive fallback will be active.")
             return
@@ -114,8 +130,8 @@ class GeminiCognitiveService:
             from google import genai
             self._client = genai.Client(api_key=raw_key)
             logger.info("Google GenAI client successfully initialized.")
-        except Exception as exc:
-            logger.warning(f"Could not initialize Google GenAI SDK client: {exc}. Using fallback.")
+        except Exception:
+            logger.exception("Could not initialize Google GenAI SDK client")
             self._client = None
 
     async def generate_embedding(self, text_input: str) -> List[float]:
@@ -143,8 +159,8 @@ class GeminiCognitiveService:
                         vec = list(response.embeddings[0].values)
                         if len(vec) == 768:
                             return vec
-                except Exception as exc:
-                    logger.error(f"Error calling embedding API: {exc}")
+                except Exception:
+                    logger.exception("Error calling embedding API")
 
         # Deterministic fallback embedding generation (768-dim hash projection)
         return self._generate_fallback_embedding(text_input)
