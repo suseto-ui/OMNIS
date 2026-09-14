@@ -10,7 +10,9 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.POST
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
-import com.squareup.moshi.Json
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.JsonClass
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
 data class SynthesisResult(
     val answer: String,
@@ -27,12 +29,14 @@ data class SynthesisResult(
     val composite: Float
 )
 
+@JsonClass(generateAdapter = true)
 data class ExecutionPlanStep(
     val step_number: Int,
     val action_description: String,
-    val tool_call: Map<String, Any>?
+    val tool_call: Map<String, Any?>?
 )
 
+@JsonClass(generateAdapter = true)
 data class HybridOmnisResponse(
     val intent: String,
     val confidence_score: Float,
@@ -50,9 +54,13 @@ object OmnisGeminiClient {
 
     private val BASE_URL = "https://your-omnis-backend-api.com/"
 
+    private val moshi: Moshi = Moshi.Builder()
+        .add(KotlinJsonAdapterFactory())
+        .build()
+
     private val retrofit = Retrofit.Builder()
         .baseUrl(BASE_URL)
-        .addConverterFactory(MoshiConverterFactory.create())
+        .addConverterFactory(MoshiConverterFactory.create(moshi))
         .client(OkHttpClient.Builder().apply {
             connectTimeout(15, TimeUnit.SECONDS)
             readTimeout(60, TimeUnit.SECONDS)
