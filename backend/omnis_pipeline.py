@@ -304,6 +304,7 @@ def phase_5_impact_matrix_and_reflection(
     raw_scores: Optional[Dict[str, float]] = None,
     parsed_red_team: Optional[Dict[str, Any]] = None,
     parsed_vulnerabilities_legacy: Optional[List[str]] = None,
+    parsed_vulnerabilities: Optional[List[str]] = None,
 ) -> Phase5Result:
     """
     FUNKCE 5: Autopoietická reflexe & 8D Matice dopadů
@@ -349,7 +350,7 @@ def phase_5_impact_matrix_and_reflection(
                     findings.append(RedTeamFinding(**rf))
 
     # Fallback na starý formát, pokud structured red-team chybí
-    vulnerabilities_list = parsed_vulnerabilities_legacy or []
+    vulnerabilities_list = parsed_vulnerabilities_legacy or parsed_vulnerabilities or []
     if not findings and vulnerabilities_list:
         for v in vulnerabilities_list:
             findings.append(RedTeamFinding(
