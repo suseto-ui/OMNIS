@@ -534,7 +534,9 @@ fun OmnisMainScreen(
                         }
                     }
                 },
-                modifier = Modifier.height(48.dp),
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .height(48.dp),
                 actions = {
                     IconButton(
                         onClick = { showDeleteConfirm = true },
@@ -559,6 +561,7 @@ fun OmnisMainScreen(
                 containerColor = OmnisPanelDark,
                 tonalElevation = 8.dp,
                 modifier = Modifier
+                    .navigationBarsPadding()
                     .height(64.dp)
                     .border(
                         width = 1.dp,

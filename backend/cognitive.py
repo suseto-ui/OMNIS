@@ -15,6 +15,8 @@ from backend.schemas import (
     ImpactMatrixScores,
     ConsequenceForensicsSchema,
     TokenUsageStats,
+    AdversarialReviewRequest,
+    AdversarialReviewResponse,
 )
 from backend.memory import background_record_vector_memory
 
@@ -116,7 +118,7 @@ async def process_user_query(
     except Exception as exc:
         logger.debug(f"pgvector query note (normal during first run without data): {exc}")
 
-    answer, thoughts, follow_ups, impact_matrix, consequence_forensics, token_stats = await cognitive_service.process_query(
+    answer, thoughts, follow_ups, impact_matrix, consequence_forensics, token_stats, adv_score, flagged_issues = await cognitive_service.process_query(
         query=request.query,
         ontology_domain=request.ontology_domain,
         context_memories=context_memories,
@@ -179,4 +181,25 @@ async def process_user_query(
         conversation_id=conv_id, message_id=asst_msg.id, answer=answer, cognitive_process=thoughts,
         follow_up_questions=follow_ups, impact_matrix=impact_matrix, consequence_forensics=consequence_forensics,
         token_usage=token_stats, related_memories_count=len(context_memories), created_at=asst_msg.created_at,
+        adversarial_score=adv_score, flagged_issues=flagged_issues
+    )
+
+
+@cognitive_router.post("/adversarial-review", response_model=AdversarialReviewResponse)
+async def perform_adversarial_review(request: AdversarialReviewRequest) -> AdversarialReviewResponse:
+    """
+    Triggers an independent adversarial critique pass by a secondary model
+    tasked with acting as a 'Skeptical Opponent' to evaluate primary reasoning.
+    """
+    vulnerabilities, critique_summary, adv_score, flagged_issues = await cognitive_service.run_adversarial_red_team(
+        query=request.query,
+        answer=request.answer,
+        ontology_domain=request.ontology_domain,
+        current_matrix={}
+    )
+    return AdversarialReviewResponse(
+        vulnerabilities=vulnerabilities,
+        critique_summary=critique_summary,
+        adversarial_score=adv_score,
+        flagged_issues=flagged_issues
     )

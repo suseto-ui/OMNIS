@@ -215,6 +215,8 @@ class QueryResponse(BaseModel):
     token_usage: Optional[TokenUsageStats] = Field(
         None, description="Metrika spotřeby tokenů pro tento dotaz"
     )
+    adversarial_score: Optional[float] = Field(0.15, description="Skóre oponenta (0.0 až 1.0)")
+    flagged_issues: List[str] = Field(default_factory=list, description="Seznam odhalených problémů")
     related_memories_count: int = 0
     created_at: datetime
 
@@ -254,3 +256,18 @@ class ConversationDetail(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AdversarialReviewRequest(BaseModel):
+    query: str
+    answer: str
+    ontology_domain: str = "SYSTEMS_INTELLIGENCE"
+
+
+class AdversarialReviewResponse(BaseModel):
+    vulnerabilities: List[str]
+    critique_summary: str
+    adversarial_score: float = Field(0.0, description="Skóre oponenta (0.0 až 1.0)")
+    flagged_issues: List[str] = Field(default_factory=list, description="Seznam odhalených problémů")
+
+

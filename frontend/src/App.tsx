@@ -4,7 +4,7 @@ import { omnisEngine, clientCloudSqlRepository } from "./omnisEngine";
 import DevPromptLab from "./DevPromptLab";
 import { OctagonDashboard } from "./OctagonDashboard";
 import { 
-  Menu, RefreshCw, Sparkles, Send, Database, Compass, CheckCircle2, Zap, AlertCircle
+  Menu, RefreshCw, Sparkles, Send, Database, Compass, CheckCircle2, Zap, AlertCircle, MessageSquare, Activity, FlaskConical
 } from "lucide-react";
 
 export default function App() {
@@ -15,6 +15,20 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [ontologyDomain, setOntologyDomain] = useState("SYSTEMS_INTELLIGENCE");
+
+  // Dynamic Height & Mobile Responsive Layout Provider States
+  const [windowHeight, setWindowHeight] = useState(typeof window !== "undefined" ? window.innerHeight : 800);
+  const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 640 : false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleResize = () => {
+      setWindowHeight(window.innerHeight);
+      setIsMobile(window.innerWidth < 640);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Database Connection & Toast Notification States
   const [dbStatus, setDbStatus] = useState<"online" | "offline" | "checking">("checking");
@@ -111,6 +125,8 @@ export default function App() {
         consequence_forensics: data.consequence_forensics,
         follow_up_questions: data.follow_up_questions,
         token_usage: data.token_usage,
+        adversarial_score: data.adversarial_score,
+        flagged_issues: data.flagged_issues,
         created_at: data.created_at || new Date().toISOString(),
       };
       setMessages(prev => [...prev, assistantMsg]);
@@ -141,6 +157,8 @@ export default function App() {
         consequence_forensics: data.consequence_forensics,
         follow_up_questions: data.follow_up_questions,
         token_usage: data.token_usage,
+        adversarial_score: data.adversarial_score,
+        flagged_issues: data.flagged_issues,
         created_at: new Date().toISOString(),
       };
       setMessages(prev => [...prev, refinedMsg]);
@@ -166,11 +184,19 @@ export default function App() {
     }
   }, []);
 
+  const isCompactHeight = windowHeight < 680;
+  const headerPaddingClass = isCompactHeight ? "py-2 px-4" : "py-3 px-4 sm:px-6";
+  const mainPaddingClass = isCompactHeight ? "p-1" : "sm:p-5";
+  const chatInputPaddingClass = isCompactHeight ? "p-3" : "p-4";
+
   return (
-    <div className="min-h-screen bg-[#050810] text-slate-300 font-sans flex flex-col h-screen overflow-hidden selection:bg-[#00F0FF]/30">
+    <div 
+      className="min-h-screen bg-[#050810] text-slate-300 font-sans flex flex-col overflow-hidden selection:bg-[#00F0FF]/30"
+      style={{ height: `${windowHeight}px` }}
+    >
       
       {/* HEADER */}
-      <header className="flex-shrink-0 bg-[#0A0F1D]/80 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-6 py-3 relative z-30">
+      <header className={`flex-shrink-0 bg-[#0A0F1D]/80 backdrop-blur-md border-b border-slate-800/80 relative z-30 ${headerPaddingClass}`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#00F0FF] to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(0,240,255,0.3)]">
@@ -178,55 +204,24 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-sm sm:text-base font-bold text-slate-100 tracking-wide">O.M.N.I.S.</h1>
-              <p className="text-[10px] sm:text-xs text-[#00F0FF] font-mono tracking-widest uppercase">Cognitive Synthesis</p>
+              <p className="text-[10px] sm:text-xs text-[#00F0FF] font-mono tracking-widest uppercase flex items-center gap-1.5">
+                <span>Cognitive Synthesis</span>
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="System Active"></span>
+              </p>
             </div>
           </div>
           
-          {/* Hamburger Menu Toggle Button for Small Screens */}
-          <div className="flex sm:hidden">
-            <button 
-              onClick={() => setIsMenuOpen(!isMenuOpen)} 
-              className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/80 text-[#00F0FF] hover:text-slate-100 min-w-[48px] min-h-[48px] flex items-center justify-center"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-          </div>
-
           {/* Desktop Tab Navigation */}
           <div className="hidden sm:flex items-center gap-2">
-            <button onClick={() => { setActiveTab("chat"); setIsMenuOpen(false); }} className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-colors min-h-[44px] ${activeTab === 'chat' ? 'bg-[#00F0FF]/20 text-[#00F0FF]' : 'text-slate-400 hover:text-slate-200'}`}>CHAT</button>
-            <button onClick={() => { setActiveTab("octagon"); setIsMenuOpen(false); }} className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-colors min-h-[44px] ${activeTab === 'octagon' ? 'bg-[#A855F7]/20 text-[#A855F7]' : 'text-slate-400 hover:text-slate-200'}`}>OCTAGON</button>
-            <button onClick={() => { setActiveTab("dev_lab"); setIsMenuOpen(false); }} className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-colors min-h-[44px] ${activeTab === 'dev_lab' ? 'bg-[#10B981]/20 text-[#10B981]' : 'text-slate-400 hover:text-slate-200'}`}>DEV_LAB</button>
+            <button onClick={() => setActiveTab("chat")} className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-colors min-h-[44px] ${activeTab === 'chat' ? 'bg-[#00F0FF]/20 text-[#00F0FF]' : 'text-slate-400 hover:text-slate-200'}`}>CHAT</button>
+            <button onClick={() => setActiveTab("octagon")} className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-colors min-h-[44px] ${activeTab === 'octagon' ? 'bg-[#A855F7]/20 text-[#A855F7]' : 'text-slate-400 hover:text-slate-200'}`}>OCTAGON</button>
+            <button onClick={() => setActiveTab("dev_lab")} className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-colors min-h-[44px] ${activeTab === 'dev_lab' ? 'bg-[#10B981]/20 text-[#10B981]' : 'text-slate-400 hover:text-slate-200'}`}>DEV_LAB</button>
           </div>
         </div>
-
-        {/* Dropdown Mobile Navigation Menu */}
-        {isMenuOpen && (
-          <div className="absolute top-full left-0 right-0 bg-[#0A0F1D] border-b border-slate-800 shadow-2xl p-4 flex flex-col gap-2 z-40 animate-in slide-in-from-top-4 duration-200 sm:hidden">
-            <button 
-              onClick={() => { setActiveTab("chat"); setIsMenuOpen(false); }} 
-              className={`w-full text-left px-5 py-3.5 rounded-xl text-sm font-bold font-mono transition-colors min-h-[48px] ${activeTab === 'chat' ? 'bg-[#00F0FF]/20 text-[#00F0FF]' : 'text-slate-400 hover:bg-slate-900'}`}
-            >
-              CHAT
-            </button>
-            <button 
-              onClick={() => { setActiveTab("octagon"); setIsMenuOpen(false); }} 
-              className={`w-full text-left px-5 py-3.5 rounded-xl text-sm font-bold font-mono transition-colors min-h-[48px] ${activeTab === 'octagon' ? 'bg-[#A855F7]/20 text-[#A855F7]' : 'text-slate-400 hover:bg-slate-900'}`}
-            >
-              OCTAGON
-            </button>
-            <button 
-              onClick={() => { setActiveTab("dev_lab"); setIsMenuOpen(false); }} 
-              className={`w-full text-left px-5 py-3.5 rounded-xl text-sm font-bold font-mono transition-colors min-h-[48px] ${activeTab === 'dev_lab' ? 'bg-[#10B981]/20 text-[#10B981]' : 'text-slate-400 hover:bg-slate-900'}`}
-            >
-              DEV_LAB
-            </button>
-          </div>
-        )}
       </header>
 
       {/* MAIN */}
-      <div className="flex-1 flex flex-col max-w-7xl w-full mx-auto sm:p-5 min-h-0">
+      <div className={`flex-1 flex flex-col max-w-7xl w-full mx-auto min-h-0 ${mainPaddingClass}`}>
         
         {activeTab === "chat" && (
           <div className="flex-1 flex flex-col bg-[#0A0F1D] sm:border border-slate-800/80 sm:rounded-2xl overflow-hidden shadow-2xl min-h-0">
@@ -241,7 +236,15 @@ export default function App() {
                 <MessageBubble 
                   key={msg.id} 
                   msg={msg} 
-                  onSetActiveTab={setActiveTab as any} 
+                  onSetActiveTab={(tab: string) => {
+                    if (tab === "matrix" || tab === "phases") {
+                      setActiveTab("octagon");
+                    } else if (tab === "forensics" || tab === "lab") {
+                      setActiveTab("dev_lab");
+                    } else {
+                      setActiveTab("chat");
+                    }
+                  }} 
                   onSendQuery={handleSendQuery}
                   onRefineMessage={handleRefineMessage}
                   onRateMessage={handleRate}
@@ -255,7 +258,7 @@ export default function App() {
               <div ref={messagesEndRef} />
             </div>
             
-             <div className="p-4 bg-slate-950/50 border-t border-slate-800">
+             <div className={`${chatInputPaddingClass} bg-slate-950/50 border-t border-slate-800`}>
               <form 
                 onSubmit={e => { e.preventDefault(); handleSendQuery(); }} 
                 className="flex gap-3 max-w-4xl mx-auto items-center"
@@ -292,6 +295,37 @@ export default function App() {
           /></div>}
         {activeTab === "octagon" && <div className="flex-1 overflow-auto"><OctagonDashboard /></div>}
         
+      </div>
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <div className="sm:hidden flex-shrink-0 bg-[#0A0F1D]/90 backdrop-blur-md border-t border-slate-800/80 px-2 py-1.5 flex items-center justify-around relative z-30">
+        <button
+          onClick={() => setActiveTab("chat")}
+          className={`flex-1 py-1.5 flex flex-col items-center gap-0.5 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center ${
+            activeTab === "chat" ? "text-[#00F0FF]" : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <MessageSquare className="w-5 h-5" />
+          <span>CHAT</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("octagon")}
+          className={`flex-1 py-1.5 flex flex-col items-center gap-0.5 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center ${
+            activeTab === "octagon" ? "text-[#A855F7]" : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <Activity className="w-5 h-5" />
+          <span>OCTAGON</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("dev_lab")}
+          className={`flex-1 py-1.5 flex flex-col items-center gap-0.5 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center ${
+            activeTab === "dev_lab" ? "text-[#10B981]" : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <FlaskConical className="w-5 h-5" />
+          <span>LAB</span>
+        </button>
       </div>
 
       {/* TOAST NOTIFICATION O.M.N.I.S. SYSTEM STATUS */}

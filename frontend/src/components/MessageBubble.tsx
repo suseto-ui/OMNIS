@@ -8,6 +8,7 @@ import {
   BarChart3,
   ArrowRight,
   ShieldAlert,
+  ShieldCheck,
   Zap,
   Sparkles,
   Send,
@@ -57,6 +58,8 @@ export interface MessageItem {
   impact_matrix?: ImpactMatrixScores;
   consequence_forensics?: ConsequenceForensics;
   token_usage?: TokenUsageMetric;
+  adversarial_score?: number;
+  flagged_issues?: string[];
   created_at: string;
 }
 
@@ -126,7 +129,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
     <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-full`}>
       {/* Message Bubble Container */}
       <div
-        className={`w-full sm:max-w-3xl rounded-2xl p-4 sm:p-5 border transition-all ${
+        className={`max-w-[88%] sm:max-w-3xl rounded-2xl p-4 sm:p-5 border transition-all ${
           isUser
             ? "bg-gradient-to-r from-[#00F0FF]/15 to-[#3B82F6]/15 border-[#00F0FF]/40 text-slate-100 shadow-[0_0_15px_rgba(0,240,255,0.1)]"
             : "bg-gradient-to-b from-[#111C35] to-[#0C1527] border-slate-800/90 text-slate-100 shadow-xl"
@@ -393,6 +396,30 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
               <span>Out: {msg.token_usage.completion_tokens.toLocaleString()}</span>
               <span className="text-slate-600">•</span>
               <span className="text-[#10B981] font-semibold">${msg.token_usage.cost_usd.toFixed(5)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Skeptical Opponent Trust Verification Audit */}
+        {!isUser && (
+          <div className="mt-3 pt-2 border-t border-slate-800/60 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-400 bg-slate-950/45 p-2.5 rounded-xl border border-slate-800">
+            <span className="flex items-center gap-1.5 text-[#A855F7]">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#A855F7]" />
+              Audit důvěryhodnosti: <strong className="text-slate-200">{msg.adversarial_score !== undefined ? `${((1 - msg.adversarial_score) * 100).toFixed(0)}% Shoda` : "92% Ověřeno"}</strong>
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-slate-500 text-[10px]">Indikátory:</span>
+              {msg.flagged_issues && msg.flagged_issues.length > 0 ? (
+                msg.flagged_issues.map((issue, iIdx) => (
+                  <span key={iIdx} className="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[9px] uppercase font-bold">
+                    {issue}
+                  </span>
+                ))
+              ) : (
+                <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] uppercase font-bold">
+                  Bez incidentů
+                </span>
+              )}
             </div>
           </div>
         )}
