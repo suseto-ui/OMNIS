@@ -19,7 +19,8 @@ import kotlinx.coroutines.launch
 enum class OmnisTab {
     CHAT,
     MATRIX,
-    MEMORY
+    MEMORY,
+    DEV
 }
 
 class OmnisViewModel(

@@ -1,15 +1,25 @@
 package com.example
 
+import android.content.Intent
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
+import android.net.Uri
 import android.os.Bundle
+import android.speech.RecognizerIntent
+import android.speech.tts.TextToSpeech
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -36,17 +49,85 @@ import com.example.data.OmnisRecord
 import com.example.ui.OmnisTab
 import com.example.ui.OmnisViewModel
 import com.example.ui.theme.*
+import java.io.FileOutputStream
+import java.util.Locale
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private val viewModel: OmnisViewModel by viewModels()
+    private var tts: TextToSpeech? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        tts = TextToSpeech(this, this)
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                OmnisMainScreen(viewModel = viewModel)
+                OmnisMainScreen(
+                    viewModel = viewModel,
+                    onSpeak = { text -> tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, null) },
+                    onExportPdf = { record -> exportToPdf(record) }
+                )
             }
+        }
+    }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            tts?.language = Locale("cs", "CZ")
+        }
+    }
+
+    override fun onDestroy() {
+        tts?.stop()
+        tts?.shutdown()
+        super.onDestroy()
+    }
+
+    private fun exportToPdf(record: OmnisRecord) {
+        val pdfDocument = PdfDocument()
+        val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
+        val page = pdfDocument.startPage(pageInfo)
+        val canvas = page.canvas
+        val paint = Paint()
+
+        paint.textSize = 16f
+        paint.isFakeBoldText = true
+        canvas.drawText("O.M.N.I.S. Export", 50f, 50f, paint)
+
+        paint.textSize = 12f
+        paint.isFakeBoldText = false
+        var y = 80f
+        canvas.drawText("Role: ${record.role}", 50f, y, paint)
+        y += 20f
+        canvas.drawText("Datum: ${java.util.Date(record.timestamp)}", 50f, y, paint)
+        y += 30f
+
+        val lines = record.content.split("\n")
+        for (line in lines) {
+            if (y > 800) break
+            canvas.drawText(line.take(80), 50f, y, paint)
+            y += 15f
+        }
+
+        pdfDocument.finishPage(page)
+
+        try {
+            val file = java.io.File(getExternalFilesDir(null), "omnis_export_${record.id}.pdf")
+            pdfDocument.writeTo(FileOutputStream(file))
+            Toast.makeText(this, "PDF uloženo: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+            
+            // Share file
+            val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(intent, "Sdílet PDF"))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Export selhal: ${e.message}", Toast.LENGTH_SHORT).show()
+        } finally {
+            pdfDocument.close()
         }
     }
 }
@@ -63,23 +144,77 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun OmnisMainScreen(viewModel: OmnisViewModel) {
+fun OmnisMainScreen(
+    viewModel: OmnisViewModel,
+    onSpeak: (String) -> Unit,
+    onExportPdf: (OmnisRecord) -> Unit
+) {
     val activeTab by viewModel.activeTab.collectAsStateWithLifecycle()
     val records by viewModel.records.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val inputQuery by viewModel.inputQuery.collectAsStateWithLifecycle()
-    val selectedDomain by viewModel.selectedDomain.collectAsStateWithLifecycle()
+    
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showDevLockDialog by remember { mutableStateOf(false) }
+    var devPassword by remember { mutableStateOf("") }
+    var devUnlocked by remember { mutableStateOf(false) }
 
-    val simSys by viewModel.simSys.collectAsStateWithLifecycle()
-    val simEcon by viewModel.simEcon.collectAsStateWithLifecycle()
-    val simPsych by viewModel.simPsych.collectAsStateWithLifecycle()
-    val simEco by viewModel.simEco.collectAsStateWithLifecycle()
-    val simLaw by viewModel.simLaw.collectAsStateWithLifecycle()
-    val simSec by viewModel.simSec.collectAsStateWithLifecycle()
-    val simPhys by viewModel.simPhys.collectAsStateWithLifecycle()
-    val simSoc by viewModel.simSoc.collectAsStateWithLifecycle()
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Potvrdit smazání") },
+            text = { Text("Opravdu chcete vymazat celou historii paměti O.M.N.I.S.? Tato akce je nevratná.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.clearAllHistory()
+                        showDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) { Text("Smazat", color = Color.White) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Zrušit") }
+            }
+        )
+    }
+
+    if (showDevLockDialog) {
+        AlertDialog(
+            onDismissRequest = { showDevLockDialog = false },
+            title = { Text("Kognitivní autorizace") },
+            text = {
+                Column {
+                    Text("Zadejte přístupové heslo pro DEV rozhraní:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = devPassword,
+                        onValueChange = { devPassword = it },
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (devPassword == "omnis2026") {
+                            devUnlocked = true
+                            viewModel.setTab(OmnisTab.DEV)
+                        }
+                        showDevLockDialog = false
+                        devPassword = ""
+                    }
+                ) { Text("Ověřit") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDevLockDialog = false }) { Text("Zrušit") }
+            }
+        )
+    }
 
     Scaffold(
         modifier = Modifier
@@ -91,7 +226,14 @@ fun OmnisMainScreen(viewModel: OmnisViewModel) {
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.combinedClickable(
+                            onClick = { },
+                            onLongClick = { 
+                                if (!devUnlocked) showDevLockDialog = true 
+                                else viewModel.setTab(OmnisTab.DEV)
+                            }
+                        )
                     ) {
                         Box(
                             modifier = Modifier
@@ -119,7 +261,7 @@ fun OmnisMainScreen(viewModel: OmnisViewModel) {
                                     border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan.copy(alpha = 0.4f))
                                 ) {
                                     Text(
-                                        text = "v2.5",
+                                        text = "v2.6",
                                         color = OmnisCyan,
                                         fontSize = 10.sp,
                                         fontFamily = FontFamily.Monospace,
@@ -138,13 +280,13 @@ fun OmnisMainScreen(viewModel: OmnisViewModel) {
                 },
                 actions = {
                     IconButton(
-                        onClick = { viewModel.clearAllHistory() },
+                        onClick = { showDeleteConfirm = true },
                         modifier = Modifier
                             .testTag("clear_history_button")
                             .minimumInteractiveComponentSize()
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
+                            imageVector = Icons.Default.Delete,
                             contentDescription = "Vymazat relaci",
                             tint = OmnisTextMuted
                         )
@@ -169,44 +311,56 @@ fun OmnisMainScreen(viewModel: OmnisViewModel) {
                     selected = activeTab == OmnisTab.CHAT,
                     onClick = { viewModel.setTab(OmnisTab.CHAT) },
                     icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Kognitivní Chat") },
-                    label = { Text("Chat", fontSize = 12.sp) },
+                    label = { Text("Chat", fontSize = 10.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = OmnisCyan,
                         selectedTextColor = OmnisCyan,
                         indicatorColor = OmnisCyan.copy(alpha = 0.2f),
                         unselectedIconColor = OmnisTextMuted,
                         unselectedTextColor = OmnisTextMuted
-                    ),
-                    modifier = Modifier.testTag("nav_tab_chat")
+                    )
                 )
                 NavigationBarItem(
                     selected = activeTab == OmnisTab.MATRIX,
                     onClick = { viewModel.setTab(OmnisTab.MATRIX) },
                     icon = { Icon(Icons.Default.Info, contentDescription = "Matice Dopadů") },
-                    label = { Text("Matice (8D)", fontSize = 12.sp) },
+                    label = { Text("Matice", fontSize = 10.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = OmnisCyan,
                         selectedTextColor = OmnisCyan,
                         indicatorColor = OmnisCyan.copy(alpha = 0.2f),
                         unselectedIconColor = OmnisTextMuted,
                         unselectedTextColor = OmnisTextMuted
-                    ),
-                    modifier = Modifier.testTag("nav_tab_matrix")
+                    )
                 )
                 NavigationBarItem(
                     selected = activeTab == OmnisTab.MEMORY,
                     onClick = { viewModel.setTab(OmnisTab.MEMORY) },
                     icon = { Icon(Icons.Default.Star, contentDescription = "Paměť") },
-                    label = { Text("Paměť", fontSize = 12.sp) },
+                    label = { Text("Paměť", fontSize = 10.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = OmnisCyan,
                         selectedTextColor = OmnisCyan,
                         indicatorColor = OmnisCyan.copy(alpha = 0.2f),
                         unselectedIconColor = OmnisTextMuted,
                         unselectedTextColor = OmnisTextMuted
-                    ),
-                    modifier = Modifier.testTag("nav_tab_memory")
+                    )
                 )
+                if (devUnlocked) {
+                    NavigationBarItem(
+                        selected = activeTab == OmnisTab.DEV,
+                        onClick = { viewModel.setTab(OmnisTab.DEV) },
+                        icon = { Icon(Icons.Default.Build, contentDescription = "Laboratoř") },
+                        label = { Text("Laboratoř", fontSize = 10.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = OmnisAmber,
+                            selectedTextColor = OmnisAmber,
+                            indicatorColor = OmnisAmber.copy(alpha = 0.2f),
+                            unselectedIconColor = OmnisTextMuted,
+                            unselectedTextColor = OmnisTextMuted
+                        )
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -225,18 +379,20 @@ fun OmnisMainScreen(viewModel: OmnisViewModel) {
                     inputQuery = inputQuery,
                     onQueryChange = viewModel::onQueryChange,
                     onSend = { viewModel.sendQuery() },
-                    onQuickQuery = { viewModel.sendQuery(it) }
+                    onQuickQuery = { viewModel.sendQuery(it) },
+                    onSpeak = onSpeak,
+                    onExportPdf = onExportPdf
                 )
                 OmnisTab.MATRIX -> MatrixView(
                     latestRecord = records.lastOrNull { it.role == "assistant" },
-                    simSys = simSys,
-                    simEcon = simEcon,
-                    simPsych = simPsych,
-                    simEco = simEco,
-                    simLaw = simLaw,
-                    simSec = simSec,
-                    simPhys = simPhys,
-                    simSoc = simSoc,
+                    simSys = viewModel.simSys.collectAsStateWithLifecycle().value,
+                    simEcon = viewModel.simEcon.collectAsStateWithLifecycle().value,
+                    simPsych = viewModel.simPsych.collectAsStateWithLifecycle().value,
+                    simEco = viewModel.simEco.collectAsStateWithLifecycle().value,
+                    simLaw = viewModel.simLaw.collectAsStateWithLifecycle().value,
+                    simSec = viewModel.simSec.collectAsStateWithLifecycle().value,
+                    simPhys = viewModel.simPhys.collectAsStateWithLifecycle().value,
+                    simSoc = viewModel.simSoc.collectAsStateWithLifecycle().value,
                     onSimChange = { sys, econ, psych, eco, law, sec, phys, soc ->
                         viewModel.setSimSys(sys)
                         viewModel.setSimEcon(econ)
@@ -249,6 +405,7 @@ fun OmnisMainScreen(viewModel: OmnisViewModel) {
                     }
                 )
                 OmnisTab.MEMORY -> MemoryView(records = records)
+                OmnisTab.DEV -> DevView()
             }
         }
     }
@@ -261,9 +418,61 @@ fun ChatView(
     inputQuery: String,
     onQueryChange: (String) -> Unit,
     onSend: () -> Unit,
-    onQuickQuery: (String) -> Unit
+    onQuickQuery: (String) -> Unit,
+    onSpeak: (String) -> Unit,
+    onExportPdf: (OmnisRecord) -> Unit
 ) {
     val listState = rememberLazyListState()
+    val context = LocalContext.current
+
+    // STT Launcher
+    val speechLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val data = result.data
+            val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            results?.firstOrNull()?.let { onQueryChange(inputQuery + " " + it) }
+        }
+    }
+
+    // File Picker Launcher
+    val fileLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val contentResolver = context.contentResolver
+                val fileName = contentResolver.query(it, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    cursor.moveToFirst()
+                    cursor.getString(nameIndex)
+                } ?: "Soubor"
+
+                contentResolver.openInputStream(it)?.use { stream ->
+                    val extension = fileName.substringAfterLast('.', "").lowercase()
+                    
+                    val contentText = if (extension == "pdf") {
+                        "[PDF Dokument: $fileName - Obsah PDF není přímo čitelný jako text v této verzi, ale soubor byl zaznamenán]"
+                    } else if (extension in listOf("doc", "docx", "xls", "xlsx", "ppt", "pptx")) {
+                        "[Binární dokument Office: $fileName - Obsah není přímo čitelný jako text]"
+                    } else {
+                        // Zkusíme číst jako text s UTF-8, pokud selže, zkusíme jiné kódování
+                        try {
+                            stream.bufferedReader(Charsets.UTF_8).readText()
+                        } catch (e: Exception) {
+                            // Fallback pro binární nebo jinak kódované soubory
+                            "[Soubor: $fileName - Obsah nelze interpretovat jako text]"
+                        }
+                    }
+                    
+                    onQueryChange(inputQuery + "\n\n--- Obsah souboru ($fileName) ---\n" + contentText + "\n--- Konec souboru ---")
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Nepodařilo se načíst soubor: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     LaunchedEffect(records.size, isLoading) {
         if (records.isNotEmpty()) {
@@ -281,7 +490,12 @@ fun ChatView(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             items(records, key = { it.id }) { record ->
-                ChatMessageItem(record = record, onQuickQuery = onQuickQuery)
+                ChatMessageItem(
+                    record = record, 
+                    onQuickQuery = onQuickQuery,
+                    onSpeak = onSpeak,
+                    onExportPdf = onExportPdf
+                )
             }
 
             if (isLoading) {
@@ -322,6 +536,32 @@ fun ChatView(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                IconButton(onClick = { 
+                    fileLauncher.launch(arrayOf(
+                        "text/*", 
+                        "application/pdf", 
+                        "application/msword", 
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/vnd.ms-excel",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "application/vnd.ms-powerpoint",
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        "application/json",
+                        "application/xml",
+                        "application/javascript",
+                        "application/x-python",
+                        "application/x-sh",
+                        "application/x-php",
+                        "text/markdown",
+                        "text/x-python",
+                        "text/x-java-source",
+                        "text/html",
+                        "text/css"
+                    )) 
+                }) {
+                    Icon(Icons.Default.Add, contentDescription = "Přiložit soubor", tint = OmnisCyan)
+                }
+
                 OutlinedTextField(
                     value = inputQuery,
                     onValueChange = onQueryChange,
@@ -344,7 +584,19 @@ fun ChatView(
                         unfocusedContainerColor = OmnisBgDark
                     ),
                     shape = RoundedCornerShape(12.dp),
-                    maxLines = 3
+                    maxLines = 3,
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "cs-CZ")
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Diktujte dotaz...")
+                            }
+                            speechLauncher.launch(intent)
+                        }) {
+                            Icon(Icons.Default.Mic, contentDescription = "Diktovat", tint = OmnisCyan)
+                        }
+                    }
                 )
 
                 IconButton(
@@ -370,7 +622,12 @@ fun ChatView(
 }
 
 @Composable
-fun ChatMessageItem(record: OmnisRecord, onQuickQuery: (String) -> Unit) {
+fun ChatMessageItem(
+    record: OmnisRecord, 
+    onQuickQuery: (String) -> Unit,
+    onSpeak: (String) -> Unit,
+    onExportPdf: (OmnisRecord) -> Unit
+) {
     val isUser = record.role == "user"
     var thoughtsExpanded by remember { mutableStateOf(false) }
 
@@ -401,21 +658,30 @@ fun ChatMessageItem(record: OmnisRecord, onQuickQuery: (String) -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (isUser) "OPERÁTOR" else "O.M.N.I.S. CORE",
-                        color = if (isUser) OmnisViolet else OmnisCyan,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    if (!isUser && record.compositeScore > 0f) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(
+                            imageVector = if (isUser) Icons.Default.Person else Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = if (isUser) OmnisViolet else OmnisCyan,
+                            modifier = Modifier.size(14.dp)
+                        )
                         Text(
-                            text = "Index: ${(record.compositeScore * 100).toInt()}%",
-                            color = OmnisEmerald,
+                            text = if (isUser) "OPERÁTOR" else "O.M.N.I.S. CORE",
+                            color = if (isUser) OmnisViolet else OmnisCyan,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace
                         )
+                    }
+                    if (!isUser && record.compositeScore > 0f) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            IconButton(onClick = { onSpeak(record.content) }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "Přehrát", tint = OmnisCyan, modifier = Modifier.size(16.dp))
+                            }
+                            IconButton(onClick = { onExportPdf(record) }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Download, contentDescription = "Exportovat PDF", tint = OmnisCyan, modifier = Modifier.size(16.dp))
+                            }
+                        }
                     }
                 }
 
@@ -478,16 +744,16 @@ fun ChatMessageItem(record: OmnisRecord, onQuickQuery: (String) -> Unit) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            MetricPill("Sys", record.valSys, Color(0xFF60A5FA))
-                            MetricPill("Econ", record.valEcon, Color(0xFFFBBF24))
-                            MetricPill("Psych", record.valPsych, Color(0xFFC084FC))
-                            MetricPill("Eco", record.valEco, Color(0xFF34D399))
+                            MetricPill("Sys", record.valSys, Color(0xFF60A5FA), Icons.Default.Settings)
+                            MetricPill("Econ", record.valEcon, Color(0xFFFBBF24), Icons.Default.Paid)
+                            MetricPill("Psych", record.valPsych, Color(0xFFC084FC), Icons.Default.Face)
+                            MetricPill("Eco", record.valEco, Color(0xFF34D399), Icons.Default.Spa)
                         }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            MetricPill("Law", record.valLaw, Color(0xFFFB7185))
-                            MetricPill("Sec", record.valSec, Color(0xFFEF4444))
-                            MetricPill("Phys", record.valPhys, Color(0xFFFB923C))
-                            MetricPill("Soc", record.valSoc, Color(0xFFF472B6))
+                            MetricPill("Law", record.valLaw, Color(0xFFFB7185), Icons.Default.Gavel)
+                            MetricPill("Sec", record.valSec, Color(0xFFEF4444), Icons.Default.Security)
+                            MetricPill("Phys", record.valPhys, Color(0xFFFB923C), Icons.Default.Speed)
+                            MetricPill("Soc", record.valSoc, Color(0xFFF472B6), Icons.Default.Groups)
                         }
                     }
                 }
@@ -522,24 +788,28 @@ fun ChatMessageItem(record: OmnisRecord, onQuickQuery: (String) -> Unit) {
 }
 
 @Composable
-fun MetricPill(label: String, value: Float, color: Color) {
+fun MetricPill(label: String, value: Float, color: Color, icon: ImageVector) {
     Surface(
         shape = RoundedCornerShape(6.dp),
         color = OmnisBgDark,
         border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.4f))
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(text = label, color = OmnisTextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
-            Text(
-                text = "${(value * 100).toInt()}%",
-                color = color,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace
-            )
+            Icon(imageVector = icon, contentDescription = null, tint = color.copy(alpha = 0.7f), modifier = Modifier.size(10.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = label, color = OmnisTextMuted, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+                Text(
+                    text = "${(value * 100).toInt()}%",
+                    color = color,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
         }
     }
 }
@@ -631,6 +901,7 @@ fun MatrixView(
                 desc = "Modularita, robustnost a čistota architektury",
                 value = simSys,
                 color = Color(0xFF60A5FA),
+                icon = Icons.Default.Settings,
                 testTag = "slider_sys",
                 onValueChange = { onSimChange(it, simEcon, simPsych, simEco, simLaw, simSec, simPhys, simSoc) }
             )
@@ -642,6 +913,7 @@ fun MatrixView(
                 desc = "Efektivita nákladů a návratnost investice",
                 value = simEcon,
                 color = Color(0xFFFBBF24),
+                icon = Icons.Default.Paid,
                 testTag = "slider_econ",
                 onValueChange = { onSimChange(simSys, it, simPsych, simEco, simLaw, simSec, simPhys, simSoc) }
             )
@@ -653,6 +925,7 @@ fun MatrixView(
                 desc = "Etika, transparentnost a důvěra operátora",
                 value = simPsych,
                 color = Color(0xFFC084FC),
+                icon = Icons.Default.Face,
                 testTag = "slider_psych",
                 onValueChange = { onSimChange(simSys, simEcon, it, simEco, simLaw, simSec, simPhys, simSoc) }
             )
@@ -664,6 +937,7 @@ fun MatrixView(
                 desc = "Udržitelnost a regenerativní potenciál biosféry",
                 value = simEco,
                 color = Color(0xFF34D399),
+                icon = Icons.Default.Spa,
                 testTag = "slider_eco",
                 onValueChange = { onSimChange(simSys, simEcon, simPsych, it, simLaw, simSec, simPhys, simSoc) }
             )
@@ -675,6 +949,7 @@ fun MatrixView(
                 desc = "Soulad s legislativou a normami",
                 value = simLaw,
                 color = Color(0xFFFB7185),
+                icon = Icons.Default.Gavel,
                 testTag = "slider_law",
                 onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, it, simSec, simPhys, simSoc) }
             )
@@ -686,6 +961,7 @@ fun MatrixView(
                 desc = "Ochrana perimetru a mitigace rizik",
                 value = simSec,
                 color = Color(0xFFEF4444),
+                icon = Icons.Default.Security,
                 testTag = "slider_sec",
                 onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, simLaw, it, simPhys, simSoc) }
             )
@@ -697,6 +973,7 @@ fun MatrixView(
                 desc = "Energetická entropie a fyzikální mantinely",
                 value = simPhys,
                 color = Color(0xFFFB923C),
+                icon = Icons.Default.Speed,
                 testTag = "slider_phys",
                 onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, simLaw, simSec, it, simSoc) }
             )
@@ -708,6 +985,7 @@ fun MatrixView(
                 desc = "Dopad na kulturní a sociální struktury",
                 value = simSoc,
                 color = Color(0xFFF472B6),
+                icon = Icons.Default.Groups,
                 testTag = "slider_soc",
                 onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, simLaw, simSec, simPhys, it) }
             )
@@ -721,6 +999,7 @@ fun DimensionSliderCard(
     desc: String,
     value: Float,
     color: Color,
+    icon: ImageVector,
     testTag: String,
     onValueChange: (Float) -> Unit
 ) {
@@ -738,12 +1017,15 @@ fun DimensionSliderCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = title,
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+                    Text(
+                        text = title,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 Text(
                     text = "${(value * 100).toInt()}%",
                     color = color,
@@ -770,6 +1052,72 @@ fun DimensionSliderCard(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
+}
+
+@Composable
+fun DevInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = label, color = OmnisTextMuted, fontSize = 12.sp)
+        Text(text = value, color = OmnisCyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+    }
+}
+
+@Composable
+fun DevView() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = OmnisPanelDark,
+            border = androidx.compose.foundation.BorderStroke(1.dp, OmnisAmber),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "DEV ROZHRANÍ (LABORATOŘ)",
+                    color = OmnisAmber,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    text = "Přístup k diagnostice systému a nízkoúrovňovým parametrům.",
+                    color = OmnisTextMuted,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = OmnisPanelDark),
+            border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Systémové informace", color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                DevInfoRow("Verze jádra", "2.6.0-stable")
+                DevInfoRow("Model", "Gemini 1.5 Pro (via Vertex)")
+                DevInfoRow("Latence", "1.2s avg")
+                DevInfoRow("Databáze", "Room/SQLite (omnis_local_db)")
+            }
+        }
+        
+        Text(
+            text = "Diagnostika historie: Databáze se nachází v interním úložišti aplikace: /data/data/com.example/databases/omnis_local_db. Přístup je možný přes App Inspection v IDE nebo exportem zálohy.",
+            color = OmnisTextMuted,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace
+        )
     }
 }
 
