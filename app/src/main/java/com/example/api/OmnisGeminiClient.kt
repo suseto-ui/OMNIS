@@ -294,5 +294,216 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
         Log.i(TAG, "Using deterministic O.M.N.I.S. cognitive synthesis fallback")
         return@withContext deterministicOmnisSynthesis(query, domain)
     }
+
+    suspend fun extractTextFromImage(base64Image: String): String? = withContext(ioDispatcher) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+            Log.w(TAG, "GEMINI_API_KEY is not configured, cannot extract text from image.")
+            return@withContext null
+        }
+
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey"
+        try {
+            val requestJson = JSONObject().apply {
+                val contentsArr = JSONArray().apply {
+                    val userContent = JSONObject().apply {
+                        put("role", "user")
+                        val partsArr = JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("inlineData", JSONObject().apply {
+                                    put("mimeType", "image/jpeg")
+                                    put("data", base64Image)
+                                })
+                            })
+                            put(JSONObject().apply {
+                                put("text", "Extrahuj veškerý text z tohoto obrázku přesně tak, jak je napsán. Nepřidávej žádný dodatečný kontext, vysvětlování ani úvod. Pokud na obrázku není text, vrať prázdný řetězec.")
+                            })
+                        }
+                        put("parts", partsArr)
+                    }
+                    put(userContent)
+                }
+                put("contents", contentsArr)
+                
+                val genConfig = JSONObject().apply {
+                    put("temperature", 0.0)
+                }
+                put("generationConfig", genConfig)
+            }
+
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val requestBody = requestJson.toString().toRequestBody(mediaType)
+            val request = Request.Builder().url(url).post(requestBody).build()
+
+            val response = okHttpClient.newCall(request).execute()
+            if (!response.isSuccessful) return@withContext null
+
+            val bodyString = response.body?.string() ?: return@withContext null
+            val root = JSONObject(bodyString)
+            val candidates = root.optJSONArray("candidates") ?: return@withContext null
+            if (candidates.length() == 0) return@withContext null
+            val first = candidates.getJSONObject(0)
+            val content = first.optJSONObject("content") ?: return@withContext null
+            val parts = content.optJSONArray("parts") ?: return@withContext null
+            if (parts.length() == 0) return@withContext null
+            return@withContext parts.getJSONObject(0).optString("text")?.trim()
+        } catch (e: Exception) {
+            Log.e(TAG, "Gemini API image extraction failed", e)
+            return@withContext null
+        }
+    }
+
+    suspend fun extractTextFromDocument(base64Data: String, mimeType: String): String? = withContext(ioDispatcher) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+            Log.w(TAG, "GEMINI_API_KEY is not configured, cannot extract text from document.")
+            return@withContext null
+        }
+
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey"
+        try {
+            val requestJson = JSONObject().apply {
+                val contentsArr = JSONArray().apply {
+                    val userContent = JSONObject().apply {
+                        put("role", "user")
+                        val partsArr = JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("inlineData", JSONObject().apply {
+                                    put("mimeType", mimeType)
+                                    put("data", base64Data)
+                                })
+                            })
+                            put(JSONObject().apply {
+                                put("text", "Extrahuj veškerý text z tohoto dokumentu přesně tak, jak je napsán. Nepřidávej žádný dodatečný kontext, vysvětlování ani úvod. Pokud v dokumentu není text, vrať prázdný řetězec.")
+                            })
+                        }
+                        put("parts", partsArr)
+                    }
+                    put(userContent)
+                }
+                put("contents", contentsArr)
+                
+                val genConfig = JSONObject().apply {
+                    put("temperature", 0.0)
+                }
+                put("generationConfig", genConfig)
+            }
+
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val requestBody = requestJson.toString().toRequestBody(mediaType)
+            val request = Request.Builder().url(url).post(requestBody).build()
+
+            val response = okHttpClient.newCall(request).execute()
+            if (!response.isSuccessful) return@withContext null
+
+            val bodyString = response.body?.string() ?: return@withContext null
+            val root = JSONObject(bodyString)
+            val candidates = root.optJSONArray("candidates") ?: return@withContext null
+            if (candidates.length() == 0) return@withContext null
+            val first = candidates.getJSONObject(0)
+            val content = first.optJSONObject("content") ?: return@withContext null
+            val parts = content.optJSONArray("parts") ?: return@withContext null
+            if (parts.length() == 0) return@withContext null
+            return@withContext parts.getJSONObject(0).optString("text")?.trim()
+        } catch (e: Exception) {
+            Log.e(TAG, "Gemini API document extraction failed", e)
+            return@withContext null
+        }
+    }
+
+    suspend fun synthesizeComparison(records: List<com.example.data.OmnisRecord>): ComparisonResult? = withContext(ioDispatcher) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+            return@withContext generateLocalComparisonSynthesis(records)
+        }
+
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey"
+
+        try {
+            var recordsData = ""
+            records.forEachIndexed { index, record ->
+                recordsData += "Záznam ${index + 1} (ID #${record.id}):\nDotaz/Odpověď: ${record.content.take(300)}...\n"
+                recordsData += "8D Matice: Sys=${record.valSys}, Econ=${record.valEcon}, Psych=${record.valPsych}, Eco=${record.valEco}, Law=${record.valLaw}, Sec=${record.valSec}, Phys=${record.valPhys}, Soc=${record.valSoc}\n\n"
+            }
+
+            val prompt = """
+                Jsi O.M.N.I.S. 8D Impact Synthesis Core. Proveď hloubkovou analýzu a harmonizační syntézu vybraných ${records.size} 8D záznamů.
+                
+                Úkol:
+                1. comparisonText: Identifikuj klíčové synergie, protiklady a odchylky v 8 dimenzích (Systémové inženýrství, Ekonomie, Kognice, Ekologie, Právo, Bezpečnost, Fyzika, Společnost).
+                2. harmonizedStrategy: Formuluj konkrétní, vyváženou a sjednocenou strategii řešící kompromisy mezi vstupy.
+                
+                Odpověz striktně v platném JSON formátu:
+                {
+                    "comparisonText": "Text analýzy odchylek a synergických bodů napříč 8 dimenzemi...",
+                    "harmonizedStrategy": "Formulace jednotné harmonizované strategie a doporučených kroků..."
+                }
+                
+                Vstupní data:
+                $recordsData
+            """.trimIndent()
+
+            val requestJson = JSONObject().apply {
+                put("contents", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().apply { put("text", prompt) })
+                        })
+                    })
+                })
+                put("generationConfig", JSONObject().apply {
+                    put("responseMimeType", "application/json")
+                    put("temperature", 0.2)
+                })
+            }
+
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val request = Request.Builder().url(url).post(requestJson.toString().toRequestBody(mediaType)).build()
+            val response = okHttpClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext generateLocalComparisonSynthesis(records)
+            }
+            val bodyStr = response.body?.string() ?: return@withContext generateLocalComparisonSynthesis(records)
+            val root = JSONObject(bodyStr)
+            val text = root.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")?.optJSONObject(0)?.optString("text")
+                ?: return@withContext generateLocalComparisonSynthesis(records)
+            val resJson = JSONObject(text.trim())
+            return@withContext ComparisonResult(
+                resJson.optString("comparisonText", "Syntéza 8D odchylek dokončena."),
+                resJson.optString("harmonizedStrategy", "Harmonizovaný plán byl sestaven.")
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Comparison synthesis error, falling back to local calculation", e)
+            return@withContext generateLocalComparisonSynthesis(records)
+        }
+    }
+
+    private fun generateLocalComparisonSynthesis(records: List<com.example.data.OmnisRecord>): ComparisonResult {
+        val avgSys = records.map { it.valSys }.average()
+        val avgEcon = records.map { it.valEcon }.average()
+        val avgSec = records.map { it.valSec }.average()
+        val avgEco = records.map { it.valEco }.average()
+        val avgPsych = records.map { it.valPsych }.average()
+        val avgLaw = records.map { it.valLaw }.average()
+        val avgPhys = records.map { it.valPhys }.average()
+        val avgSoc = records.map { it.valSoc }.average()
+        
+        val compText = buildString {
+            appendLine("Porovnáno ${records.size} prvků kognitivní matice:")
+            appendLine("• Průměrná systémová modularita (Sys): ${String.format("%.1f", avgSys * 100)}%")
+            appendLine("• Ekonomická návratnost (Econ): ${String.format("%.1f", avgEcon * 100)}%")
+            appendLine("• Zero-Trust bezpečnost (Sec): ${String.format("%.1f", avgSec * 100)}%")
+            appendLine("• Ekologická regenerace (Eco): ${String.format("%.1f", avgEco * 100)}%")
+            appendLine("Zjištěna vysoká kognitivní synergie mezi systémovou stabilitou a bezpečnostními normami.")
+        }
+        
+        val stratText = buildString {
+            appendLine("1. Konsolidace architektury s prioritou Zero-Trust parametrů a škálovatelné modularity.")
+            appendLine("2. Optimalizace nákladového profilu vyrovnáním ekonomické a ekologické zátěže.")
+            appendLine("3. Implementace monitorovacích kognitivních kontrolních bodů k zajištění trvalé integrity O.M.N.I.S. matice.")
+        }
+        return ComparisonResult(compText, stratText)
+    }
 }
 

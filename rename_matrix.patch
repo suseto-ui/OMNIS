@@ -1,0 +1,162 @@
+--- app/src/main/java/com/example/MainActivity.kt
++++ app/src/main/java/com/example/MainActivity.kt
+@@ -419,7 +419,7 @@
+                 NavigationBarItem(
+                     selected = activeTab == OmnisTab.MATRIX,
+                     onClick = { viewModel.setTab(OmnisTab.MATRIX) },
+-                    icon = { Icon(Icons.Default.Info, contentDescription = "Matice Dopadů") },
++                    icon = { Icon(Icons.Default.Info, contentDescription = "Octagon Dashboard") },
+                     label = { Text("Matice", fontSize = 10.sp) },
+                     colors = NavigationBarItemDefaults.colors(
+                         selectedIconColor = OmnisCyan,
+@@ -585,7 +585,11 @@
+                 }
+                 OmnisTab.MATRIX -> {
+                     val fixedDomains by viewModel.fixedDomains.collectAsStateWithLifecycle()
+-                    MatrixView(
++                    val isComparing by viewModel.isComparing.collectAsStateWithLifecycle()
++                    val comparisonResult by viewModel.comparisonResult.collectAsStateWithLifecycle()
++                    
++                    OctagonDashboard(
++                        records = records,
+                         latestRecord = records.lastOrNull { it.role == "assistant" },
+                         simSys = viewModel.simSys.collectAsStateWithLifecycle().value,
+                         simEcon = viewModel.simEcon.collectAsStateWithLifecycle().value,
+@@ -604,7 +608,9 @@
+                             viewModel.setSimSec(sec)
+                             viewModel.setSimPhys(phys)
+                             viewModel.setSimSoc(soc)
+-                        }
++                        },
++                        isComparing = isComparing,
++                        comparisonResult = comparisonResult,
++                        onSynthesize = { ids -> viewModel.synthesizeSelectedRecords(ids) },
++                        onClearComparison = { viewModel.clearComparison() }
+                     )
+                 }
+                 OmnisTab.MEMORY -> MemoryView(
+@@ -1117,7 +1123,8 @@
+ }
+ 
+ @Composable
+-fun MatrixView(
++fun OctagonDashboard(
++    records: List<OmnisRecord>,
+     latestRecord: OmnisRecord?,
+     simSys: Float,
+     simEcon: Float,
+@@ -1130,7 +1137,11 @@
+     simSoc: Float,
+     fixedDomains: Set<String> = emptySet(),
+     onToggleFix: (String) -> Unit = {},
+-    onSimChange: (Float, Float, Float, Float, Float, Float, Float, Float) -> Unit
++    onSimChange: (Float, Float, Float, Float, Float, Float, Float, Float) -> Unit,
++    isComparing: Boolean,
++    comparisonResult: com.example.api.ComparisonResult?,
++    onSynthesize: (Set<Long>) -> Unit,
++    onClearComparison: () -> Unit
+ ) {
+     val composite = (simSys + simEcon + simPsych + simEco + simLaw + simSec + simPhys + simSoc) / 8f
+     val animatedComposite by animateFloatAsState(targetValue = composite, label = "composite")
++    
++    var selectedIds by remember { mutableStateOf(setOf<Long>()) }
++    
++    Box(modifier = Modifier.fillMaxSize()) {
+     LazyColumn(
+         modifier = Modifier
+             .fillMaxSize()
+@@ -1245,6 +1256,76 @@
+             )
+         }
++        
++        item {
++            Spacer(modifier = Modifier.height(24.dp))
++            Text(
++                text = "MULTIPLE SELECTION HOOK (COMPARISON PIPELINE)",
++                color = OmnisCyan,
++                fontWeight = FontWeight.Bold,
++                fontSize = 12.sp,
++                fontFamily = FontFamily.Monospace,
++                modifier = Modifier.padding(bottom = 8.dp)
++            )
++            Text(
++                text = "Vyberte více záznamů pro harmonizační syntézu 8D prvků:",
++                color = OmnisTextMuted,
++                fontSize = 12.sp,
++                modifier = Modifier.padding(bottom = 16.dp)
++            )
++        }
++        
++        items(records.filter { it.role == "assistant" }.reversed(), key = { it.id }) { record ->
++            val isSelected = selectedIds.contains(record.id)
++            Surface(
++                shape = RoundedCornerShape(10.dp),
++                color = if (isSelected) OmnisViolet.copy(alpha = 0.1f) else OmnisPanelDark,
++                border = androidx.compose.foundation.BorderStroke(
++                    1.dp, 
++                    if (isSelected) OmnisViolet else OmnisBorderDark
++                ),
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .clickable {
++                        selectedIds = if (isSelected) {
++                            selectedIds - record.id
++                        } else {
++                            selectedIds + record.id
++                        }
++                    }
++            ) {
++                Row(
++                    modifier = Modifier.padding(12.dp),
++                    verticalAlignment = Alignment.CenterVertically
++                ) {
++                    Icon(
++                        imageVector = if (isSelected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
++                        contentDescription = "Select",
++                        tint = if (isSelected) OmnisViolet else OmnisTextMuted,
++                        modifier = Modifier.size(24.dp)
++                    )
++                    Spacer(modifier = Modifier.width(12.dp))
++                    Column {
++                        Text(
++                            text = "Záznam #${record.id}",
++                            color = OmnisCyan,
++                            fontSize = 11.sp,
++                            fontWeight = FontWeight.Bold,
++                            fontFamily = FontFamily.Monospace
++                        )
++                        Text(
++                            text = record.content.take(80) + "...",
++                            color = Color.White,
++                            fontSize = 12.sp,
++                            modifier = Modifier.padding(top = 4.dp)
++                        )
++                    }
++                }
++            }
++        }
++        item { Spacer(modifier = Modifier.height(80.dp)) }
+     }
++    
++    if (selectedIds.size >= 2) {
++        ExtendedFloatingActionButton(
++            onClick = { onSynthesize(selectedIds) },
++            modifier = Modifier
++                .align(Alignment.BottomCenter)
++                .padding(bottom = 24.dp),
++            containerColor = OmnisViolet,
++            contentColor = Color.White,
++            icon = { Icon(Icons.Default.CompareArrows, contentDescription = null) },
++            text = { Text("Syntetizovat (${selectedIds.size})") }
++        )
++    }
++    }
++
++    if (isComparing || comparisonResult != null) {
++        com.example.ui.ComparisonModal(
++            isComparing = isComparing,
++            result = comparisonResult,
++            onDismiss = onClearComparison
++        )
++    }
+ }

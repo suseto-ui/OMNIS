@@ -1,0 +1,37 @@
+--- app/src/main/java/com/example/ui/OmnisViewModel.kt
++++ app/src/main/java/com/example/ui/OmnisViewModel.kt
+@@ -19,6 +19,7 @@
+ enum class OmnisTab {
+     CHAT,
+     MATRIX, // Or OctagonDashboard
+     MEMORY,
+     TEST_SEMANTIC,
+     DEV
+ }
+@@ -370,6 +371,19 @@
+         }
+     }
+ 
++    private val _comparisonResult = MutableStateFlow<com.example.api.ComparisonResult?>(null)
++    val comparisonResult: StateFlow<com.example.api.ComparisonResult?> = _comparisonResult.asStateFlow()
++    
++    private val _isComparing = MutableStateFlow(false)
++    val isComparing: StateFlow<Boolean> = _isComparing.asStateFlow()
++
++    fun synthesizeSelectedRecords(selectedIds: Set<Long>) {
++        val selectedRecords = _records.value.filter { selectedIds.contains(it.id) }
++        if (selectedRecords.size < 2) return
++        _isComparing.value = true
++        viewModelScope.launch {
++            _comparisonResult.value = OmnisGeminiClient.synthesizeComparison(selectedRecords)
++            _isComparing.value = false
++        }
++    }
++    
++    fun clearComparison() {
++        _comparisonResult.value = null
++    }
++
+     fun optimizeForDomain(domain: String, record: com.example.data.OmnisRecord) {
+         if (_isLoading.value) return
+         _isLoading.value = true

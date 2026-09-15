@@ -13,6 +13,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -44,10 +45,15 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.OmnisRecord
+import com.example.TestSemanticChatView
+import androidx.compose.material.icons.filled.Science
 import com.example.ui.OmnisTab
 import com.example.ui.OmnisViewModel
+import com.example.ui.OctagonDashboard
 import com.example.ui.theme.*
 import java.io.FileOutputStream
 import java.util.Locale
@@ -64,7 +70,16 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             MyApplicationTheme {
                 OmnisMainScreen(
                     viewModel = viewModel,
-                    onSpeak = { text -> tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, null) },
+                    onSpeak = { text ->
+                        if (text.length >= TextToSpeech.getMaxSpeechInputLength()) {
+                            val chunks = text.chunked(TextToSpeech.getMaxSpeechInputLength() - 1)
+                            chunks.forEachIndexed { index, chunk ->
+                                tts?.speak(chunk, if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, null)
+                            }
+                        } else {
+                            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+                        }
+                    },
                     onExportPdf = { record -> exportToPdf(record) }
                 )
             }
@@ -73,7 +88,12 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            tts?.language = Locale("cs", "CZ")
+            val result = tts?.setLanguage(Locale("cs", "CZ"))
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                Toast.makeText(this, "Český jazyk pro TTS není dostupný.", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(this, "Inicializace TTS selhala.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -85,28 +105,98 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private fun exportToPdf(record: OmnisRecord) {
         val pdfDocument = PdfDocument()
-        val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
-        val page = pdfDocument.startPage(pageInfo)
-        val canvas = page.canvas
-        val paint = Paint()
+        val textPaint = Paint().apply {
+            textSize = 12f
+            isAntiAlias = true
+        }
+        val headerPaint = Paint().apply {
+            textSize = 18f
+            isFakeBoldText = true
+            color = android.graphics.Color.BLUE
+        }
 
-        paint.textSize = 16f
-        paint.isFakeBoldText = true
-        canvas.drawText("O.M.N.I.S. Export", 50f, 50f, paint)
+        var pageNumber = 1
+        var pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+        var page = pdfDocument.startPage(pageInfo)
+        var canvas = page.canvas
+        var y = 50f
 
-        paint.textSize = 12f
-        paint.isFakeBoldText = false
-        var y = 80f
-        canvas.drawText("Role: ${record.role}", 50f, y, paint)
+        canvas.drawText("O.M.N.I.S. Kognitivní Report", 50f, y, headerPaint)
+        y += 40f
+
+        textPaint.isFakeBoldText = true
+        canvas.drawText("Identifikátor: #${record.id}", 50f, y, textPaint)
         y += 20f
-        canvas.drawText("Datum: ${java.util.Date(record.timestamp)}", 50f, y, paint)
-        y += 30f
+        canvas.drawText("Role: ${record.role.uppercase()}", 50f, y, textPaint)
+        y += 20f
+        canvas.drawText("Čas: ${java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(record.timestamp))}", 50f, y, textPaint)
+        y += 40f
 
-        val lines = record.content.split("\n")
-        for (line in lines) {
-            if (y > 800) break
-            canvas.drawText(line.take(80), 50f, y, paint)
-            y += 15f
+        textPaint.isFakeBoldText = false
+        val contentLines = record.content.split("\n")
+        val maxWidth = 500f
+
+        for (line in contentLines) {
+            val words = line.split(" ")
+            var currentLine = StringBuilder()
+            
+            for (word in words) {
+                val testLine = if (currentLine.isEmpty()) word else "${currentLine} $word"
+                val width = textPaint.measureText(testLine)
+                
+                if (width > maxWidth) {
+                    canvas.drawText(currentLine.toString(), 50f, y, textPaint)
+                    y += 20f
+                    currentLine = StringBuilder(word)
+                    
+                    if (y > 780) {
+                        pdfDocument.finishPage(page)
+                        pageNumber++
+                        pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                        page = pdfDocument.startPage(pageInfo)
+                        canvas = page.canvas
+                        y = 50f
+                    }
+                } else {
+                    currentLine.append(if (currentLine.isEmpty()) word else " $word")
+                }
+            }
+            
+            if (currentLine.isNotEmpty()) {
+                canvas.drawText(currentLine.toString(), 50f, y, textPaint)
+                y += 20f
+            }
+
+            if (y > 780) {
+                pdfDocument.finishPage(page)
+                pageNumber++
+                pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                page = pdfDocument.startPage(pageInfo)
+                canvas = page.canvas
+                y = 50f
+            }
+        }
+
+        if (record.cognitiveProcess.isNotBlank()) {
+            y += 20f
+            textPaint.isFakeBoldText = true
+            canvas.drawText("Kognitivní Introspekce:", 50f, y, textPaint)
+            y += 20f
+            textPaint.isFakeBoldText = false
+            
+            val processLines = record.cognitiveProcess.split("\n")
+            for (line in processLines) {
+                canvas.drawText(line.take(80), 50f, y, textPaint)
+                y += 18f
+                if (y > 780) {
+                    pdfDocument.finishPage(page)
+                    pageNumber++
+                    pageInfo = PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                    page = pdfDocument.startPage(pageInfo)
+                    canvas = page.canvas
+                    y = 50f
+                }
+            }
         }
 
         pdfDocument.finishPage(page)
@@ -117,7 +207,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             Toast.makeText(this, "PDF uloženo: ${file.absolutePath}", Toast.LENGTH_LONG).show()
             
             // Share file
-            val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
+            val authority = "${packageName}.provider"
+            val uri = androidx.core.content.FileProvider.getUriForFile(this, authority, file)
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "application/pdf"
                 putExtra(Intent.EXTRA_STREAM, uri)
@@ -155,11 +246,21 @@ fun OmnisMainScreen(
     val records by viewModel.records.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val inputQuery by viewModel.inputQuery.collectAsStateWithLifecycle()
+    val ocrValidationState by viewModel.ocrValidationState.collectAsStateWithLifecycle()
     
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showDevLockDialog by remember { mutableStateOf(false) }
     var devPassword by remember { mutableStateOf("") }
     var devUnlocked by remember { mutableStateOf(false) }
+
+    ocrValidationState?.let { state ->
+        com.example.ui.OcrValidationDialog(
+            state = state,
+            onTextChanged = viewModel::updateOcrValidationText,
+            onConfirm = viewModel::confirmOcrValidation,
+            onCancel = viewModel::cancelOcrValidation
+        )
+    }
 
     if (showDeleteConfirm) {
         AlertDialog(
@@ -251,8 +352,8 @@ fun OmnisMainScreen(
                                 Text(
                                     text = "O.M.N.I.S.",
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 18.sp,
-                                    letterSpacing = 1.sp,
+                                    fontSize = 16.sp,
+                                    letterSpacing = 0.5.sp,
                                     color = Color.White
                                 )
                                 Surface(
@@ -263,21 +364,16 @@ fun OmnisMainScreen(
                                     Text(
                                         text = "v2.6",
                                         color = OmnisCyan,
-                                        fontSize = 10.sp,
+                                        fontSize = 9.sp,
                                         fontFamily = FontFamily.Monospace,
                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                     )
                                 }
                             }
-                            Text(
-                                text = "Cognitive Impact Matrix Engine",
-                                color = OmnisTextMuted,
-                                fontSize = 11.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
                         }
                     }
                 },
+                modifier = Modifier.height(48.dp),
                 actions = {
                     IconButton(
                         onClick = { showDeleteConfirm = true },
@@ -301,11 +397,13 @@ fun OmnisMainScreen(
             NavigationBar(
                 containerColor = OmnisPanelDark,
                 tonalElevation = 8.dp,
-                modifier = Modifier.border(
-                    width = 1.dp,
-                    color = OmnisBorderDark,
-                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                )
+                modifier = Modifier
+                    .height(64.dp)
+                    .border(
+                        width = 1.dp,
+                        color = OmnisBorderDark,
+                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                    )
             ) {
                 NavigationBarItem(
                     selected = activeTab == OmnisTab.CHAT,
@@ -348,6 +446,19 @@ fun OmnisMainScreen(
                 )
                 if (devUnlocked) {
                     NavigationBarItem(
+                        selected = activeTab == OmnisTab.TEST_SEMANTIC,
+                        onClick = { viewModel.setTab(OmnisTab.TEST_SEMANTIC) },
+                        icon = { Icon(Icons.Default.Science, contentDescription = "Test Semantika") },
+                        label = { Text("Test", fontSize = 10.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = OmnisAmber,
+                            selectedTextColor = OmnisAmber,
+                            indicatorColor = OmnisAmber.copy(alpha = 0.2f),
+                            unselectedIconColor = OmnisTextMuted,
+                            unselectedTextColor = OmnisTextMuted
+                        )
+                    )
+                    NavigationBarItem(
                         selected = activeTab == OmnisTab.DEV,
                         onClick = { viewModel.setTab(OmnisTab.DEV) },
                         icon = { Icon(Icons.Default.Build, contentDescription = "Laboratoř") },
@@ -373,39 +484,164 @@ fun OmnisMainScreen(
                 .background(OmnisBgDark)
         ) {
             when (activeTab) {
-                OmnisTab.CHAT -> ChatView(
+                OmnisTab.CHAT -> {
+                    val selectedDomains by viewModel.selectedDomains.collectAsStateWithLifecycle()
+                    val focusedDomain by viewModel.focusedDomain.collectAsStateWithLifecycle()
+                    val selectedRecord by viewModel.selectedRecordForDetail.collectAsStateWithLifecycle()
+                    val isOcrLoading by viewModel.isOcrLoading.collectAsStateWithLifecycle()
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        ChatView(
+                            records = records,
+                            isLoading = isLoading,
+                            isOcrLoading = isOcrLoading,
+                            inputQuery = inputQuery,
+                            onQueryChange = viewModel::onQueryChange,
+                            onSend = { viewModel.sendQuery() },
+                            onQuickQuery = { viewModel.sendQuery(it) },
+                            onSpeak = onSpeak,
+                            onExportPdf = onExportPdf,
+                            onImageSelected = { uri -> viewModel.extractTextFromImage(uri) },
+                            onDocumentSelected = { uri, name, mimeType -> viewModel.extractTextFromDocument(uri, name, mimeType) },
+                            scrollToId = viewModel.scrollToId.collectAsStateWithLifecycle().value,
+                            onScrollComplete = { viewModel.clearScrollJump() },
+                            selectedDomains = selectedDomains,
+                            onDomainClick = viewModel::toggleDomainSelection,
+                            onDomainLongClick = viewModel::focusDomain
+                        )
+
+                        // Multi-Domain Synthesis Panel
+                        if (selectedDomains.isNotEmpty()) {
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 80.dp, start = 16.dp, end = 16.dp)
+                                    .fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                color = OmnisPanelDark,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan),
+                                tonalElevation = 8.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "SYNTÉZNÍ PANEL (${selectedDomains.size})",
+                                            color = OmnisCyan,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                        Text(
+                                            text = selectedDomains.joinToString(", "),
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        TextButton(onClick = { viewModel.clearSelection() }) {
+                                            Text("Zrušit", color = OmnisTextMuted, fontSize = 12.sp)
+                                        }
+                                        Button(
+                                            onClick = { viewModel.runMultiDomainSynthesis("COMPARE") },
+                                            colors = ButtonDefaults.buttonColors(containerColor = OmnisBgDark),
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 12.dp)
+                                        ) {
+                                            Text("Srovnat", color = Color.White, fontSize = 12.sp)
+                                        }
+                                        Button(
+                                            onClick = { viewModel.runMultiDomainSynthesis("HARMONIZE") },
+                                            colors = ButtonDefaults.buttonColors(containerColor = OmnisCyan),
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 12.dp)
+                                        ) {
+                                            Text("Harmonizovat", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Domain Detail Modal / Sheet
+                        if (focusedDomain != null && selectedRecord != null) {
+                            ModalBottomSheet(
+                                onDismissRequest = { viewModel.clearFocus() },
+                                containerColor = OmnisBgDark,
+                                dragHandle = { BottomSheetDefaults.DragHandle(color = OmnisBorderDark) }
+                            ) {
+                                DomainDetailContent(
+                                    domain = focusedDomain!!,
+                                    record = selectedRecord!!,
+                                    onOptimize = { viewModel.optimizeForDomain(focusedDomain!!, selectedRecord!!) }
+                                )
+                            }
+                        }
+                    }
+                }
+                OmnisTab.MATRIX -> {
+                    val fixedDomains by viewModel.fixedDomains.collectAsStateWithLifecycle()
+                    val isComparing by viewModel.isComparing.collectAsStateWithLifecycle()
+                    val comparisonResult by viewModel.comparisonResult.collectAsStateWithLifecycle()
+
+                    OctagonDashboard(
+                        records = records,
+                        latestRecord = records.lastOrNull { it.role == "assistant" },
+                        simSys = viewModel.simSys.collectAsStateWithLifecycle().value,
+                        simEcon = viewModel.simEcon.collectAsStateWithLifecycle().value,
+                        simPsych = viewModel.simPsych.collectAsStateWithLifecycle().value,
+                        simEco = viewModel.simEco.collectAsStateWithLifecycle().value,
+                        simLaw = viewModel.simLaw.collectAsStateWithLifecycle().value,
+                        simSec = viewModel.simSec.collectAsStateWithLifecycle().value,
+                        simPhys = viewModel.simPhys.collectAsStateWithLifecycle().value,
+                        simSoc = viewModel.simSoc.collectAsStateWithLifecycle().value,
+                        fixedDomains = fixedDomains,
+                        onToggleFix = viewModel::toggleDomainFixation,
+                        onSimChange = { sys, econ, psych, eco, law, sec, phys, soc ->
+                            viewModel.setSimSys(sys)
+                            viewModel.setSimEcon(econ)
+                            viewModel.setSimPsych(psych)
+                            viewModel.setSimEco(eco)
+                            viewModel.setSimLaw(law)
+                            viewModel.setSimSec(sec)
+                            viewModel.setSimPhys(phys)
+                            viewModel.setSimSoc(soc)
+                        },
+                        isComparing = isComparing,
+                        comparisonResult = comparisonResult,
+                        onSynthesize = { selectedIds ->
+                            viewModel.synthesizeSelectedRecords(selectedIds)
+                        },
+                        onClearComparison = {
+                            viewModel.clearComparison()
+                        }
+                    )
+                }
+                OmnisTab.MEMORY -> MemoryView(
                     records = records,
-                    isLoading = isLoading,
-                    inputQuery = inputQuery,
-                    onQueryChange = viewModel::onQueryChange,
-                    onSend = { viewModel.sendQuery() },
-                    onQuickQuery = { viewModel.sendQuery(it) },
-                    onSpeak = onSpeak,
-                    onExportPdf = onExportPdf
-                )
-                OmnisTab.MATRIX -> MatrixView(
-                    latestRecord = records.lastOrNull { it.role == "assistant" },
-                    simSys = viewModel.simSys.collectAsStateWithLifecycle().value,
-                    simEcon = viewModel.simEcon.collectAsStateWithLifecycle().value,
-                    simPsych = viewModel.simPsych.collectAsStateWithLifecycle().value,
-                    simEco = viewModel.simEco.collectAsStateWithLifecycle().value,
-                    simLaw = viewModel.simLaw.collectAsStateWithLifecycle().value,
-                    simSec = viewModel.simSec.collectAsStateWithLifecycle().value,
-                    simPhys = viewModel.simPhys.collectAsStateWithLifecycle().value,
-                    simSoc = viewModel.simSoc.collectAsStateWithLifecycle().value,
-                    onSimChange = { sys, econ, psych, eco, law, sec, phys, soc ->
-                        viewModel.setSimSys(sys)
-                        viewModel.setSimEcon(econ)
-                        viewModel.setSimPsych(psych)
-                        viewModel.setSimEco(eco)
-                        viewModel.setSimLaw(law)
-                        viewModel.setSimSec(sec)
-                        viewModel.setSimPhys(phys)
-                        viewModel.setSimSoc(soc)
+                    onItemClick = { record ->
+                        viewModel.jumpToContext(record)
                     }
                 )
-                OmnisTab.MEMORY -> MemoryView(records = records)
                 OmnisTab.DEV -> DevView()
+                OmnisTab.TEST_SEMANTIC -> {
+                    val testRecords by viewModel.testSemanticRecords.collectAsStateWithLifecycle()
+                    val testQuery by viewModel.inputQuery.collectAsStateWithLifecycle()
+                    TestSemanticChatView(
+                        records = testRecords,
+                        isLoading = isLoading,
+                        inputQuery = testQuery,
+                        onQueryChange = viewModel::onQueryChange,
+                        onSend = { viewModel.sendTestSemanticQuery(testQuery) },
+                        onWeightChange = viewModel::updateSemanticAnchorWeight,
+                        onReSynthesize = viewModel::reSynthesizeTestRecord
+                    )
+                }
             }
         }
     }
@@ -415,15 +651,41 @@ fun OmnisMainScreen(
 fun ChatView(
     records: List<OmnisRecord>,
     isLoading: Boolean,
+    isOcrLoading: Boolean = false,
     inputQuery: String,
     onQueryChange: (String) -> Unit,
     onSend: () -> Unit,
     onQuickQuery: (String) -> Unit,
     onSpeak: (String) -> Unit,
-    onExportPdf: (OmnisRecord) -> Unit
+    onExportPdf: (OmnisRecord) -> Unit,
+    onImageSelected: (Uri) -> Unit = {},
+    onDocumentSelected: (Uri, String, String) -> Unit = { _, _, _ -> },
+    scrollToId: Long? = null,
+    onScrollComplete: () -> Unit = {},
+    selectedDomains: Set<String> = emptySet(),
+    onDomainClick: (String) -> Unit = {},
+    onDomainLongClick: (String, OmnisRecord) -> Unit = { _, _ -> }
 ) {
     val listState = rememberLazyListState()
     val context = LocalContext.current
+
+    // Handle scroll jump
+    LaunchedEffect(scrollToId) {
+        scrollToId?.let { id ->
+            val index = records.indexOfFirst { it.id == id }
+            if (index != -1) {
+                listState.animateScrollToItem(index)
+                onScrollComplete()
+            }
+        }
+    }
+
+    // Photo Picker Launcher
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let { onImageSelected(it) }
+    }
 
     // STT Launcher
     val speechLauncher = rememberLauncherForActivityResult(
@@ -449,24 +711,23 @@ fun ChatView(
                     cursor.getString(nameIndex)
                 } ?: "Soubor"
 
-                contentResolver.openInputStream(it)?.use { stream ->
-                    val extension = fileName.substringAfterLast('.', "").lowercase()
-                    
-                    val contentText = if (extension == "pdf") {
-                        "[PDF Dokument: $fileName - Obsah PDF není přímo čitelný jako text v této verzi, ale soubor byl zaznamenán]"
-                    } else if (extension in listOf("doc", "docx", "xls", "xlsx", "ppt", "pptx")) {
-                        "[Binární dokument Office: $fileName - Obsah není přímo čitelný jako text]"
-                    } else {
-                        // Zkusíme číst jako text s UTF-8, pokud selže, zkusíme jiné kódování
-                        try {
-                            stream.bufferedReader(Charsets.UTF_8).readText()
-                        } catch (e: Exception) {
-                            // Fallback pro binární nebo jinak kódované soubory
-                            "[Soubor: $fileName - Obsah nelze interpretovat jako text]"
+                val extension = fileName.substringAfterLast('.', "").lowercase()
+                
+                if (extension == "pdf") {
+                    onDocumentSelected(it, fileName, "application/pdf")
+                } else {
+                    contentResolver.openInputStream(it)?.use { stream ->
+                        val contentText = if (extension in listOf("doc", "docx", "xls", "xlsx", "ppt", "pptx")) {
+                            "[Binární dokument Office: $fileName - Obsah není přímo čitelný jako text]"
+                        } else {
+                            try {
+                                stream.bufferedReader(Charsets.UTF_8).readText()
+                            } catch (e: Exception) {
+                                "[Soubor: $fileName - Obsah nelze interpretovat jako text]"
+                            }
                         }
+                        onQueryChange(inputQuery + "\n\n--- Obsah souboru ($fileName) ---\n" + contentText + "\n--- Konec souboru ---")
                     }
-                    
-                    onQueryChange(inputQuery + "\n\n--- Obsah souboru ($fileName) ---\n" + contentText + "\n--- Konec souboru ---")
                 }
             } catch (e: Exception) {
                 Toast.makeText(context, "Nepodařilo se načíst soubor: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -475,7 +736,7 @@ fun ChatView(
     }
 
     LaunchedEffect(records.size, isLoading) {
-        if (records.isNotEmpty()) {
+        if (records.isNotEmpty() && scrollToId == null) {
             listState.animateScrollToItem(records.size - 1)
         }
     }
@@ -558,62 +819,85 @@ fun ChatView(
                         "text/html",
                         "text/css"
                     )) 
-                }) {
+                }, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Default.Add, contentDescription = "Přiložit soubor", tint = OmnisCyan)
                 }
 
-                OutlinedTextField(
-                    value = inputQuery,
-                    onValueChange = onQueryChange,
-                    placeholder = {
-                        Text(
-                            "Zadejte dotaz pro O.M.N.I.S...",
-                            color = OmnisTextMuted,
-                            fontSize = 13.sp
-                        )
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("chat_input_field"),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = OmnisCyan,
-                        unfocusedBorderColor = OmnisBorderDark,
-                        focusedContainerColor = OmnisBgDark,
-                        unfocusedContainerColor = OmnisBgDark
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    maxLines = 3,
-                    trailingIcon = {
-                        IconButton(onClick = {
-                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "cs-CZ")
-                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Diktujte dotaz...")
+                IconButton(onClick = {
+                    photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = "Odeslat obrázek pro OCR", tint = OmnisCyan)
+                }
+
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedTextField(
+                        value = inputQuery,
+                        onValueChange = onQueryChange,
+                        placeholder = {
+                            Text(
+                                "Zadejte dotaz pro O.M.N.I.S...",
+                                color = OmnisTextMuted,
+                                fontSize = 13.sp
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("chat_input_field"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = OmnisCyan,
+                            unfocusedBorderColor = OmnisBorderDark,
+                            focusedContainerColor = OmnisBgDark,
+                            unfocusedContainerColor = OmnisBgDark
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        maxLines = 3,
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "cs-CZ")
+                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Diktujte dotaz...")
+                                }
+                                speechLauncher.launch(intent)
+                            }) {
+                                Icon(Icons.Default.Mic, contentDescription = "Diktovat", tint = OmnisCyan)
                             }
-                            speechLauncher.launch(intent)
-                        }) {
-                            Icon(Icons.Default.Mic, contentDescription = "Diktovat", tint = OmnisCyan)
+                        }
+                    )
+                    
+                    if (isOcrLoading) {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .background(OmnisBgDark.copy(alpha = 0.8f), RoundedCornerShape(12.dp))
+                                .border(1.dp, OmnisCyan, RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                CircularProgressIndicator(color = OmnisCyan, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Text("Extrahuji text (OCR)...", color = OmnisCyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                            }
                         }
                     }
-                )
+                }
 
                 IconButton(
                     onClick = onSend,
-                    enabled = inputQuery.isNotBlank() && !isLoading,
+                    enabled = inputQuery.isNotBlank() && !isLoading && !isOcrLoading,
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
                         .background(
-                            if (inputQuery.isNotBlank() && !isLoading) OmnisCyan else OmnisBorderDark
+                            if (inputQuery.isNotBlank() && !isLoading && !isOcrLoading) OmnisCyan else OmnisBorderDark
                         )
                         .testTag("send_query_button")
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Odeslat dotaz",
-                        tint = if (inputQuery.isNotBlank() && !isLoading) Color.Black else OmnisTextMuted
+                        tint = if (inputQuery.isNotBlank() && !isLoading && !isOcrLoading) Color.Black else OmnisTextMuted
                     )
                 }
             }
@@ -626,7 +910,10 @@ fun ChatMessageItem(
     record: OmnisRecord, 
     onQuickQuery: (String) -> Unit,
     onSpeak: (String) -> Unit,
-    onExportPdf: (OmnisRecord) -> Unit
+    onExportPdf: (OmnisRecord) -> Unit,
+    selectedDomains: Set<String> = emptySet(),
+    onDomainClick: (String) -> Unit = {},
+    onDomainLongClick: (String, OmnisRecord) -> Unit = { _, _ -> }
 ) {
     val isUser = record.role == "user"
     var thoughtsExpanded by remember { mutableStateOf(false) }
@@ -687,6 +974,21 @@ fun ChatMessageItem(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
+                record.attachedImagePath?.let { path ->
+                    val file = java.io.File(path)
+                    if (file.exists()) {
+                        coil.compose.AsyncImage(
+                            model = file,
+                            contentDescription = "Připojený obrázek",
+                            contentScale = androidx.compose.ui.layout.ContentScale.FillWidth,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    }
+                }
+
                 // Introspection thought accordion
                 if (!isUser && record.cognitiveProcess.isNotBlank()) {
                     Surface(
@@ -744,16 +1046,16 @@ fun ChatMessageItem(
                     Spacer(modifier = Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            MetricPill("Sys", record.valSys, Color(0xFF60A5FA), Icons.Default.Settings)
-                            MetricPill("Econ", record.valEcon, Color(0xFFFBBF24), Icons.Default.Paid)
-                            MetricPill("Psych", record.valPsych, Color(0xFFC084FC), Icons.Default.Face)
-                            MetricPill("Eco", record.valEco, Color(0xFF34D399), Icons.Default.Spa)
+                            MetricPill("Sys", record.valSys, Color(0xFF60A5FA), Icons.Default.Settings, selectedDomains.contains("Sys"), onClick = { onDomainClick("Sys") }, onLongClick = { onDomainLongClick("Sys", record) })
+                            MetricPill("Econ", record.valEcon, Color(0xFFFBBF24), Icons.Default.Paid, selectedDomains.contains("Econ"), onClick = { onDomainClick("Econ") }, onLongClick = { onDomainLongClick("Econ", record) })
+                            MetricPill("Psych", record.valPsych, Color(0xFFC084FC), Icons.Default.Face, selectedDomains.contains("Psych"), onClick = { onDomainClick("Psych") }, onLongClick = { onDomainLongClick("Psych", record) })
+                            MetricPill("Eco", record.valEco, Color(0xFF34D399), Icons.Default.Spa, selectedDomains.contains("Eco"), onClick = { onDomainClick("Eco") }, onLongClick = { onDomainLongClick("Eco", record) })
                         }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            MetricPill("Law", record.valLaw, Color(0xFFFB7185), Icons.Default.Gavel)
-                            MetricPill("Sec", record.valSec, Color(0xFFEF4444), Icons.Default.Security)
-                            MetricPill("Phys", record.valPhys, Color(0xFFFB923C), Icons.Default.Speed)
-                            MetricPill("Soc", record.valSoc, Color(0xFFF472B6), Icons.Default.Groups)
+                            MetricPill("Law", record.valLaw, Color(0xFFFB7185), Icons.Default.Gavel, selectedDomains.contains("Law"), onClick = { onDomainClick("Law") }, onLongClick = { onDomainLongClick("Law", record) })
+                            MetricPill("Sec", record.valSec, Color(0xFFEF4444), Icons.Default.Security, selectedDomains.contains("Sec"), onClick = { onDomainClick("Sec") }, onLongClick = { onDomainLongClick("Sec", record) })
+                            MetricPill("Phys", record.valPhys, Color(0xFFFB923C), Icons.Default.Speed, selectedDomains.contains("Phys"), onClick = { onDomainClick("Phys") }, onLongClick = { onDomainLongClick("Phys", record) })
+                            MetricPill("Soc", record.valSoc, Color(0xFFF472B6), Icons.Default.Groups, selectedDomains.contains("Soc"), onClick = { onDomainClick("Soc") }, onLongClick = { onDomainLongClick("Soc", record) })
                         }
                     }
                 }
@@ -787,26 +1089,39 @@ fun ChatMessageItem(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MetricPill(label: String, value: Float, color: Color, icon: ImageVector) {
+fun MetricPill(
+    label: String, 
+    value: Float, 
+    color: Color, 
+    icon: ImageVector,
+    isSelected: Boolean = false,
+    onClick: () -> Unit = {},
+    onLongClick: () -> Unit = {}
+) {
     Surface(
-        shape = RoundedCornerShape(6.dp),
-        color = OmnisBgDark,
-        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.4f))
+        shape = RoundedCornerShape(10.dp),
+        color = if (isSelected) color.copy(alpha = 0.25f) else OmnisBgDark,
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) color else color.copy(alpha = 0.4f)),
+        modifier = Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(imageVector = icon, contentDescription = null, tint = color.copy(alpha = 0.7f), modifier = Modifier.size(10.dp))
+            Icon(imageVector = icon, contentDescription = null, tint = color.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = label, color = OmnisTextMuted, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+                Text(text = label, color = OmnisTextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                 Text(
                     text = "${(value * 100).toInt()}%",
                     color = color,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp,
+                    fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace
                 )
             }
@@ -814,182 +1129,95 @@ fun MetricPill(label: String, value: Float, color: Color, icon: ImageVector) {
     }
 }
 
-@Composable
-fun MatrixView(
-    latestRecord: OmnisRecord?,
-    simSys: Float,
-    simEcon: Float,
-    simPsych: Float,
-    simEco: Float,
-    simLaw: Float,
-    simSec: Float,
-    simPhys: Float,
-    simSoc: Float,
-    onSimChange: (Float, Float, Float, Float, Float, Float, Float, Float) -> Unit
-) {
-    val composite = (simSys + simEcon + simPsych + simEco + simLaw + simSec + simPhys + simSoc) / 8f
-    val animatedComposite by animateFloatAsState(targetValue = composite, label = "composite")
 
-    LazyColumn(
+
+@Composable
+fun DomainDetailContent(
+    domain: String,
+    record: OmnisRecord,
+    onOptimize: () -> Unit
+) {
+    val color = when(domain) {
+        "Sys" -> Color(0xFF60A5FA)
+        "Econ" -> Color(0xFFFBBF24)
+        "Psych" -> Color(0xFFC084FC)
+        "Eco" -> Color(0xFF34D399)
+        "Law" -> Color(0xFFFB7185)
+        "Sec" -> Color(0xFFEF4444)
+        "Phys" -> Color(0xFFFB923C)
+        "Soc" -> Color(0xFFF472B6)
+        else -> OmnisCyan
+    }
+    
+    val value = when(domain) {
+        "Sys" -> record.valSys
+        "Econ" -> record.valEcon
+        "Psych" -> record.valPsych
+        "Eco" -> record.valEco
+        "Law" -> record.valLaw
+        "Sec" -> record.valSec
+        "Phys" -> record.valPhys
+        "Soc" -> record.valSoc
+        else -> 0f
+    }
+
+    Column(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(24.dp)
+            .fillMaxWidth()
     ) {
-        // Hero Composite Card
-        item {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = OmnisPanelDark,
-                border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("matrix_hero_card")
-            ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "OSMIDIMENZIONÁLNÍ MATICE DOPADŮ",
-                        color = OmnisCyan,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.sp
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "${(animatedComposite * 100).toInt()} %",
-                        color = Color.White,
-                        fontSize = 42.sp,
-                        fontWeight = FontWeight.Black,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Text(
-                        text = "INTEGRÁLNÍ INDEX HARMONIE",
-                        color = OmnisEmerald,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Systémová rovnováha napříč 8 transdisciplinárními doménami.",
-                        color = OmnisTextMuted,
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp
-                    )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(shape = CircleShape, color = color.copy(alpha = 0.2f), modifier = Modifier.size(48.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(text = domain.uppercase(), color = color, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
+            }
+            Column {
+                Text(text = "KOGNITIVNÍ DIAGNOSTIKA", color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text(text = "Úroveň integrity: ${(value * 100).toInt()}%", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
             }
         }
 
-        // 8 Dimension Interactive Sliders
-        item {
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(text = "ANALÝZA ODOZVY", color = OmnisCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = OmnisPanelDark,
+            modifier = Modifier.padding(top = 8.dp).fillMaxWidth()
+        ) {
             Text(
-                text = "INTERAKTIVNÍ CO-KDYŽ SIMULACE",
-                color = OmnisTextMuted,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
+                text = "Tato odpověď vykazuje v doméně $domain úroveň ${(value * 100).toInt()}%. Systém identifikoval vazby na sémantické uzly v textu, které ovlivňují stabilitu celkového indexu harmonie.",
+                color = Color.White,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(16.dp)
             )
         }
 
-        item {
-            DimensionSliderCard(
-                title = "Systémové inženýrství & Kybernetika",
-                desc = "Modularita, robustnost a čistota architektury",
-                value = simSys,
-                color = Color(0xFF60A5FA),
-                icon = Icons.Default.Settings,
-                testTag = "slider_sys",
-                onValueChange = { onSimChange(it, simEcon, simPsych, simEco, simLaw, simSec, simPhys, simSoc) }
-            )
-        }
+        Spacer(modifier = Modifier.height(16.dp))
 
-        item {
-            DimensionSliderCard(
-                title = "Teorie her & Ekonomie",
-                desc = "Efektivita nákladů a návratnost investice",
-                value = simEcon,
-                color = Color(0xFFFBBF24),
-                icon = Icons.Default.Paid,
-                testTag = "slider_econ",
-                onValueChange = { onSimChange(simSys, it, simPsych, simEco, simLaw, simSec, simPhys, simSoc) }
-            )
-        }
+        Text(text = "RIZIKA & LIMITACE", color = Color(0xFFEF4444), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = "• Potenciální entropie při dlouhodobé fixaci parametrů.\n• Nutnost manuální rekalibrace při změně systémových proměnných.",
+            color = OmnisTextMuted,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
 
-        item {
-            DimensionSliderCard(
-                title = "Kognitivní vědy & Psychologie",
-                desc = "Etika, transparentnost a důvěra operátora",
-                value = simPsych,
-                color = Color(0xFFC084FC),
-                icon = Icons.Default.Face,
-                testTag = "slider_psych",
-                onValueChange = { onSimChange(simSys, simEcon, it, simEco, simLaw, simSec, simPhys, simSoc) }
-            )
-        }
+        Spacer(modifier = Modifier.height(24.dp))
 
-        item {
-            DimensionSliderCard(
-                title = "Regenerativní Ekologie",
-                desc = "Udržitelnost a regenerativní potenciál biosféry",
-                value = simEco,
-                color = Color(0xFF34D399),
-                icon = Icons.Default.Spa,
-                testTag = "slider_eco",
-                onValueChange = { onSimChange(simSys, simEcon, simPsych, it, simLaw, simSec, simPhys, simSoc) }
-            )
+        Button(
+            onClick = onOptimize,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = color),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = "OPTIMALIZOVAT PRO ${domain.uppercase()}", fontWeight = FontWeight.Bold)
         }
-
-        item {
-            DimensionSliderCard(
-                title = "Regulace & Právo",
-                desc = "Soulad s legislativou a normami",
-                value = simLaw,
-                color = Color(0xFFFB7185),
-                icon = Icons.Default.Gavel,
-                testTag = "slider_law",
-                onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, it, simSec, simPhys, simSoc) }
-            )
-        }
-
-        item {
-            DimensionSliderCard(
-                title = "Zero-Trust Bezpečnost",
-                desc = "Ochrana perimetru a mitigace rizik",
-                value = simSec,
-                color = Color(0xFFEF4444),
-                icon = Icons.Default.Security,
-                testTag = "slider_sec",
-                onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, simLaw, it, simPhys, simSoc) }
-            )
-        }
-
-        item {
-            DimensionSliderCard(
-                title = "Fyzikální termodynamika",
-                desc = "Energetická entropie a fyzikální mantinely",
-                value = simPhys,
-                color = Color(0xFFFB923C),
-                icon = Icons.Default.Speed,
-                testTag = "slider_phys",
-                onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, simLaw, simSec, it, simSoc) }
-            )
-        }
-
-        item {
-            DimensionSliderCard(
-                title = "Socio-kulturní dynamika",
-                desc = "Dopad na kulturní a sociální struktury",
-                value = simSoc,
-                color = Color(0xFFF472B6),
-                icon = Icons.Default.Groups,
-                testTag = "slider_soc",
-                onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, simLaw, simSec, simPhys, it) }
-            )
-        }
+        
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
@@ -1001,12 +1229,14 @@ fun DimensionSliderCard(
     color: Color,
     icon: ImageVector,
     testTag: String,
+    isFixed: Boolean = false,
+    onToggleFix: () -> Unit = {},
     onValueChange: (Float) -> Unit
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = OmnisPanelDark,
-        border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isFixed) color else OmnisBorderDark),
         modifier = Modifier
             .fillMaxWidth()
             .testTag(testTag)
@@ -1018,7 +1248,14 @@ fun DimensionSliderCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+                    IconButton(onClick = onToggleFix, modifier = Modifier.size(24.dp)) {
+                        Icon(
+                            imageVector = if (isFixed) Icons.Default.Lock else icon, 
+                            contentDescription = null, 
+                            tint = color, 
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                     Text(
                         text = title,
                         color = Color.White,
@@ -1122,33 +1359,33 @@ fun DevView() {
 }
 
 @Composable
-fun MemoryView(records: List<OmnisRecord>) {
+fun MemoryView(records: List<OmnisRecord>, onItemClick: (OmnisRecord) -> Unit) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
             Surface(
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(12.dp),
                 color = OmnisPanelDark,
                 border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Text(
                         text = "AUTOPOIETICKÁ SÉMANTICKÁ PAMĚŤ",
                         color = OmnisCyan,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace
                     )
                     Text(
-                        text = "Lokální Room perzistence propojená s ontologickým rámcem a tenzory Matice dopadů.",
+                        text = "Lokální Room perzistence propojená s ontologickým rámcem.",
                         color = OmnisTextMuted,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 4.dp)
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 2.dp)
                     )
                 }
             }
@@ -1158,20 +1395,22 @@ fun MemoryView(records: List<OmnisRecord>) {
             Text(
                 text = "ZAZNAMENANÉ KOGNITIVNÍ OTISKY (${records.size})",
                 color = OmnisTextMuted,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
             )
         }
 
-        items(records, key = { it.id }) { record ->
+        items(records.reversed(), key = { it.id }) { record ->
             Surface(
                 shape = RoundedCornerShape(10.dp),
                 color = OmnisPanelDark,
                 border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onItemClick(record) }
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(10.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -1179,23 +1418,41 @@ fun MemoryView(records: List<OmnisRecord>) {
                         Text(
                             text = if (record.role == "user") "OTISK [DOTAZ]" else "OTISK [SYNTÉZA]",
                             color = if (record.role == "user") OmnisViolet else OmnisCyan,
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
-                            text = "768-dim hash #${record.id}",
+                            text = "hash #${record.id}",
                             color = OmnisTextMuted,
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
                             fontFamily = FontFamily.Monospace
                         )
                     }
                     Text(
-                        text = record.content.take(160) + if (record.content.length > 160) "..." else "",
+                        text = record.content.take(120) + if (record.content.length > 120) "..." else "",
                         color = Color.White,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         modifier = Modifier.padding(top = 4.dp)
                     )
+                    record.attachedImagePath?.let { path ->
+                        val file = java.io.File(path)
+                        if (file.exists()) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(top = 6.dp)
+                            ) {
+                                Icon(Icons.Default.Image, contentDescription = null, tint = OmnisCyan, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Zdrojový obrázek přiložen",
+                                    color = OmnisCyan,
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
