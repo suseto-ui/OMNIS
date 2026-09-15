@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -21,9 +22,17 @@ enum class OmnisTab {
     MEMORY
 }
 
-class OmnisViewModel(application: Application) : AndroidViewModel(application) {
+class OmnisViewModel(
+    application: Application,
+    customRepository: OmnisRepository? = null
+) : AndroidViewModel(application) {
 
-    private val repository: OmnisRepository
+    constructor(application: Application) : this(application, null)
+
+    private val repository: OmnisRepository = customRepository ?: run {
+        val db = OmnisDatabase.getDatabase(application)
+        OmnisRepository(db.omnisDao())
+    }
     val records: StateFlow<List<OmnisRecord>>
 
     private val _activeTab = MutableStateFlow(OmnisTab.CHAT)
@@ -68,8 +77,6 @@ class OmnisViewModel(application: Application) : AndroidViewModel(application) {
     val simSoc: StateFlow<Float> = _simSoc.asStateFlow()
 
     init {
-        val db = OmnisDatabase.getDatabase(application)
-        repository = OmnisRepository(db.omnisDao())
         records = repository.allRecords.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5000),
@@ -78,26 +85,25 @@ class OmnisViewModel(application: Application) : AndroidViewModel(application) {
 
         // Seed initial record if empty
         viewModelScope.launch {
-            repository.allRecords.collect { list ->
-                if (list.isEmpty()) {
-                    val initial = OmnisRecord(
-                        role = "assistant",
-                        content = "Vítejte v O.M.N.I.S. (Omni-Modal Network for Integrated Synthesis). Systém je aktivní v režimu přímé ontologické syntézy s reálným vyhodnocováním č[...]",
-                        cognitiveProcess = "1. Inicializace subsystému O.M.N.I.S.\n2. Napojení na ontologický rámec.\n3. Výpočet bazálních tenzorů napříč 8 doménami.",
-                        followUpQuestions = "Jak provázat ekonomické pobídky s ekologickou regenerací?|Jak navrhnout distribuovanou architekturu s nulovou energetickou stopou?",
-                        valSys = 0.95f,
-                        valEcon = 0.88f,
-                        valPsych = 0.91f,
-                        valEco = 0.94f,
-                        valLaw = 0.98f,
-                        valSec = 0.99f,
-                        valPhys = 0.87f,
-                        valSoc = 0.90f,
-                        compositeScore = 0.927f,
-                        domain = "SYSTEMS_INTELLIGENCE"
-                    )
-                    repository.insert(initial)
-                }
+            val list = repository.allRecords.first()
+            if (list.isEmpty()) {
+                val initial = OmnisRecord(
+                    role = "assistant",
+                    content = "Vítejte v O.M.N.I.S. (Omni-Modal Network for Integrated Synthesis). Systém je aktivní v režimu přímé ontologické syntézy s reálným vyhodnocováním č[...]",
+                    cognitiveProcess = "1. Inicializace subsystému O.M.N.I.S.\n2. Napojení na ontologický rámec.\n3. Výpočet bazálních tenzorů napříč 8 doménami.",
+                    followUpQuestions = "Jak provázat ekonomické pobídky s ekologickou regenerací?|Jak navrhnout distribuovanou architekturu s nulovou energetickou stopou?",
+                    valSys = 0.95f,
+                    valEcon = 0.88f,
+                    valPsych = 0.91f,
+                    valEco = 0.94f,
+                    valLaw = 0.98f,
+                    valSec = 0.99f,
+                    valPhys = 0.87f,
+                    valSoc = 0.90f,
+                    compositeScore = 0.927f,
+                    domain = "SYSTEMS_INTELLIGENCE"
+                )
+                repository.insert(initial)
             }
         }
     }

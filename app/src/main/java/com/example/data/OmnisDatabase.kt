@@ -19,10 +19,17 @@ abstract class OmnisDatabase : RoomDatabase() {
                     context.applicationContext,
                     OmnisDatabase::class.java,
                     "omnis_local_db"
-                ).fallbackToDestructiveMigration().build()
+                ).fallbackToDestructiveMigration(true).build()
                 INSTANCE = instance
                 instance
             }
+        }
+
+        fun getInMemoryDatabase(context: Context): OmnisDatabase {
+            return Room.inMemoryDatabaseBuilder(
+                context.applicationContext,
+                OmnisDatabase::class.java
+            ).allowMainThreadQueries().build()
         }
     }
 }

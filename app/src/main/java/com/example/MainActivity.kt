@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -167,7 +168,7 @@ fun OmnisMainScreen(viewModel: OmnisViewModel) {
                 NavigationBarItem(
                     selected = activeTab == OmnisTab.CHAT,
                     onClick = { viewModel.setTab(OmnisTab.CHAT) },
-                    icon = { Icon(Icons.Default.Send, contentDescription = "Kognitivní Chat") },
+                    icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Kognitivní Chat") },
                     label = { Text("Chat", fontSize = 12.sp) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = OmnisCyan,
@@ -213,6 +214,8 @@ fun OmnisMainScreen(viewModel: OmnisViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
+                .imePadding()
                 .background(OmnisBgDark)
         ) {
             when (activeTab) {
@@ -356,7 +359,7 @@ fun ChatView(
                         .testTag("send_query_button")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Send,
+                        imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Odeslat dotaz",
                         tint = if (inputQuery.isNotBlank() && !isLoading) Color.Black else OmnisTextMuted
                     )
