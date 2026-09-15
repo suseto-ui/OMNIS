@@ -438,7 +438,9 @@ class OmnisViewModel(
                     valPhys = result.valPhys,
                     valSoc = result.valSoc,
                     compositeScore = result.composite,
-                    domain = _selectedDomain.value
+                    domain = _selectedDomain.value,
+                    defenseTier = result.defenseTier,
+                    defenseNotes = result.defenseNotes
                 )
                 repository.insert(asstRecord)
 
@@ -476,5 +478,15 @@ class OmnisViewModel(
 
     fun clearScrollJump() {
         _scrollToId.value = null
+    }
+
+    fun authorizeBlockedRecord(record: OmnisRecord) {
+        viewModelScope.launch {
+            val updated = record.copy(
+                defenseTier = "APPROVED",
+                defenseNotes = "Manuálně autorizováno operátorem (Human-in-the-Loop Override)."
+            )
+            repository.insert(updated)
+        }
     }
 }

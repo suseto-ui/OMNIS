@@ -7,7 +7,10 @@ class OmnisRepository(private val dao: OmnisDao) {
     val latestRecord: Flow<OmnisRecord?> = dao.getLatestRecord()
 
     suspend fun insert(record: OmnisRecord): Long {
-        return dao.insertRecord(record)
+        val rowId = dao.insertRecord(record)
+        val recordWithId = record.copy(id = rowId)
+        CloudSqlSyncManager.syncRecordAsync(recordWithId)
+        return rowId
     }
 
     suspend fun clear() {

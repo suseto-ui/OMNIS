@@ -22,5 +22,7 @@ data class OmnisRecord(
     val compositeScore: Float = 0.5f,
     val domain: String = "SYSTEMS_INTELLIGENCE",
     val attachedImagePath: String? = null,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val defenseTier: String = "APPROVED",
+    val defenseNotes: String = ""
 )

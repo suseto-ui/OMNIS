@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [OmnisRecord::class], version = 3, exportSchema = false)
+@Database(entities = [OmnisRecord::class], version = 4, exportSchema = false)
 abstract class OmnisDatabase : RoomDatabase() {
     abstract fun omnisDao(): OmnisDao
 

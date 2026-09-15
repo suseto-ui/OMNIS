@@ -57,6 +57,7 @@ import com.example.ui.OctagonDashboard
 import com.example.ui.theme.*
 import java.io.FileOutputStream
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private val viewModel: OmnisViewModel by viewModels()
@@ -253,6 +254,9 @@ fun OmnisMainScreen(
     var devPassword by remember { mutableStateOf("") }
     var devUnlocked by remember { mutableStateOf(false) }
 
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
     ocrValidationState?.let { state ->
         com.example.ui.OcrValidationDialog(
             state = state,
@@ -317,14 +321,171 @@ fun OmnisMainScreen(
         )
     }
 
-    Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(OmnisBgDark),
-        containerColor = OmnisBgDark,
-        topBar = {
-            TopAppBar(
-                title = {
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                drawerContainerColor = OmnisBgDark,
+                drawerShape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
+                modifier = Modifier.width(280.dp)
+            ) {
+                Spacer(modifier = Modifier.height(24.dp))
+                Row(
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Brush.linearGradient(listOf(OmnisCyan, OmnisViolet))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Ω", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    }
+                    Column {
+                        Text("O.M.N.I.S.", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("Kognitivní Řízení", color = OmnisCyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                    }
+                }
+                HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 12.dp))
+                
+                NavigationDrawerItem(
+                    label = { Text("Kognitivní Chat", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                    selected = activeTab == OmnisTab.CHAT,
+                    onClick = {
+                        viewModel.setTab(OmnisTab.CHAT)
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
+                        selectedIconColor = OmnisCyan,
+                        selectedTextColor = OmnisCyan,
+                        unselectedContainerColor = Color.Transparent,
+                        unselectedIconColor = OmnisTextMuted,
+                        unselectedTextColor = OmnisTextMuted
+                    ),
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .height(56.dp)
+                )
+                
+                NavigationDrawerItem(
+                    label = { Text("Matice Dopadů", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                    selected = activeTab == OmnisTab.MATRIX,
+                    onClick = {
+                        viewModel.setTab(OmnisTab.MATRIX)
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.Info, contentDescription = null) },
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
+                        selectedIconColor = OmnisCyan,
+                        selectedTextColor = OmnisCyan,
+                        unselectedContainerColor = Color.Transparent,
+                        unselectedIconColor = OmnisTextMuted,
+                        unselectedTextColor = OmnisTextMuted
+                    ),
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .height(56.dp)
+                )
+
+                NavigationDrawerItem(
+                    label = { Text("Historická Paměť", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                    selected = activeTab == OmnisTab.MEMORY,
+                    onClick = {
+                        viewModel.setTab(OmnisTab.MEMORY)
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.Star, contentDescription = null) },
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
+                        selectedIconColor = OmnisCyan,
+                        selectedTextColor = OmnisCyan,
+                        unselectedContainerColor = Color.Transparent,
+                        unselectedIconColor = OmnisTextMuted,
+                        unselectedTextColor = OmnisTextMuted
+                    ),
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .height(56.dp)
+                )
+
+                if (devUnlocked) {
+                    NavigationDrawerItem(
+                        label = { Text("Sémantický Test", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                        selected = activeTab == OmnisTab.TEST_SEMANTIC,
+                        onClick = {
+                            viewModel.setTab(OmnisTab.TEST_SEMANTIC)
+                            scope.launch { drawerState.close() }
+                        },
+                        icon = { Icon(Icons.Default.Science, contentDescription = null) },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = OmnisAmber.copy(alpha = 0.15f),
+                            selectedIconColor = OmnisAmber,
+                            selectedTextColor = OmnisAmber,
+                            unselectedContainerColor = Color.Transparent,
+                            unselectedIconColor = OmnisTextMuted,
+                            unselectedTextColor = OmnisTextMuted
+                        ),
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .height(56.dp)
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("Vývojová Laboratoř", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                        selected = activeTab == OmnisTab.DEV,
+                        onClick = {
+                            viewModel.setTab(OmnisTab.DEV)
+                            scope.launch { drawerState.close() }
+                        },
+                        icon = { Icon(Icons.Default.Build, contentDescription = null) },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = OmnisAmber.copy(alpha = 0.15f),
+                            selectedIconColor = OmnisAmber,
+                            selectedTextColor = OmnisAmber,
+                            unselectedContainerColor = Color.Transparent,
+                            unselectedIconColor = OmnisTextMuted,
+                            unselectedTextColor = OmnisTextMuted
+                        ),
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .height(56.dp)
+                    )
+                }
+            }
+        }
+    ) {
+        Scaffold(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(OmnisBgDark),
+            containerColor = OmnisBgDark,
+            topBar = {
+                TopAppBar(
+                    navigationIcon = {
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    if (drawerState.isClosed) drawerState.open() else drawerState.close()
+                                }
+                            },
+                            modifier = Modifier
+                                .testTag("hamburger_menu_button")
+                                .minimumInteractiveComponentSize()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Otevřít menu",
+                                tint = OmnisCyan
+                            )
+                        }
+                    },
+                    title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -507,7 +668,8 @@ fun OmnisMainScreen(
                             onScrollComplete = { viewModel.clearScrollJump() },
                             selectedDomains = selectedDomains,
                             onDomainClick = viewModel::toggleDomainSelection,
-                            onDomainLongClick = viewModel::focusDomain
+                            onDomainLongClick = viewModel::focusDomain,
+                            onAuthorizeRecord = viewModel::authorizeBlockedRecord
                         )
 
                         // Multi-Domain Synthesis Panel
@@ -646,6 +808,7 @@ fun OmnisMainScreen(
         }
     }
 }
+}
 
 @Composable
 fun ChatView(
@@ -664,7 +827,8 @@ fun ChatView(
     onScrollComplete: () -> Unit = {},
     selectedDomains: Set<String> = emptySet(),
     onDomainClick: (String) -> Unit = {},
-    onDomainLongClick: (String, OmnisRecord) -> Unit = { _, _ -> }
+    onDomainLongClick: (String, OmnisRecord) -> Unit = { _, _ -> },
+    onAuthorizeRecord: (OmnisRecord) -> Unit = {}
 ) {
     val listState = rememberLazyListState()
     val context = LocalContext.current
@@ -755,7 +919,11 @@ fun ChatView(
                     record = record, 
                     onQuickQuery = onQuickQuery,
                     onSpeak = onSpeak,
-                    onExportPdf = onExportPdf
+                    onExportPdf = onExportPdf,
+                    selectedDomains = selectedDomains,
+                    onDomainClick = onDomainClick,
+                    onDomainLongClick = onDomainLongClick,
+                    onAuthorize = { onAuthorizeRecord(record) }
                 )
             }
 
@@ -819,13 +987,13 @@ fun ChatView(
                         "text/html",
                         "text/css"
                     )) 
-                }, modifier = Modifier.size(36.dp)) {
+                }, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Default.Add, contentDescription = "Přiložit soubor", tint = OmnisCyan)
                 }
 
                 IconButton(onClick = {
                     photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }, modifier = Modifier.size(36.dp)) {
+                }, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Default.CameraAlt, contentDescription = "Odeslat obrázek pro OCR", tint = OmnisCyan)
                 }
 
@@ -913,10 +1081,15 @@ fun ChatMessageItem(
     onExportPdf: (OmnisRecord) -> Unit,
     selectedDomains: Set<String> = emptySet(),
     onDomainClick: (String) -> Unit = {},
-    onDomainLongClick: (String, OmnisRecord) -> Unit = { _, _ -> }
+    onDomainLongClick: (String, OmnisRecord) -> Unit = { _, _ -> },
+    onAuthorize: () -> Unit = {}
 ) {
     val isUser = record.role == "user"
     var thoughtsExpanded by remember { mutableStateOf(false) }
+
+    val isBlocked = !isUser && record.defenseTier == "BLOCKED"
+    val isWarning = !isUser && record.defenseTier == "WARNING"
+    val isApproved = !isUser && record.defenseTier == "APPROVED"
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -929,13 +1102,23 @@ fun ChatMessageItem(
                 bottomStart = if (isUser) 16.dp else 2.dp,
                 bottomEnd = if (isUser) 2.dp else 16.dp
             ),
-            color = if (isUser) OmnisViolet.copy(alpha = 0.22f) else OmnisPanelDark,
+            color = when {
+                isUser -> OmnisViolet.copy(alpha = 0.22f)
+                isBlocked -> Color(0xFF2E1111)
+                isWarning -> Color(0xFF261A08)
+                else -> OmnisPanelDark
+            },
             border = androidx.compose.foundation.BorderStroke(
                 1.dp,
-                if (isUser) OmnisViolet.copy(alpha = 0.5f) else OmnisBorderDark
+                when {
+                    isUser -> OmnisViolet.copy(alpha = 0.5f)
+                    isBlocked -> Color(0xFFEF4444)
+                    isWarning -> Color(0xFFF59E0B)
+                    else -> OmnisBorderDark
+                }
             ),
             modifier = Modifier
-                .widthIn(max = 340.dp)
+                .fillMaxWidth(if (isUser) 0.88f else 0.96f)
                 .testTag("message_card_${record.id}")
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
@@ -973,6 +1156,119 @@ fun ChatMessageItem(
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
+
+                // Multi-Layer Defense Status Banner
+                if (!isUser) {
+                    when {
+                        isBlocked -> {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFEF4444).copy(alpha = 0.15f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp)
+                                    .testTag("defense_blocked_banner")
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(Icons.Default.Security, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                        Text(
+                                            text = "VÝSTUP ZABLOKOVÁN: HUMAN-IN-THE-LOOP",
+                                            color = Color(0xFFEF4444),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                    if (record.defenseNotes.isNotBlank()) {
+                                        Text(
+                                            text = record.defenseNotes,
+                                            color = Color(0xFFFCA5A5),
+                                            fontSize = 11.sp,
+                                            modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
+                                        )
+                                    }
+                                    Button(
+                                        onClick = onAuthorize,
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                                        shape = RoundedCornerShape(6.dp),
+                                        modifier = Modifier
+                                            .height(38.dp)
+                                            .testTag("btn_authorize_human_loop")
+                                    ) {
+                                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Autorizovat operátorem", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                        isWarning -> {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFF59E0B).copy(alpha = 0.12f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.6f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp)
+                                    .testTag("defense_warning_banner")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                                    Column {
+                                        Text(
+                                            text = "Zvýšená pozornost operátora (Spolehlivost: ${(record.compositeScore * 100).toInt()}%)",
+                                            color = Color(0xFFF59E0B),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                        if (record.defenseNotes.isNotBlank()) {
+                                            Text(
+                                                text = record.defenseNotes,
+                                                color = Color(0xFFFCD34D),
+                                                fontSize = 10.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        isApproved && record.compositeScore > 0f -> {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = OmnisCyan.copy(alpha = 0.08f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan.copy(alpha = 0.25f)),
+                                modifier = Modifier
+                                    .padding(bottom = 8.dp)
+                                    .testTag("defense_verified_badge")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = OmnisCyan, modifier = Modifier.size(12.dp))
+                                    Text(
+                                        text = "MULTI-LAYER VERIFIED (${(record.compositeScore * 100).toInt()}%)",
+                                        color = OmnisCyan,
+                                        fontSize = 9.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
 
                 record.attachedImagePath?.let { path ->
                     val file = java.io.File(path)

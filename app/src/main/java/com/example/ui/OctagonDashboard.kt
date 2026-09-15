@@ -137,6 +137,33 @@ fun OctagonDashboard(
                             fontSize = 12.sp,
                             lineHeight = 16.sp
                         )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(color = OmnisBorderDark, thickness = 1.dp)
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Multi-Layer Defensive Engine Status
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(Icons.Default.Shield, contentDescription = null, tint = OmnisCyan, modifier = Modifier.size(13.dp))
+                                Text("DEFENSE ARCHITECTURE:", color = OmnisCyan, fontSize = 9.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                            }
+                            Text("MULTI-LAYER AKTIVNÍ", color = OmnisEmerald, fontSize = 9.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Jistič: V provozu (CLOSED)", color = OmnisTextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                            Text("Jury: Flash 1.5 Triangulace", color = OmnisTextMuted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                        }
                     }
                 }
             }
@@ -612,11 +639,17 @@ fun SideBySideMatrixView(selectedRecords: List<OmnisRecord>) {
         border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        val horizontalScrollState = rememberScrollState()
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(horizontalScrollState)
+                .padding(12.dp)
+        ) {
             // Header with element tags
             Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -624,14 +657,14 @@ fun SideBySideMatrixView(selectedRecords: List<OmnisRecord>) {
                     color = OmnisTextMuted,
                     fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.width(100.dp)
+                    modifier = Modifier.width(110.dp)
                 )
                 selectedRecords.forEach { rec ->
                     Surface(
                         color = OmnisPanelDark,
                         shape = RoundedCornerShape(4.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan.copy(alpha = 0.4f)),
-                        modifier = Modifier.width(70.dp)
+                        modifier = Modifier.width(80.dp)
                     ) {
                         Text(
                             text = "#${rec.id}",
@@ -639,7 +672,7 @@ fun SideBySideMatrixView(selectedRecords: List<OmnisRecord>) {
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(4.dp),
+                            modifier = Modifier.padding(6.dp),
                             maxLines = 1
                         )
                     }
@@ -650,7 +683,7 @@ fun SideBySideMatrixView(selectedRecords: List<OmnisRecord>) {
                     fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(55.dp)
+                    modifier = Modifier.width(60.dp)
                 )
             }
 
@@ -666,15 +699,12 @@ fun SideBySideMatrixView(selectedRecords: List<OmnisRecord>) {
                 val delta = maxVal - minVal
 
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Row(
-                        modifier = Modifier.width(100.dp),
+                        modifier = Modifier.width(110.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
@@ -689,7 +719,9 @@ fun SideBySideMatrixView(selectedRecords: List<OmnisRecord>) {
                             color = Color.White,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            fontFamily = FontFamily.Monospace
+                            fontFamily = FontFamily.Monospace,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -700,7 +732,7 @@ fun SideBySideMatrixView(selectedRecords: List<OmnisRecord>) {
                             color = dim.color,
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.width(70.dp)
+                            modifier = Modifier.width(80.dp)
                         )
                     }
 
@@ -709,7 +741,7 @@ fun SideBySideMatrixView(selectedRecords: List<OmnisRecord>) {
                         color = if (delta > 0.25f) OmnisAmber else OmnisEmerald,
                         fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.width(55.dp)
+                        modifier = Modifier.width(60.dp)
                     )
                 }
             }

@@ -21,7 +21,7 @@ android {
     )?.toIntOrNull() ?: 2
 
     applicationId = "com.aistudio.omnis.aiarch"
-    minSdk = 24
+    minSdk = 26
     targetSdk = 36
     versionCode = autoVersionCode
     versionName = "1.0.$autoVersionCode"
@@ -103,6 +103,7 @@ dependencies {
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   // implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
+  implementation(libs.postgresql)
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)

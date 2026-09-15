@@ -73,9 +73,10 @@ export const OctagonDashboard: React.FC<OctagonDashboardProps> = ({ matrix }) =>
         </p>
       </div>
 
-      <div className="relative w-80 h-80 sm:w-96 sm:h-96">
-        {/* SVG connections */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
+      <div className="w-full overflow-x-auto pb-4 flex justify-center">
+        <div className="relative w-80 h-80 sm:w-96 sm:h-96 flex-shrink-0">
+          {/* SVG connections */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
           <circle cx="50%" cy="50%" r="45%" stroke="#00F0FF" strokeWidth="1" fill="none" strokeDasharray="4 4" className="animate-[spin_60s_linear_infinite]" />
           {telemetry.map((_, i) => {
             const angle1 = (i / telemetry.length) * 2 * Math.PI - Math.PI / 2;
@@ -144,6 +145,7 @@ export const OctagonDashboard: React.FC<OctagonDashboardProps> = ({ matrix }) =>
           <span className="mt-2 text-[10px] font-mono font-bold text-[#00F0FF] bg-slate-950/80 px-2 py-1 rounded">
             SYNERGIE
           </span>
+        </div>
         </div>
       </div>
     </div>

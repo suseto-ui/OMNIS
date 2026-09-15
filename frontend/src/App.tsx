@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { MessageItem, MessageBubble } from "./components/MessageBubble";
-import { omnisEngine } from "./omnisEngine";
+import { omnisEngine, clientCloudSqlRepository } from "./omnisEngine";
 import DevPromptLab from "./DevPromptLab";
 import { OctagonDashboard } from "./OctagonDashboard";
 import { 
-  Menu, RefreshCw, Sparkles, Send, Database, Compass, CheckCircle2, Zap
+  Menu, RefreshCw, Sparkles, Send, Database, Compass, CheckCircle2, Zap, AlertCircle
 } from "lucide-react";
 
 export default function App() {
@@ -12,8 +12,24 @@ export default function App() {
   const [inputQuery, setInputQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "dev_lab" | "octagon">("chat");
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [ontologyDomain, setOntologyDomain] = useState("SYSTEMS_INTELLIGENCE");
+
+  // Database Connection & Toast Notification States
+  const [dbStatus, setDbStatus] = useState<"online" | "offline" | "checking">("checking");
+  const [toast, setToast] = useState<{ message: string; visible: boolean; type: "success" | "error" | "info" }>({
+    message: "",
+    visible: false,
+    type: "info"
+  });
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToast({ message, visible: true, type });
+    setTimeout(() => {
+      setToast(prev => ({ ...prev, visible: false }));
+    }, 4500);
+  };
 
   const [tokenTelemetry, setTokenTelemetry] = useState({ cumulative_prompt_tokens: 0, cumulative_completion_tokens: 0, cumulative_total_tokens: 0, total_queries_executed: 0, estimated_total_cost_usd: 0, estimated_total_cost_czk: 0, recent_records: [] });
 
@@ -28,6 +44,36 @@ export default function App() {
       console.error("Failed to fetch telemetry", e);
     }
   }, []);
+
+  // Synchronous Loop Connection-Check Utility
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const check = await clientCloudSqlRepository.checkDatabaseConnection();
+        if (check.status === "online") {
+          if (dbStatus === "offline") {
+            showToast("Spojení s databází Google Cloud SQL bylo obnoveno. Synchronizace je aktivní.", "success");
+          }
+          setDbStatus("online");
+        } else {
+          if (dbStatus === "online" || dbStatus === "checking") {
+            showToast("Ztráta synchronizace s PostgreSQL databází. Záznamy se ukládají lokálně.", "error");
+          }
+          setDbStatus("offline");
+        }
+      } catch (e) {
+        if (dbStatus === "online") {
+          showToast("Ztráta synchronizace s PostgreSQL databází. Záznamy se ukládají lokálně.", "error");
+        }
+        setDbStatus("offline");
+      }
+    };
+
+    // Run connection check immediately on mount and then every 10s loop
+    checkConnection();
+    const interval = setInterval(checkConnection, 10000);
+    return () => clearInterval(interval);
+  }, [dbStatus]);
 
   useEffect(() => {
     if (activeTab === "dev_lab") fetchTelemetry();
@@ -124,7 +170,7 @@ export default function App() {
     <div className="min-h-screen bg-[#050810] text-slate-300 font-sans flex flex-col h-screen overflow-hidden selection:bg-[#00F0FF]/30">
       
       {/* HEADER */}
-      <header className="flex-shrink-0 bg-[#0A0F1D]/80 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-6 py-3">
+      <header className="flex-shrink-0 bg-[#0A0F1D]/80 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-6 py-3 relative z-30">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#00F0FF] to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(0,240,255,0.3)]">
@@ -135,12 +181,48 @@ export default function App() {
               <p className="text-[10px] sm:text-xs text-[#00F0FF] font-mono tracking-widest uppercase">Cognitive Synthesis</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto">
-            <button onClick={() => setActiveTab("chat")} className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-colors ${activeTab === 'chat' ? 'bg-[#00F0FF]/20 text-[#00F0FF]' : 'text-slate-400 hover:text-slate-200'}`}>CHAT</button>
-            <button onClick={() => setActiveTab("octagon")} className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-colors ${activeTab === 'octagon' ? 'bg-[#A855F7]/20 text-[#A855F7]' : 'text-slate-400 hover:text-slate-200'}`}>OCTAGON</button>
-            <button onClick={() => setActiveTab("dev_lab")} className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-colors ${activeTab === 'dev_lab' ? 'bg-[#10B981]/20 text-[#10B981]' : 'text-slate-400 hover:text-slate-200'}`}>DEV_LAB</button>
+          
+          {/* Hamburger Menu Toggle Button for Small Screens */}
+          <div className="flex sm:hidden">
+            <button 
+              onClick={() => setIsMenuOpen(!isMenuOpen)} 
+              className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/80 text-[#00F0FF] hover:text-slate-100 min-w-[48px] min-h-[48px] flex items-center justify-center"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Desktop Tab Navigation */}
+          <div className="hidden sm:flex items-center gap-2">
+            <button onClick={() => { setActiveTab("chat"); setIsMenuOpen(false); }} className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-colors min-h-[44px] ${activeTab === 'chat' ? 'bg-[#00F0FF]/20 text-[#00F0FF]' : 'text-slate-400 hover:text-slate-200'}`}>CHAT</button>
+            <button onClick={() => { setActiveTab("octagon"); setIsMenuOpen(false); }} className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-colors min-h-[44px] ${activeTab === 'octagon' ? 'bg-[#A855F7]/20 text-[#A855F7]' : 'text-slate-400 hover:text-slate-200'}`}>OCTAGON</button>
+            <button onClick={() => { setActiveTab("dev_lab"); setIsMenuOpen(false); }} className={`px-4 py-2.5 rounded-xl text-xs font-bold font-mono transition-colors min-h-[44px] ${activeTab === 'dev_lab' ? 'bg-[#10B981]/20 text-[#10B981]' : 'text-slate-400 hover:text-slate-200'}`}>DEV_LAB</button>
           </div>
         </div>
+
+        {/* Dropdown Mobile Navigation Menu */}
+        {isMenuOpen && (
+          <div className="absolute top-full left-0 right-0 bg-[#0A0F1D] border-b border-slate-800 shadow-2xl p-4 flex flex-col gap-2 z-40 animate-in slide-in-from-top-4 duration-200 sm:hidden">
+            <button 
+              onClick={() => { setActiveTab("chat"); setIsMenuOpen(false); }} 
+              className={`w-full text-left px-5 py-3.5 rounded-xl text-sm font-bold font-mono transition-colors min-h-[48px] ${activeTab === 'chat' ? 'bg-[#00F0FF]/20 text-[#00F0FF]' : 'text-slate-400 hover:bg-slate-900'}`}
+            >
+              CHAT
+            </button>
+            <button 
+              onClick={() => { setActiveTab("octagon"); setIsMenuOpen(false); }} 
+              className={`w-full text-left px-5 py-3.5 rounded-xl text-sm font-bold font-mono transition-colors min-h-[48px] ${activeTab === 'octagon' ? 'bg-[#A855F7]/20 text-[#A855F7]' : 'text-slate-400 hover:bg-slate-900'}`}
+            >
+              OCTAGON
+            </button>
+            <button 
+              onClick={() => { setActiveTab("dev_lab"); setIsMenuOpen(false); }} 
+              className={`w-full text-left px-5 py-3.5 rounded-xl text-sm font-bold font-mono transition-colors min-h-[48px] ${activeTab === 'dev_lab' ? 'bg-[#10B981]/20 text-[#10B981]' : 'text-slate-400 hover:bg-slate-900'}`}
+            >
+              DEV_LAB
+            </button>
+          </div>
+        )}
       </header>
 
       {/* MAIN */}
@@ -173,22 +255,22 @@ export default function App() {
               <div ref={messagesEndRef} />
             </div>
             
-            <div className="p-4 bg-slate-950/50 border-t border-slate-800">
+             <div className="p-4 bg-slate-950/50 border-t border-slate-800">
               <form 
                 onSubmit={e => { e.preventDefault(); handleSendQuery(); }} 
-                className="flex gap-3 max-w-4xl mx-auto"
+                className="flex gap-3 max-w-4xl mx-auto items-center"
               >
                 <input 
                   type="text" 
                   value={inputQuery} 
                   onChange={e => setInputQuery(e.target.value)}
                   placeholder="Zpráva pro O.M.N.I.S..."
-                  className="flex-1 bg-slate-900 border border-slate-700/60 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#00F0FF]/50"
+                  className="flex-1 bg-slate-900 border border-slate-700/60 rounded-xl px-5 py-4 text-base focus:outline-none focus:border-[#00F0FF]/50 min-h-[52px] font-mono"
                 />
                 <button 
                   type="submit" 
                   disabled={isLoading || !inputQuery.trim()}
-                  className="bg-[#00F0FF] hover:opacity-80 text-slate-950 px-6 py-3 rounded-xl font-bold font-mono transition-opacity disabled:opacity-50"
+                  className="bg-[#00F0FF] hover:opacity-80 text-slate-950 px-6 rounded-xl font-bold font-mono transition-opacity disabled:opacity-50 min-h-[52px] min-w-[52px] flex items-center justify-center shadow-[0_0_15px_rgba(0,240,255,0.2)]"
                 >
                   <Send className="w-5 h-5" />
                 </button>
@@ -211,6 +293,23 @@ export default function App() {
         {activeTab === "octagon" && <div className="flex-1 overflow-auto"><OctagonDashboard /></div>}
         
       </div>
+
+      {/* TOAST NOTIFICATION O.M.N.I.S. SYSTEM STATUS */}
+      {toast.visible && (
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl border font-mono text-xs font-bold tracking-wide shadow-[0_0_25px_rgba(0,0,0,0.6)] animate-bounce-short transition-all duration-300 ${
+          toast.type === "success" 
+            ? "bg-[#04211A] border-[#10B981]/50 text-[#10B981]" 
+            : toast.type === "error"
+            ? "bg-[#2D0F14] border-[#EF4444]/50 text-[#EF4444]"
+            : "bg-[#091D2C] border-[#00F0FF]/50 text-[#00F0FF]"
+        }`}>
+          {toast.type === "success" && <CheckCircle2 className="w-4 h-4 text-[#10B981] animate-pulse" />}
+          {toast.type === "error" && <AlertCircle className="w-4 h-4 text-[#EF4444] animate-pulse" />}
+          {toast.type === "info" && <Database className="w-4 h-4 text-[#00F0FF] animate-pulse" />}
+          
+          <span>{toast.message}</span>
+        </div>
+      )}
     </div>
   );
 }
