@@ -43,9 +43,11 @@ object DatabaseConfig {
         val url = "jdbc:postgresql://$currentHost:5432/$dbName"
         return try {
             Class.forName("org.postgresql.Driver")
+            // Apply a short connection timeout (e.g., 3 seconds) to prevent long blocks
+            DriverManager.setLoginTimeout(3)
             DriverManager.getConnection(url, user, currentPass)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to connect to Google Cloud SQL PostgreSQL at $url", e)
+            Log.w(TAG, "Google Cloud SQL PostgreSQL connection failed (Network is offline or Cloud SQL firewall blocked access: ${e.message}). Falling back safely to local Room database.")
             null
         }
     }

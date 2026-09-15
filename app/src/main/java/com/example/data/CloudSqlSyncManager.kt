@@ -58,7 +58,7 @@ object CloudSqlSyncManager {
             Log.i(TAG, "Google Cloud SQL database tables initialized successfully.")
             stmt.close()
         } catch (e: Exception) {
-            Log.e(TAG, "Error initializing Cloud SQL tables", e)
+            Log.w(TAG, "Error initializing Cloud SQL tables (Offline local Room storage is active): ${e.message}")
         } finally {
             try {
                 conn.close()
@@ -127,9 +127,9 @@ object CloudSqlSyncManager {
                 pstmt.close()
                 Log.i(TAG, "Successfully synced record #${record.id} to Google Cloud SQL.")
             } catch (e: java.sql.SQLException) {
-                Log.e(TAG, "SQLException during record sync to Google Cloud SQL", e)
+                Log.w(TAG, "SQLException during record sync to Google Cloud SQL (local fallback is active): ${e.message}")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to sync record #${record.id} to Google Cloud SQL", e)
+                Log.w(TAG, "Failed to sync record #${record.id} to Google Cloud SQL (local fallback is active): ${e.message}")
             } finally {
                 try {
                     conn.close()
