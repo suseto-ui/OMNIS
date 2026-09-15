@@ -47,6 +47,22 @@ class Phase4Result(BaseModel):
 
 NormalizedScore = Annotated[float, Field(ge=0.0, le=1.0)]
 
+class RedTeamFinding(BaseModel):
+    """Detailní nález z interního Red-Teaming procesu."""
+    category: str = Field(..., description="Kategorie rizika (např. 'Technické', 'Právní', 'Kognitivní')")
+    description: str = Field(..., description="Detailní popis zranitelnosti nebo rizika")
+    severity: str = Field(..., description="Závažnost: LOW, MEDIUM, HIGH, CRITICAL")
+    mitigation_strategy: str = Field(..., description="Navržená strategie pro eliminaci rizika")
+
+class RedTeamAnalysis(BaseModel):
+    """Strukturovaná analýza rizik a zranitelností v rámci Red-Teaming."""
+    findings: List[RedTeamFinding] = Field(default_factory=list)
+    risk_landscape_summary: str = Field(
+        "Výchozí analýza: Detekce anomálií a slepých skvrn v navrženém exekučním plánu.",
+        description="Celkové shrnutí rizikového prostředí"
+    )
+    attack_surface_delta: float = Field(0.0, description="Kvantifikovaná změna útočné plochy")
+
 class Phase5Result(BaseModel):
     """Fáze V: 8D Matice dopadů, Red-Teaming a reflexe."""
     model_config = ConfigDict(extra="allow")
@@ -60,7 +76,8 @@ class Phase5Result(BaseModel):
     phys: NormalizedScore
     soc: NormalizedScore
     composite_score: NormalizedScore
-    
+
+    red_team_analysis: RedTeamAnalysis
     adversarial_vulnerabilities: List[str]
     reasoning: str
     reflexive_questions: List[str]
@@ -285,12 +302,13 @@ def phase_5_impact_matrix_and_reflection(
     phase3: Phase3Result,
     phase4: Phase4Result,
     raw_scores: Optional[Dict[str, float]] = None,
-    parsed_vulnerabilities: Optional[List[str]] = None,
+    parsed_red_team: Optional[Dict[str, Any]] = None,
+    parsed_vulnerabilities_legacy: Optional[List[str]] = None,
 ) -> Phase5Result:
     """
     FUNKCE 5: Autopoietická reflexe & 8D Matice dopadů
     - Výpočet kompozitního skóre s rovnoměrnými vahami (12.5 % na doménu) přes 8 domén.
-    - Red-Teaming (penalizace -0.5 za každou kritickou zranitelnost v 0-10 škále, resp. -0.05 v 0-1 škále).
+    - Red-Teaming (Hloubková analýza a penalizace za kritické zranitelnosti).
     - Vygenerování reflexivních otázek pro sebereferenční učení.
     """
     
@@ -316,9 +334,41 @@ def phase_5_impact_matrix_and_reflection(
         # Neutrální baseline pro případ selhání parsování - zabráníme halucinaci vysokého skóre
         sys, econ, psych, eco, law, sec, phys, soc = [0.5] * 8
 
-    vulnerabilities = parsed_vulnerabilities or [
-        "Neznámá zranitelnost: LLM nedodalo data pro Red-Teaming.",
-    ]
+    # Zpracování detailního Red-Teamingu
+    findings = []
+    summary = "Analýza rizik nebyla detailně specifikována."
+    surface_delta = 0.0
+
+    if parsed_red_team:
+        summary = parsed_red_team.get("risk_landscape_summary", summary)
+        surface_delta = safe_float(parsed_red_team.get("attack_surface_delta"), 0.0)
+        raw_findings = parsed_red_team.get("findings", [])
+        if isinstance(raw_findings, list):
+            for rf in raw_findings:
+                if isinstance(rf, dict):
+                    findings.append(RedTeamFinding(**rf))
+
+    # Fallback na starý formát, pokud structured red-team chybí
+    vulnerabilities_list = parsed_vulnerabilities_legacy or []
+    if not findings and vulnerabilities_list:
+        for v in vulnerabilities_list:
+            findings.append(RedTeamFinding(
+                category="Uncategorized",
+                description=v,
+                severity="MEDIUM",
+                mitigation_strategy="Bude specifikováno v další iteraci."
+            ))
+
+    if not findings:
+        vulnerabilities = ["Neznámá zranitelnost: LLM nedodalo data pro Red-Teaming."]
+    else:
+        vulnerabilities = [f"[{f.severity}] {f.category}: {f.description}" for f in findings]
+
+    rt_analysis = RedTeamAnalysis(
+        findings=findings,
+        risk_landscape_summary=summary,
+        attack_surface_delta=surface_delta
+    )
 
     # Weighted calculation (equal weights 1/8)
     sum_scores = sys + econ + psych + eco + law + sec + phys + soc
@@ -348,6 +398,7 @@ def phase_5_impact_matrix_and_reflection(
         phys=round(phys, 3),
         soc=round(soc, 3),
         composite_score=composite,
+        red_team_analysis=rt_analysis,
         adversarial_vulnerabilities=vulnerabilities,
         reasoning=reasoning,
         reflexive_questions=reflexive_questions,
@@ -399,11 +450,13 @@ def assemble_omnis_cognitive_cycle(
 
     # 5. Spuštění Funkce 5
     raw_matrix = None
-    vulnerabilities = None
+    red_team_data = None
+    legacy_vulnerabilities = None
     if gemini_parsed_response and "impact_matrix" in gemini_parsed_response:
         raw_matrix = gemini_parsed_response["impact_matrix"]
         if isinstance(raw_matrix, dict):
-            vulnerabilities = raw_matrix.get("adversarial_vulnerabilities", None)
+            legacy_vulnerabilities = raw_matrix.get("adversarial_vulnerabilities", None)
+            red_team_data = raw_matrix.get("red_team_analysis", None)
 
     p5 = phase_5_impact_matrix_and_reflection(
         phase1=p1,
@@ -411,7 +464,8 @@ def assemble_omnis_cognitive_cycle(
         phase3=p3,
         phase4=p4,
         raw_scores=raw_matrix if isinstance(raw_matrix, dict) else None,
-        parsed_vulnerabilities=vulnerabilities,
+        parsed_red_team=red_team_data if isinstance(red_team_data, dict) else None,
+        parsed_vulnerabilities_legacy=legacy_vulnerabilities,
     )
 
     # 6. Spuštění Meta-vrstvy: Prospektivní forenzní analýza rizik (T+1 až T+N)
@@ -455,7 +509,14 @@ def assemble_omnis_cognitive_cycle(
             f"### 5. Autopoietická reflexe & 8D Matice dopadů\n"
             f"- **Kompozitní index harmonie:** {p5.composite_score * 100:.1f} %\n"
             f"- **Zdůvodnění:** {p5.reasoning}\n"
-            f"- **Identifikované zranitelnosti:** {', '.join(p5.adversarial_vulnerabilities)}\n\n"
+            f"#### Detailní Red-Teaming Analýza:\n"
+            f"> {p5.red_team_analysis.risk_landscape_summary}\n\n"
+            + "\n".join(
+                f"- **[{f.severity}] {f.category}**: {f.description}\n"
+                f"  - *Mitigační strategie*: {f.mitigation_strategy}" 
+                for f in p5.red_team_analysis.findings
+            )
+            + f"\n\n- **Delta útočné plochy:** {p5.red_team_analysis.attack_surface_delta:+.2f}\n\n"
             f"### 6. Prospektivní forenzní analýza rizik ({risk_results.horizon})\n"
             f"- **Rizikový index:** {risk_results.risk_index} ({risk_results.risk_level})\n"
             f"- **T+1 systémový drift:** {risk_results.t_plus_1_systemic_drift}\n"

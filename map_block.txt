@@ -49,6 +49,15 @@
                             </span>
                             {!isUser && (
                               <button
+                                onClick={() => handleSpeak(msg.content)}
+                                title="Přehrát hlasem"
+                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-[#00F0FF] transition-colors"
+                              >
+                                <Volume2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {!isUser && (
+                              <button
                                 onClick={() => handleCopyText(msg.content, msg.id)}
                                 title="Kopírovat odpověď"
                                 className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
@@ -58,6 +67,15 @@
                                 ) : (
                                   <Copy className="w-3.5 h-3.5" />
                                 )}
+                              </button>
+                            )}
+                            {!isUser && (
+                              <button
+                                onClick={() => handleExportPDF(msg.content, msg.id)}
+                                title="Exportovat do PDF"
+                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                              >
+                                <Download className="w-3.5 h-3.5" />
                               </button>
                             )}
                           </div>
@@ -112,48 +130,56 @@
 
                             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
                               <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-center">
+                                <Cpu className="w-3 h-3 mx-auto mb-1 text-slate-500" />
                                 <span className="text-[10px] text-slate-400 font-mono block">System</span>
                                 <span className="text-xs font-bold text-[#00F0FF] font-mono">
                                   {(msg.impact_matrix.sys * 100).toFixed(0)}%
                                 </span>
                               </div>
                               <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-center">
+                                <Coins className="w-3 h-3 mx-auto mb-1 text-slate-500" />
                                 <span className="text-[10px] text-slate-400 font-mono block">Econ</span>
                                 <span className="text-xs font-bold text-[#A855F7] font-mono">
                                   {(msg.impact_matrix.econ * 100).toFixed(0)}%
                                 </span>
                               </div>
                               <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-center">
+                                <Brain className="w-3 h-3 mx-auto mb-1 text-slate-500" />
                                 <span className="text-[10px] text-slate-400 font-mono block">Psych</span>
                                 <span className="text-xs font-bold text-[#10B981] font-mono">
                                   {(msg.impact_matrix.psych * 100).toFixed(0)}%
                                 </span>
                               </div>
                               <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-center">
+                                <Leaf className="w-3 h-3 mx-auto mb-1 text-slate-500" />
                                 <span className="text-[10px] text-slate-400 font-mono block">Eco</span>
                                 <span className="text-xs font-bold text-[#F59E0B] font-mono">
                                   {(msg.impact_matrix.eco * 100).toFixed(0)}%
                                 </span>
                               </div>
                               <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-center">
+                                <Scale className="w-3 h-3 mx-auto mb-1 text-slate-500" />
                                 <span className="text-[10px] text-slate-400 font-mono block">Law</span>
                                 <span className="text-xs font-bold text-[#3B82F6] font-mono">
                                   {(msg.impact_matrix.law * 100).toFixed(0)}%
                                 </span>
                               </div>
                               <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-center">
+                                <ShieldCheck className="w-3 h-3 mx-auto mb-1 text-slate-500" />
                                 <span className="text-[10px] text-slate-400 font-mono block">Sec</span>
                                 <span className="text-xs font-bold text-[#EC4899] font-mono">
                                   {(msg.impact_matrix.sec * 100).toFixed(0)}%
                                 </span>
                               </div>
                               <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-center">
+                                <Activity className="w-3 h-3 mx-auto mb-1 text-slate-500" />
                                 <span className="text-[10px] text-slate-400 font-mono block">Phys</span>
                                 <span className="text-xs font-bold text-[#F43F5E] font-mono">
                                   {(msg.impact_matrix.phys * 100).toFixed(0)}%
                                 </span>
                               </div>
                               <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-center">
+                                <Users className="w-3 h-3 mx-auto mb-1 text-slate-500" />
                                 <span className="text-[10px] text-slate-400 font-mono block">Soc</span>
                                 <span className="text-xs font-bold text-[#8B5CF6] font-mono">
                                   {(msg.impact_matrix.soc * 100).toFixed(0)}%
