@@ -6,8 +6,11 @@ import DevPromptLab from "./DevPromptLab";
 import { OctagonDashboard } from "./OctagonDashboard";
 import { UserDashboard, DEFAULT_TOPIC_RULES, TopicRule } from "./UserDashboard";
 import { 
-  Menu, RefreshCw, Sparkles, Send, Database, Compass, CheckCircle2, Zap, AlertCircle, MessageSquare, Activity, FlaskConical, Download, Upload, Sliders, Plus, Trash2, Edit3, Layers, Bookmark
+  Menu, RefreshCw, Sparkles, Send, Database, Compass, CheckCircle2, Zap, AlertCircle, MessageSquare, Activity, FlaskConical, Download, Upload, Sliders, Plus, Trash2, Edit3, Layers, Bookmark, Search, GitMerge, HardDrive
 } from "lucide-react";
+import { saveThreadsToIndexedDB, loadThreadsFromIndexedDB } from "./indexedDbStorage";
+import { MergeThreadsModal } from "./components/MergeThreadsModal";
+import { FullTextSearchModal } from "./components/FullTextSearchModal";
 
 export interface ChatThread {
   id: string;
@@ -51,6 +54,30 @@ export default function App() {
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [editingTitleText, setEditingTitleText] = useState("");
 
+  // Modals for Full-text Search & Thread Merge
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [lastIndexedDbSave, setLastIndexedDbSave] = useState<string | null>(null);
+
+  // Fallback load from IndexedDB on initial mount if localStorage was empty
+  useEffect(() => {
+    const checkIndexedDbFallback = async () => {
+      try {
+        const savedLocalStorage = localStorage.getItem("omnis_chat_threads");
+        if (!savedLocalStorage) {
+          const idbThreads = await loadThreadsFromIndexedDB();
+          if (idbThreads && idbThreads.length > 0) {
+            setThreads(idbThreads);
+            console.log("[IndexedDB Recovery] Restored threads state from IndexedDB backup.");
+          }
+        }
+      } catch (e) {
+        console.error("IndexedDB fallback load error:", e);
+      }
+    };
+    checkIndexedDbFallback();
+  }, []);
+
   // Auto-persist threads state to localStorage
   useEffect(() => {
     try {
@@ -60,6 +87,28 @@ export default function App() {
       console.error("Failed to save threads to localStorage", e);
     }
   }, [threads, activeThreadId]);
+
+  // Automated 60-second IndexedDB Auto-Save Interval
+  useEffect(() => {
+    const autoSaveToIndexedDb = async () => {
+      if (threads.length > 0) {
+        const ok = await saveThreadsToIndexedDB(threads);
+        if (ok) {
+          const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          setLastIndexedDbSave(timeStr);
+        }
+      }
+    };
+
+    // Run first backup shortly after load, then every 60 seconds (60,000 ms)
+    const initialTimer = setTimeout(autoSaveToIndexedDb, 4000);
+    const interval = setInterval(autoSaveToIndexedDb, 60000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [threads]);
 
   // Derived current active thread & messages
   const activeThread = useMemo(() => {
@@ -511,6 +560,39 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
     handleSendQuery(deepDiveQuery);
   }, [handleSendQuery]);
 
+  const handleSelectSearchResult = useCallback((threadId: string, messageId: string) => {
+    setActiveThreadId(threadId);
+    setActiveTab("chat");
+    showToast("Přepnuto na hledanou zprávu ve vlákně", "info");
+
+    setTimeout(() => {
+      const el = document.getElementById(`msg-${messageId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("ring-2", "ring-[#00F0FF]");
+        setTimeout(() => el.classList.remove("ring-2", "ring-[#00F0FF]"), 3000);
+      }
+    }, 200);
+  }, [showToast]);
+
+  const handleMergeThreads = useCallback((mergedThread: ChatThread, deleteOriginals: boolean) => {
+    setThreads(prev => {
+      let nextThreads = [mergedThread, ...prev];
+      if (deleteOriginals) {
+        // Extract thread titles from title pattern or we keep all except matched ids
+        // Find matching original threads if possible or delete threads that were merged
+        const matchingA = prev.find(t => mergedThread.title.includes(t.title));
+        if (matchingA) {
+          nextThreads = nextThreads.filter(t => t.id !== matchingA.id);
+        }
+      }
+      return nextThreads;
+    });
+    setActiveThreadId(mergedThread.id);
+    setShowMergeModal(false);
+    showToast(`Vlákna byla úspěšně sloučena (${mergedThread.messages.length} zpráv celkem)!`, "success");
+  }, [showToast]);
+
   const isCompactHeight = windowHeight < 680;
   const headerPaddingClass = isCompactHeight ? "py-2 px-4" : "py-3 px-4 sm:px-6";
   const mainPaddingClass = isCompactHeight ? "p-1" : "sm:p-5";
@@ -711,15 +793,46 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
                 </button>
               </div>
 
-              {/* Clear thread history button */}
-              <button
-                onClick={() => updateActiveThreadMessages(() => [])}
-                title="Promazat historii aktuálního vlákna"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono text-slate-400 hover:text-red-400 bg-slate-900/50 hover:bg-red-500/10 border border-slate-800 hover:border-red-500/30 transition-all ml-auto"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Vyčistit vlákno</span>
-              </button>
+              {/* Clear thread history, Merge, and Search buttons */}
+              <div className="flex items-center gap-2 ml-auto">
+                {/* IndexedDB Auto-Save Status */}
+                {lastIndexedDbSave && (
+                  <span className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-mono bg-emerald-950/40 text-emerald-400 border border-emerald-500/30">
+                    <HardDrive className="w-3 h-3 text-emerald-400 animate-pulse" />
+                    IndexedDB: {lastIndexedDbSave}
+                  </span>
+                )}
+
+                {/* Full-text search button */}
+                <button
+                  onClick={() => setShowSearchModal(true)}
+                  title="Full-text vyhledávání napříč všemi konverzačními vlákny"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-[#00F0FF]/15 text-[#00F0FF] hover:bg-[#00F0FF]/25 border border-[#00F0FF]/40 shadow-[0_0_10px_rgba(0,240,255,0.15)] transition-all"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">VYHLEDÁVÁNÍ</span>
+                </button>
+
+                {/* Merge threads button */}
+                <button
+                  onClick={() => setShowMergeModal(true)}
+                  title="Sloučit dvě existující konverzační vlákna do jednoho"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold bg-[#A855F7]/15 text-[#A855F7] hover:bg-[#A855F7]/25 border border-[#A855F7]/40 shadow-[0_0_10px_rgba(168,85,247,0.15)] transition-all"
+                >
+                  <GitMerge className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">SLOUČIT VLÁKNA</span>
+                </button>
+
+                {/* Clear thread history button */}
+                <button
+                  onClick={() => updateActiveThreadMessages(() => [])}
+                  title="Promazat historii aktuálního vlákna"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono text-slate-400 hover:text-red-400 bg-slate-900/50 hover:bg-red-500/10 border border-slate-800 hover:border-red-500/30 transition-all"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden xl:inline">Vyčistit vlákno</span>
+                </button>
+              </div>
             </div>
 
             {/* Main Chat Container with Timeline Sidebar */}
@@ -863,6 +976,25 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
           )}
         </button>
       </div>
+
+      {/* FULL-TEXT SEARCH MODAL */}
+      {showSearchModal && (
+        <FullTextSearchModal
+          threads={threads}
+          onClose={() => setShowSearchModal(false)}
+          onSelectResult={handleSelectSearchResult}
+        />
+      )}
+
+      {/* MERGE THREADS MODAL */}
+      {showMergeModal && (
+        <MergeThreadsModal
+          threads={threads}
+          activeThreadId={activeThreadId}
+          onClose={() => setShowMergeModal(false)}
+          onMerge={handleMergeThreads}
+        />
+      )}
 
       {/* TOAST NOTIFICATION O.M.N.I.S. SYSTEM STATUS */}
       {toast.visible && (

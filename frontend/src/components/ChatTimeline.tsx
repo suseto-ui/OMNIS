@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { 
   Clock, 
   MessageSquare, 
@@ -10,7 +10,8 @@ import {
   ChevronLeft, 
   Zap, 
   Sparkles,
-  Layers
+  Layers,
+  Activity
 } from "lucide-react";
 import { MessageItem } from "./MessageBubble";
 
@@ -34,6 +35,52 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({
   detectedTopics,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
+
+  // Compute Cognitive Activity Heatmap scores for each message
+  const heatmapData = useMemo(() => {
+    return messages.map((msg, idx) => {
+      let rawScore = 15;
+      if (msg.role === "assistant") {
+        rawScore += 25;
+        if (msg.token_usage?.total_tokens) {
+          rawScore += Math.min(msg.token_usage.total_tokens / 15, 40);
+        }
+        if (msg.impact_matrix?.composite_score) {
+          rawScore += msg.impact_matrix.composite_score * 3;
+        }
+        if (msg.adversarial_score) {
+          rawScore += msg.adversarial_score * 25;
+        }
+        if (msg.cognitive_process) {
+          rawScore += 20;
+        }
+      }
+      const score = Math.min(Math.round(rawScore), 100);
+
+      let colorClass = "bg-slate-700 border-slate-600";
+      let label = "Nízká kognitivní zátěž";
+      if (score >= 75) {
+        colorClass = "bg-gradient-to-t from-red-600 to-amber-500 border-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.5)]";
+        label = "Kritická / Adversariální intenzita";
+      } else if (score >= 50) {
+        colorClass = "bg-gradient-to-t from-purple-600 to-purple-400 border-purple-300 shadow-[0_0_6px_rgba(168,85,247,0.4)]";
+        label = "Vysoká kognitivní analýza";
+      } else if (score >= 30) {
+        colorClass = "bg-gradient-to-t from-cyan-600 to-[#00F0FF] border-cyan-300 shadow-[0_0_6px_rgba(0,240,255,0.4)]";
+        label = "Střední analytická zátěž";
+      }
+
+      return {
+        id: msg.id,
+        index: idx + 1,
+        role: msg.role,
+        score,
+        colorClass,
+        label,
+        snippet: msg.content.substring(0, 30) + "..."
+      };
+    });
+  }, [messages]);
 
   if (messages.length === 0) {
     return null;
@@ -62,6 +109,41 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({
 
       {!collapsed && (
         <>
+          {/* Cognitive Activity Heatmap Bar */}
+          <div className="p-3 bg-[#060A17] border-b border-slate-800/80 space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] font-mono">
+              <span className="text-purple-400 font-bold flex items-center gap-1">
+                <Activity className="w-3 h-3 text-[#00F0FF] animate-pulse" />
+                HEATMAPA INTENZITY
+              </span>
+              <span className="text-slate-500 font-mono text-[9px]">
+                {heatmapData.length} uzlů
+              </span>
+            </div>
+
+            {/* Heatmap strip container */}
+            <div className="h-6 w-full bg-slate-950 p-1 rounded-lg border border-slate-800 flex items-stretch gap-0.5 overflow-x-auto scrollbar-none">
+              {heatmapData.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => onSelectMessage(item.id)}
+                  title={`#${item.index} (${item.role === 'user' ? 'Uživatel' : 'O.M.N.I.S.'}): Intenzita ${item.score}%\n${item.label}\n"${item.snippet}"`}
+                  className={`flex-1 min-w-[6px] rounded-sm border transition-all hover:scale-125 hover:z-20 ${item.colorClass} ${activeMessageId === item.id ? 'ring-2 ring-white scale-110' : ''}`}
+                />
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between text-[8px] font-mono text-slate-500 px-0.5">
+              <span>Start</span>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-cyan-400" /> Nízká</span>
+                <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-purple-400" /> Vysoká</span>
+                <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-red-400" /> Max</span>
+              </div>
+              <span>End</span>
+            </div>
+          </div>
+
           {/* Thread Metrics Summary */}
           <div className="p-3 bg-slate-900/40 border-b border-slate-800/60 space-y-2 text-[10px] font-mono">
             <div className="flex items-center justify-between text-slate-400">
@@ -155,7 +237,7 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({
                           onClearHistoryUpTo(msg.id);
                         }}
                         className="opacity-0 group-hover:opacity-100 hover:text-red-400 p-0.5 rounded transition-opacity"
-                        title="Promazat historii od této zprávy navoru"
+                        title="Promazat historii od této zprávy nahoře"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
