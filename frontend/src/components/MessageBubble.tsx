@@ -20,7 +20,9 @@ import {
   Trash2,
   Layers,
   Cpu,
-  Network
+  Network,
+  Volume2,
+  VolumeX
 } from "lucide-react";
 import { MarkdownRenderer } from "../MarkdownRenderer";
 
@@ -102,6 +104,28 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   const [refinePanelOpen, setRefinePanelOpen] = useState(false);
   const [refinePrompt, setRefinePrompt] = useState("");
   const [isRefining, setIsRefining] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const handleSpeak = useCallback(() => {
+    if (!("speechSynthesis" in window)) {
+      alert("Váš prohlížeč nepodporuje Text-To-Speech syntézu.");
+      return;
+    }
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const cleanContent = msg.content.replace(/[*#_`]/g, "");
+    const utterance = new SpeechSynthesisUtterance(cleanContent);
+    utterance.lang = "cs-CZ";
+    utterance.rate = 1.0;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  }, [isSpeaking, msg.content]);
 
   const toggleThoughts = useCallback(() => {
     setThoughtsOpen((prev) => !prev);
@@ -203,17 +227,35 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             )}
 
             {!isUser && (
-              <button
-                onClick={() => handleCopyText(msg.content)}
-                title="Kopírovat odpověď"
-                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-              >
-                {copied ? (
-                  <Check className="w-3.5 h-3.5 text-[#10B981]" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5" />
-                )}
-              </button>
+              <>
+                <button
+                  onClick={handleSpeak}
+                  title={isSpeaking ? "Zastavit předčítání hlasem" : "Přečíst odpověď hlasem (Text-to-Speech)"}
+                  className={`p-1 rounded transition-colors ${
+                    isSpeaking 
+                      ? "bg-red-500/20 text-red-400 hover:bg-red-500/30 animate-pulse" 
+                      : "hover:bg-slate-800 text-slate-400 hover:text-[#00F0FF]"
+                  }`}
+                >
+                  {isSpeaking ? (
+                    <VolumeX className="w-3.5 h-3.5 text-red-400" />
+                  ) : (
+                    <Volume2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
+
+                <button
+                  onClick={() => handleCopyText(msg.content)}
+                  title="Kopírovat odpověď"
+                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                >
+                  {copied ? (
+                    <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </>
             )}
           </div>
         </div>

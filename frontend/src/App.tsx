@@ -6,11 +6,15 @@ import DevPromptLab from "./DevPromptLab";
 import { OctagonDashboard } from "./OctagonDashboard";
 import { UserDashboard, DEFAULT_TOPIC_RULES, TopicRule } from "./UserDashboard";
 import { 
-  Menu, RefreshCw, Sparkles, Send, Database, Compass, CheckCircle2, Zap, AlertCircle, MessageSquare, Activity, FlaskConical, Download, Upload, Sliders, Plus, Trash2, Edit3, Layers, Bookmark, Search, GitMerge, HardDrive
+  Menu, RefreshCw, Sparkles, Send, Database, Compass, CheckCircle2, Zap, AlertCircle, MessageSquare, Activity, FlaskConical, Download, Upload, Sliders, Plus, Trash2, Edit3, Layers, Bookmark, Search, GitMerge, HardDrive, Mic, MicOff, Brain, BarChart3
 } from "lucide-react";
 import { saveThreadsToIndexedDB, loadThreadsFromIndexedDB } from "./indexedDbStorage";
 import { MergeThreadsModal } from "./components/MergeThreadsModal";
 import { FullTextSearchModal } from "./components/FullTextSearchModal";
+import { ThreadsArchiveDashboard } from "./components/ThreadsArchiveDashboard";
+import { CognitiveNodesDashboard } from "./components/CognitiveNodesDashboard";
+import { AnalyticsOverviewDashboard } from "./components/AnalyticsOverviewDashboard";
+import { KeyboardShortcutsModal } from "./components/KeyboardShortcutsModal";
 
 export interface ChatThread {
   id: string;
@@ -150,10 +154,11 @@ export default function App() {
 
   const [inputQuery, setInputQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"chat" | "dev_lab" | "octagon" | "dashboard">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "analytics" | "archive" | "nodes" | "dashboard" | "octagon" | "dev_lab">("chat");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [ontologyDomain, setOntologyDomain] = useState("SYSTEMS_INTELLIGENCE");
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Dynamic Height & Mobile Responsive Layout Provider States (Debounced to prevent layout thrashing)
   const [windowHeight, setWindowHeight] = useState(typeof window !== "undefined" ? window.innerHeight : 800);
@@ -593,7 +598,98 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
     showToast(`Vlákna byla úspěšně sloučena (${mergedThread.messages.length} zpráv celkem)!`, "success");
   }, [showToast]);
 
-  const isCompactHeight = windowHeight < 680;
+  // Web Speech API Voice Dictation States & Logic
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const toggleDictation = useCallback(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      showToast("Váš prohlížeč nepodporuje Web Speech API pro hlasové diktování. Vyzkoušejte Google Chrome nebo Microsoft Edge.", "error");
+      return;
+    }
+
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsListening(false);
+      showToast("Hlasové diktování bylo zastaveno.", "info");
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "cs-CZ";
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        showToast("Hlasové diktování v reálném čase spuštěno. Mluvte do mikrofonu...", "info");
+      };
+
+      recognition.onresult = (event: any) => {
+        let currentTranscript = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          currentTranscript += event.results[i][0].transcript;
+        }
+        if (currentTranscript.trim()) {
+          setInputQuery(prev => {
+            const trimmedPrev = prev.trim();
+            if (!trimmedPrev) return currentTranscript;
+            // Prevent duplicated appending if the transcript is already matched
+            if (trimmedPrev.endsWith(currentTranscript)) return prev;
+            return `${trimmedPrev} ${currentTranscript}`;
+          });
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        setIsListening(false);
+        showToast(`Chyba hlasového vstupu: ${event.error}`, "error");
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (e) {
+      console.error("Failed to start SpeechRecognition", e);
+      setIsListening(false);
+      showToast("Nepodařilo se spustit mikrofon.", "error");
+    }
+  }, [isListening, showToast]);
+
+  // Global Keyboard Shortcuts (Ctrl+K = Search, Ctrl+M = Voice Dictation, Ctrl+J = Merge Threads, ? = Help)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore when typing inside input or textarea unless Ctrl key is pressed
+      const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      const isInput = targetTag === "input" || targetTag === "textarea";
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowSearchModal(prev => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        toggleDictation();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        setShowMergeModal(prev => !prev);
+      } else if (e.key === "?" && !isInput) {
+        e.preventDefault();
+        setShowHelpModal(prev => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleDictation]);
+
   const headerPaddingClass = isCompactHeight ? "py-2 px-4" : "py-3 px-4 sm:px-6";
   const mainPaddingClass = isCompactHeight ? "p-1" : "sm:p-5";
   const chatInputPaddingClass = isCompactHeight ? "p-3" : "p-4";
@@ -622,10 +718,11 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
           
           {/* Tab Navigation & Export Actions */}
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1.5 bg-[#050811]/60 p-1 rounded-xl border border-slate-800/80">
+            <div className="hidden sm:flex items-center gap-1.5 bg-[#050811]/60 p-1 rounded-xl border border-slate-800/80 overflow-x-auto scrollbar-none max-w-xl md:max-w-3xl">
               <button 
                 onClick={() => setActiveTab("chat")} 
-                className={`relative px-4 py-2 rounded-lg text-xs font-bold font-mono transition-all duration-300 min-h-[38px] flex items-center gap-1.5 ${
+                title="Konverzační rozhraní s časovou osou a hlasovým diktováním"
+                className={`relative px-3 py-2 rounded-lg text-xs font-bold font-mono transition-all duration-300 min-h-[38px] flex items-center gap-1.5 flex-shrink-0 ${
                   activeTab === 'chat' 
                     ? 'bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30 shadow-[0_0_12px_rgba(0,240,255,0.15)]' 
                     : 'text-slate-400 hover:text-slate-250 hover:bg-slate-900/40'
@@ -634,31 +731,76 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
                 <MessageSquare className="w-3.5 h-3.5" />
                 CHAT
               </button>
+
+              <button 
+                onClick={() => setActiveTab("analytics")} 
+                title="Centrální analytický přehled sjednocující Octagon 8D a kognitivní uzly"
+                className={`relative px-3 py-2 rounded-lg text-xs font-bold font-mono transition-all duration-300 min-h-[38px] flex items-center gap-1.5 flex-shrink-0 ${
+                  activeTab === 'analytics' 
+                    ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30 shadow-[0_0_12px_rgba(59,130,246,0.15)]' 
+                    : 'text-slate-400 hover:text-slate-250 hover:bg-slate-900/40'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-blue-400" />
+                ANALÝZA
+              </button>
+
+              <button 
+                onClick={() => setActiveTab("archive")} 
+                title="Správce konverzačních vláken, full-textové vyhledávání a sloučení"
+                className={`relative px-3 py-2 rounded-lg text-xs font-bold font-mono transition-all duration-300 min-h-[38px] flex items-center gap-1.5 flex-shrink-0 ${
+                  activeTab === 'archive' 
+                    ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(6,182,212,0.15)]' 
+                    : 'text-slate-400 hover:text-slate-250 hover:bg-slate-900/40'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                ARCHIV VLÁKEN
+              </button>
+
+              <button 
+                onClick={() => setActiveTab("nodes")} 
+                title="Prohlížeč atomických kognitivních uzlů a dekompozice odpovedí"
+                className={`relative px-3 py-2 rounded-lg text-xs font-bold font-mono transition-all duration-300 min-h-[38px] flex items-center gap-1.5 flex-shrink-0 ${
+                  activeTab === 'nodes' 
+                    ? 'bg-[#A855F7]/15 text-[#A855F7] border border-[#A855F7]/30 shadow-[0_0_12px_rgba(168,85,247,0.15)]' 
+                    : 'text-slate-400 hover:text-slate-250 hover:bg-slate-900/40'
+                }`}
+              >
+                <Brain className="w-3.5 h-3.5" />
+                UZLY
+              </button>
+
+              <button 
+                onClick={() => setActiveTab("dashboard")} 
+                title="Klíčová slova automatické detekce témat a šablony"
+                className={`relative px-3 py-2 rounded-lg text-xs font-bold font-mono transition-all duration-300 min-h-[38px] flex items-center gap-1.5 flex-shrink-0 ${
+                  activeTab === 'dashboard' 
+                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)]' 
+                    : 'text-slate-400 hover:text-slate-250 hover:bg-slate-900/40'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                TÉMATA
+              </button>
+
               <button 
                 onClick={() => setActiveTab("octagon")} 
-                className={`relative px-4 py-2 rounded-lg text-xs font-bold font-mono transition-all duration-300 min-h-[38px] flex items-center gap-1.5 ${
+                title="8D Matice dopadů a systémový audit"
+                className={`relative px-3 py-2 rounded-lg text-xs font-bold font-mono transition-all duration-300 min-h-[38px] flex items-center gap-1.5 flex-shrink-0 ${
                   activeTab === 'octagon' 
-                    ? 'bg-[#A855F7]/15 text-[#A855F7] border border-[#A855F7]/30 shadow-[0_0_12px_rgba(168,85,247,0.15)]' 
+                    ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30 shadow-[0_0_12px_rgba(168,85,247,0.15)]' 
                     : 'text-slate-400 hover:text-slate-250 hover:bg-slate-900/40'
                 }`}
               >
                 <Activity className="w-3.5 h-3.5" />
                 OCTAGON
               </button>
-              <button 
-                onClick={() => setActiveTab("dashboard")} 
-                className={`relative px-4 py-2 rounded-lg text-xs font-bold font-mono transition-all duration-300 min-h-[38px] flex items-center gap-1.5 ${
-                  activeTab === 'dashboard' 
-                    ? 'bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30 shadow-[0_0_12px_rgba(0,240,255,0.15)]' 
-                    : 'text-slate-400 hover:text-slate-250 hover:bg-slate-900/40'
-                }`}
-              >
-                <Sliders className="w-3.5 h-3.5" />
-                DASHBOARD
-              </button>
+
               <button 
                 onClick={() => setActiveTab("dev_lab")} 
-                className={`relative px-4 py-2 rounded-lg text-xs font-bold font-mono transition-all duration-300 min-h-[38px] flex items-center gap-1.5 ${
+                title="Laboratoř promptů, Cloud SQL sync a telemetrie"
+                className={`relative px-3 py-2 rounded-lg text-xs font-bold font-mono transition-all duration-300 min-h-[38px] flex items-center gap-1.5 flex-shrink-0 ${
                   activeTab === 'dev_lab' 
                     ? 'bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 shadow-[0_0_12px_rgba(16,185,129,0.15)]' 
                     : 'text-slate-400 hover:text-slate-250 hover:bg-slate-900/40'
@@ -669,6 +811,14 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
               </button>
             </div>
             
+            <button
+              onClick={() => setShowHelpModal(true)}
+              title="Klávesové zkratky a uživatelský průvodce (?)"
+              className="flex items-center gap-1.5 px-3 py-2 sm:py-2 rounded-xl text-xs font-bold font-mono bg-[#0A0F1D] hover:bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30 hover:border-[#00F0FF] shadow-[0_0_10px_rgba(0,240,255,0.1)] transition-all min-h-[38px]"
+            >
+              <HelpCircle className="w-4 h-4 text-[#00F0FF]" />
+              <span className="hidden md:inline">PRŮVODCE</span>
+            </button>
             <input
               type="file"
               ref={fileInputRef}
@@ -891,6 +1041,32 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
 
             {/* Chat Input Bar */}
             <div className={`${chatInputPaddingClass} bg-slate-950/50 border-t border-slate-800`}>
+              {/* Real-time Dictation Active Visual Banner */}
+              {isListening && (
+                <div className="max-w-4xl mx-auto mb-2.5 p-2.5 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs font-mono flex items-center justify-between animate-in fade-in duration-200 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+                  <div className="flex items-center gap-2.5">
+                    <div className="relative flex items-center justify-center w-6 h-6">
+                      <span className="absolute w-full h-full rounded-full bg-red-500/30 animate-ping" />
+                      <Mic className="w-4 h-4 text-red-400 relative z-10" />
+                    </div>
+                    <span>PROBÍHÁ DIKTOVÁNÍ V REÁLNÉM ČASE (cs-CZ)...</span>
+                    {/* Animated sound wave bars */}
+                    <div className="flex items-end gap-1 h-3.5">
+                      <span className="w-1 bg-red-400 rounded-full animate-[bounce_0.8s_infinite_100ms] h-full" />
+                      <span className="w-1 bg-red-400 rounded-full animate-[bounce_0.8s_infinite_300ms] h-2/3" />
+                      <span className="w-1 bg-red-400 rounded-full animate-[bounce_0.8s_infinite_200ms] h-full" />
+                      <span className="w-1 bg-red-400 rounded-full animate-[bounce_0.8s_infinite_400ms] h-1/2" />
+                    </div>
+                  </div>
+                  <button
+                    onClick={toggleDictation}
+                    className="px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/40 text-[10px] uppercase font-bold transition-all"
+                  >
+                    Zastavit diktování
+                  </button>
+                </div>
+              )}
+
               <form 
                 onSubmit={e => { e.preventDefault(); handleSendQuery(); }} 
                 className="flex gap-3 max-w-4xl mx-auto items-center"
@@ -899,9 +1075,26 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
                   type="text" 
                   value={inputQuery} 
                   onChange={e => setInputQuery(e.target.value)}
-                  placeholder="Zpráva pro O.M.N.I.S..."
-                  className="flex-1 bg-slate-900 border border-slate-700/60 rounded-xl px-5 py-4 text-base focus:outline-none focus:border-[#00F0FF]/50 min-h-[52px] font-mono text-slate-100"
+                  placeholder={isListening ? "Diktujte dotaz do mikrofonu..." : "Zpráva pro O.M.N.I.S..."}
+                  className={`flex-1 bg-slate-900 border rounded-xl px-5 py-4 text-base focus:outline-none min-h-[52px] font-mono text-slate-100 transition-colors ${
+                    isListening ? "border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.2)]" : "border-slate-700/60 focus:border-[#00F0FF]/50"
+                  }`}
                 />
+
+                {/* Microphone Dictation Button */}
+                <button
+                  type="button"
+                  onClick={toggleDictation}
+                  title={isListening ? "Zastavit hlasové diktování" : "Spustit hlasové diktování (Web Speech API)"}
+                  className={`min-h-[52px] min-w-[52px] rounded-xl flex items-center justify-center transition-all ${
+                    isListening
+                      ? "bg-red-600 hover:bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse"
+                      : "bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-700/60"
+                  }`}
+                >
+                  {isListening ? <Mic className="w-5 h-5 text-white animate-bounce" /> : <MicOff className="w-5 h-5" />}
+                </button>
+
                 <button 
                   type="submit" 
                   disabled={isLoading || !inputQuery.trim()}
@@ -914,6 +1107,42 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
           </div>
         )}
 
+        {activeTab === "analytics" && (
+          <div className="flex-1 overflow-auto">
+            <AnalyticsOverviewDashboard
+              messages={messages}
+              onTriggerDeepDive={handleDeepDiveMessage}
+              onGoToChat={() => setActiveTab("chat")}
+            />
+          </div>
+        )}
+        {activeTab === "archive" && (
+          <div className="flex-1 overflow-auto">
+            <ThreadsArchiveDashboard
+              threads={threads}
+              activeThreadId={activeThreadId}
+              onSelectThread={(id) => {
+                setActiveThreadId(id);
+                setActiveTab("chat");
+              }}
+              onCreateNewThread={createNewThread}
+              onOpenSearch={() => setShowSearchModal(true)}
+              onOpenMerge={() => setShowMergeModal(true)}
+              onExportJSON={exportHistory}
+              onImportClick={triggerFileInput}
+              lastIndexedDbSave={lastIndexedDbSave}
+            />
+          </div>
+        )}
+        {activeTab === "nodes" && (
+          <div className="flex-1 overflow-auto">
+            <CognitiveNodesDashboard
+              messages={messages}
+              onTriggerDeepDive={handleDeepDiveMessage}
+              onGoToChat={() => setActiveTab("chat")}
+            />
+          </div>
+        )}
         {activeTab === "dev_lab" && <div className="flex-1 overflow-auto"><DevPromptLab 
             onExecutePromptInChat={(q, d) => { setOntologyDomain(d); handleSendQuery(q); setActiveTab("chat"); }}
             currentDomain={ontologyDomain}
@@ -934,43 +1163,73 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
       </div>
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
-      <div className="sm:hidden flex-shrink-0 bg-[#060913]/95 backdrop-blur-md border-t border-slate-800/80 px-4 py-2 flex items-center justify-around relative z-30 shadow-[0_-8px_24px_rgba(0,0,0,0.5)]">
+      <div className="sm:hidden flex-shrink-0 bg-[#060913]/95 backdrop-blur-md border-t border-slate-800/80 px-2 py-1 flex items-center overflow-x-auto scrollbar-none relative z-30 shadow-[0_-8px_24px_rgba(0,0,0,0.5)]">
         <button
           onClick={() => setActiveTab("chat")}
-          className="flex-1 py-1 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative"
+          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
         >
-          <MessageSquare className={`w-5 h-5 transition-transform duration-300 ${activeTab === "chat" ? "scale-110 text-[#00F0FF]" : "text-slate-500"}`} />
+          <MessageSquare className={`w-4 h-4 transition-transform duration-300 ${activeTab === "chat" ? "scale-110 text-[#00F0FF]" : "text-slate-500"}`} />
           <span className={activeTab === "chat" ? "text-[#00F0FF] drop-shadow-[0_0_6px_rgba(0,240,255,0.4)]" : "text-slate-500"}>CHAT</span>
           {activeTab === "chat" && (
             <span className="absolute bottom-0 w-8 h-0.5 bg-[#00F0FF] rounded-full shadow-[0_0_8px_#00F0FF]"></span>
           )}
         </button>
         <button
-          onClick={() => setActiveTab("octagon")}
-          className="flex-1 py-1 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative"
+          onClick={() => setActiveTab("analytics")}
+          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
         >
-          <Activity className={`w-5 h-5 transition-transform duration-300 ${activeTab === "octagon" ? "scale-110 text-[#A855F7]" : "text-slate-500"}`} />
-          <span className={activeTab === "octagon" ? "text-[#A855F7] drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]" : "text-slate-500"}>OCTAGON</span>
-          {activeTab === "octagon" && (
+          <BarChart3 className={`w-4 h-4 transition-transform duration-300 ${activeTab === "analytics" ? "scale-110 text-blue-400" : "text-slate-500"}`} />
+          <span className={activeTab === "analytics" ? "text-blue-400 drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]" : "text-slate-500"}>ANALÝZA</span>
+          {activeTab === "analytics" && (
+            <span className="absolute bottom-0 w-8 h-0.5 bg-blue-400 rounded-full shadow-[0_0_8px_#3b82f6]"></span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("archive")}
+          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
+        >
+          <Layers className={`w-4 h-4 transition-transform duration-300 ${activeTab === "archive" ? "scale-110 text-cyan-400" : "text-slate-500"}`} />
+          <span className={activeTab === "archive" ? "text-cyan-400 drop-shadow-[0_0_6px_rgba(6,182,212,0.4)]" : "text-slate-500"}>ARCHIV</span>
+          {activeTab === "archive" && (
+            <span className="absolute bottom-0 w-8 h-0.5 bg-cyan-400 rounded-full shadow-[0_0_8px_#06b6d4]"></span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("nodes")}
+          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
+        >
+          <Brain className={`w-4 h-4 transition-transform duration-300 ${activeTab === "nodes" ? "scale-110 text-[#A855F7]" : "text-slate-500"}`} />
+          <span className={activeTab === "nodes" ? "text-[#A855F7] drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]" : "text-slate-500"}>UZLY</span>
+          {activeTab === "nodes" && (
             <span className="absolute bottom-0 w-8 h-0.5 bg-[#A855F7] rounded-full shadow-[0_0_8px_#A855F7]"></span>
           )}
         </button>
         <button
           onClick={() => setActiveTab("dashboard")}
-          className="flex-1 py-1 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative"
+          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
         >
-          <Sliders className={`w-5 h-5 transition-transform duration-300 ${activeTab === "dashboard" ? "scale-110 text-[#00F0FF]" : "text-slate-500"}`} />
-          <span className={activeTab === "dashboard" ? "text-[#00F0FF] drop-shadow-[0_0_6px_rgba(0,240,255,0.4)]" : "text-slate-500"}>PANEL</span>
+          <Sliders className={`w-4 h-4 transition-transform duration-300 ${activeTab === "dashboard" ? "scale-110 text-amber-400" : "text-slate-500"}`} />
+          <span className={activeTab === "dashboard" ? "text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.4)]" : "text-slate-500"}>TÉMATA</span>
           {activeTab === "dashboard" && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-[#00F0FF] rounded-full shadow-[0_0_8px_#00F0FF]"></span>
+            <span className="absolute bottom-0 w-8 h-0.5 bg-amber-400 rounded-full shadow-[0_0_8px_#f59e0b]"></span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("octagon")}
+          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
+        >
+          <Activity className={`w-4 h-4 transition-transform duration-300 ${activeTab === "octagon" ? "scale-110 text-purple-400" : "text-slate-500"}`} />
+          <span className={activeTab === "octagon" ? "text-purple-400 drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]" : "text-slate-500"}>OCTAGON</span>
+          {activeTab === "octagon" && (
+            <span className="absolute bottom-0 w-8 h-0.5 bg-purple-400 rounded-full shadow-[0_0_8px_#c084fc]"></span>
           )}
         </button>
         <button
           onClick={() => setActiveTab("dev_lab")}
-          className="flex-1 py-1 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative"
+          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
         >
-          <FlaskConical className={`w-5 h-5 transition-transform duration-300 ${activeTab === "dev_lab" ? "scale-110 text-[#10B981]" : "text-slate-500"}`} />
-          <span className={activeTab === "dev_lab" ? "text-[#10B981] drop-shadow-[0_0_6px_rgba(16,185,129,0.4)]" : "text-slate-500"}>LAB</span>
+          <FlaskConical className={`w-4 h-4 transition-transform duration-300 ${activeTab === "dev_lab" ? "scale-110 text-[#10B981]" : "text-slate-500 text-xs"}`} />
+          <span className={activeTab === "dev_lab" ? "text-[#10B981] drop-shadow-[0_0_6px_rgba(16,185,129,0.4)]" : "text-slate-500"}>DEV</span>
           {activeTab === "dev_lab" && (
             <span className="absolute bottom-0 w-8 h-0.5 bg-[#10B981] rounded-full shadow-[0_0_8px_#10B981]"></span>
           )}
@@ -993,6 +1252,16 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
           activeThreadId={activeThreadId}
           onClose={() => setShowMergeModal(false)}
           onMerge={handleMergeThreads}
+        />
+      )}
+
+      {/* KEYBOARD SHORTCUTS & USER GUIDE MODAL */}
+      {showHelpModal && (
+        <KeyboardShortcutsModal
+          onClose={() => setShowHelpModal(false)}
+          onOpenSearch={() => setShowSearchModal(true)}
+          onOpenMerge={() => setShowMergeModal(true)}
+          onToggleDictation={toggleDictation}
         />
       )}
 
