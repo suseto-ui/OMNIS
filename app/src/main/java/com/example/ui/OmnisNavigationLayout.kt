@@ -53,6 +53,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -745,74 +748,104 @@ fun ChatView(
 
         // Multi-Domain Synthesis Action Bar
         if (selectedDomains.isNotEmpty()) {
+            val clusterAnalysis = remember(selectedDomains) {
+                OmnisCorrelationEngine.evaluateCluster(selectedDomains)
+            }
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 10.dp, vertical = 4.dp),
                 shape = RoundedCornerShape(14.dp),
                 color = OmnisPanelDark,
-                border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp, 
+                    if (clusterAnalysis.hasFriction) OmnisAmber else OmnisCyan
+                ),
                 tonalElevation = 6.dp
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f, fill = false)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(OmnisCyan)
-                            )
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(if (clusterAnalysis.hasFriction) OmnisAmber else OmnisCyan)
+                                )
+                                Text(
+                                    text = "SYNTÉZNÍ PANEL (${selectedDomains.size})",
+                                    color = if (clusterAnalysis.hasFriction) OmnisAmber else OmnisCyan,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                Text(
+                                    text = "• Synergie: ${(clusterAnalysis.averageSynergy * 100).toInt()}%",
+                                    color = OmnisTextMuted,
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
                             Text(
-                                text = "SYNTÉZNÍ PANEL (${selectedDomains.size})",
-                                color = OmnisCyan,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace
+                                text = selectedDomains.joinToString(", "),
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = onClearDomainSelection,
+                                modifier = Modifier.testTag("synthesis_cancel_button"),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text("Zrušit", color = OmnisTextMuted, fontSize = 11.sp)
+                            }
+                            Button(
+                                onClick = { onMultiDomainSynthesis("COMPARE") },
+                                modifier = Modifier.testTag("synthesis_compare_button"),
+                                colors = ButtonDefaults.buttonColors(containerColor = OmnisBgDark),
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text("Srovnat", color = Color.White, fontSize = 11.sp)
+                            }
+                            Button(
+                                onClick = { onMultiDomainSynthesis("HARMONIZE") },
+                                modifier = Modifier.testTag("synthesis_harmonize_button"),
+                                colors = ButtonDefaults.buttonColors(containerColor = OmnisCyan),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text("Harmonizovat", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // Interference & Synergy Dynamic Diagnosis
+                    if (selectedDomains.size >= 2) {
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = selectedDomains.joinToString(", "),
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            maxLines = 1,
+                            text = clusterAnalysis.summary,
+                            color = if (clusterAnalysis.hasFriction) OmnisAmber else OmnisCyan.copy(alpha = 0.9f),
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(
-                            onClick = onClearDomainSelection,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text("Zrušit", color = OmnisTextMuted, fontSize = 11.sp)
-                        }
-                        Button(
-                            onClick = { onMultiDomainSynthesis("COMPARE") },
-                            colors = ButtonDefaults.buttonColors(containerColor = OmnisBgDark),
-                            shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text("Srovnat", color = Color.White, fontSize = 11.sp)
-                        }
-                        Button(
-                            onClick = { onMultiDomainSynthesis("HARMONIZE") },
-                            colors = ButtonDefaults.buttonColors(containerColor = OmnisCyan),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text("Harmonizovat", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
                     }
                 }
             }
@@ -1338,14 +1371,22 @@ fun MetricPill(
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = {}
 ) {
+    val percent = (value * 100).toInt()
+    val stateDescription = if (isSelected) "Vybráno pro syntézu" else "Nevybráno"
     Surface(
         shape = RoundedCornerShape(10.dp),
         color = if (isSelected) color.copy(alpha = 0.25f) else OmnisBgDark,
         border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) color else color.copy(alpha = 0.4f)),
-        modifier = Modifier.combinedClickable(
-            onClick = onClick,
-            onLongClick = onLongClick
-        )
+        modifier = Modifier
+            .testTag("metric_pill_${label.lowercase()}")
+            .semantics {
+                this.contentDescription = "Doména $label: $percent procent. $stateDescription. Dlouhým stiskem zobrazíte detail."
+                this.selected = isSelected
+            }
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
@@ -1356,7 +1397,7 @@ fun MetricPill(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(text = label, color = OmnisTextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                 Text(
-                    text = "${(value * 100).toInt()}%",
+                    text = "$percent%",
                     color = color,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp,

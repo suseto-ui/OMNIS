@@ -18,10 +18,24 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
+import android.graphics.Paint
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import android.widget.Toast
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -79,6 +93,8 @@ fun OctagonDashboard(
     
     val composite = (simSys + simEcon + simPsych + simEco + simLaw + simSec + simPhys + simSoc) / 8f
     val animatedComposite by animateFloatAsState(targetValue = composite, label = "composite")
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
 
     Box(modifier = Modifier.fillMaxSize().testTag("octagon_dashboard")) {
         LazyColumn(
@@ -138,7 +154,20 @@ fun OctagonDashboard(
                             lineHeight = 16.sp
                         )
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
+                        
+                        // 8D Radar Geometric Visualizer with Tension Links
+                        OctagonRadarVisualizer(
+                            values = listOf(simSys, simEcon, simPsych, simEco, simLaw, simSec, simPhys, simSoc),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp)
+                                .padding(vertical = 4.dp),
+                            fixedDomains = fixedDomains,
+                            onToggleFix = onToggleFix
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
                         HorizontalDivider(color = OmnisBorderDark, thickness = 1.dp)
                         Spacer(modifier = Modifier.height(10.dp))
 
@@ -177,6 +206,96 @@ fun OctagonDashboard(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold
                 )
+            }
+
+            // Ontological Simulation Presets
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SuggestionChip(
+                        onClick = { onSimChange(0.95f, 0.20f, 0.45f, 0.40f, 0.90f, 0.98f, 0.50f, 0.35f) },
+                        label = { Text("Max Sec / Nízký rozpočet", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = OmnisRed.copy(alpha = 0.15f),
+                            labelColor = OmnisRed
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = OmnisRed.copy(alpha = 0.5f)
+                        )
+                    )
+                    SuggestionChip(
+                        onClick = { onSimChange(0.85f, 0.65f, 0.80f, 0.95f, 0.70f, 0.60f, 0.75f, 0.85f) },
+                        label = { Text("Regenerativní Škálování", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = OmnisEmerald.copy(alpha = 0.15f),
+                            labelColor = OmnisEmerald
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = OmnisEmerald.copy(alpha = 0.5f)
+                        )
+                    )
+                    SuggestionChip(
+                        onClick = { onSimChange(0.90f, 0.92f, 0.55f, 0.30f, 0.65f, 0.70f, 0.80f, 0.40f) },
+                        label = { Text("Hyper-Econ / Průmysl", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = OmnisAmber.copy(alpha = 0.15f),
+                            labelColor = OmnisAmber
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = OmnisAmber.copy(alpha = 0.5f)
+                        )
+                    )
+                    SuggestionChip(
+                        onClick = { onSimChange(0.70f, 0.70f, 0.70f, 0.70f, 0.70f, 0.70f, 0.70f, 0.70f) },
+                        label = { Text("Vyvážený Reset (0.70)", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = OmnisBorderDark,
+                            labelColor = OmnisCyan
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = OmnisBorderDark
+                        )
+                    )
+                    SuggestionChip(
+                        onClick = {
+                            val jsonState = """
+                                {
+                                  "tensor_version": "8D-OMNIS-V1",
+                                  "sys": $simSys,
+                                  "econ": $simEcon,
+                                  "psych": $simPsych,
+                                  "eco": $simEco,
+                                  "law": $simLaw,
+                                  "sec": $simSec,
+                                  "phys": $simPhys,
+                                  "soc": $simSoc,
+                                  "composite": $composite,
+                                  "fixed_domains": ${fixedDomains.joinToString(prefix = "[\"", separator = "\", \"", postfix = "\"]")}
+                                }
+                            """.trimIndent()
+                            clipboardManager.setText(AnnotatedString(jsonState))
+                            Toast.makeText(context, "8D Tenzor zkopírován do schránky (JSON)", Toast.LENGTH_SHORT).show()
+                        },
+                        icon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp), tint = OmnisViolet) },
+                        label = { Text("Export JSON", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = OmnisViolet.copy(alpha = 0.15f),
+                            labelColor = OmnisViolet
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = OmnisViolet.copy(alpha = 0.5f)
+                        )
+                    )
+                }
             }
 
             item {
@@ -816,6 +935,201 @@ fun OctagonDimensionSliderCard(
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
+        }
+    }
+}
+
+@Composable
+fun OctagonRadarVisualizer(
+    values: List<Float>,
+    modifier: Modifier = Modifier,
+    fixedDomains: Set<String> = emptySet(),
+    onToggleFix: ((String) -> Unit)? = null
+) {
+    val labels = remember { listOf("Sys", "Econ", "Psych", "Eco", "Law", "Sec", "Phys", "Soc") }
+    val dimensionColors = remember {
+        listOf(
+            Color(0xFF60A5FA),
+            Color(0xFFFBBF24),
+            Color(0xFFC084FC),
+            Color(0xFF34D399),
+            Color(0xFFFB7185),
+            Color(0xFFEF4444),
+            Color(0xFFFB923C),
+            Color(0xFFF472B6)
+        )
+    }
+
+    val textPaint = remember {
+        Paint().apply {
+            color = android.graphics.Color.WHITE
+            textSize = 28f
+            isAntiAlias = true
+            textAlign = Paint.Align.CENTER
+            typeface = android.graphics.Typeface.MONOSPACE
+        }
+    }
+
+    Box(
+        modifier = modifier.pointerInput(labels) {
+            detectTapGestures { tapOffset ->
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val radius = (minOf(size.width, size.height) / 2f) * 0.70f
+                val numPoints = 8
+                val angleStep = (2.0 * Math.PI / numPoints).toFloat()
+
+                // Find if tap is near any vertex node or label
+                for (i in 0 until numPoints) {
+                    val angle = i * angleStep - (Math.PI / 2.0).toFloat()
+                    val v = values.getOrElse(i) { 0.5f }.coerceIn(0.05f, 1f)
+                    val nodePt = Offset(center.x + (radius * v) * cos(angle), center.y + (radius * v) * sin(angle))
+                    val labelRadius = radius + 32f
+                    val labelPt = Offset(center.x + labelRadius * cos(angle), center.y + labelRadius * sin(angle))
+
+                    val distToNode = kotlin.math.hypot(tapOffset.x - nodePt.x, tapOffset.y - nodePt.y)
+                    val distToLabel = kotlin.math.hypot(tapOffset.x - labelPt.x, tapOffset.y - labelPt.y)
+
+                    if (distToNode <= 40f || distToLabel <= 40f) {
+                        onToggleFix?.invoke(labels[i])
+                        break
+                    }
+                }
+            }
+        }, 
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize().testTag("octagon_radar_canvas")) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val radius = (size.minDimension / 2f) * 0.70f
+            val numPoints = 8
+            val angleStep = (2.0 * Math.PI / numPoints).toFloat()
+
+            // 1. Concentric web rings (0.25, 0.50, 0.75, 1.0)
+            val levels = listOf(0.25f, 0.50f, 0.75f, 1.0f)
+            levels.forEach { level ->
+                val ringPath = Path()
+                for (i in 0 until numPoints) {
+                    val angle = i * angleStep - (Math.PI / 2.0).toFloat()
+                    val r = radius * level
+                    val x = center.x + r * cos(angle)
+                    val y = center.y + r * sin(angle)
+                    if (i == 0) ringPath.moveTo(x, y) else ringPath.lineTo(x, y)
+                }
+                ringPath.close()
+                drawPath(
+                    path = ringPath,
+                    color = OmnisBorderDark.copy(alpha = if (level == 1.0f) 0.8f else 0.35f),
+                    style = Stroke(width = if (level == 1.0f) 1.5f else 1f)
+                )
+            }
+
+            // 2. Radial spokes & Outer Labels
+            for (i in 0 until numPoints) {
+                val angle = i * angleStep - (Math.PI / 2.0).toFloat()
+                val x = center.x + radius * cos(angle)
+                val y = center.y + radius * sin(angle)
+                drawLine(
+                    color = OmnisBorderDark.copy(alpha = 0.5f),
+                    start = center,
+                    end = Offset(x, y),
+                    strokeWidth = 1f
+                )
+
+                // Draw domain text label on outer boundary
+                val labelRadius = radius + 32f
+                val lx = center.x + labelRadius * cos(angle)
+                val ly = center.y + labelRadius * sin(angle) + 10f
+                val domainName = labels[i]
+                val isFixed = fixedDomains.contains(domainName)
+                
+                textPaint.color = if (isFixed) {
+                    android.graphics.Color.rgb(255, 215, 0)
+                } else {
+                    val c = dimensionColors[i]
+                    android.graphics.Color.rgb((c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt())
+                }
+                
+                drawContext.canvas.nativeCanvas.drawText(
+                    if (isFixed) "$domainName*" else domainName,
+                    lx,
+                    ly,
+                    textPaint
+                )
+            }
+
+            // 3. Tension / Synergy Correlation cross-lines between key axes
+            val tensionPairs = listOf(
+                Pair(1, 3), // Econ vs Eco (Friction)
+                Pair(1, 5), // Econ vs Sec (Friction)
+                Pair(5, 2), // Sec vs Psych (Tension)
+                Pair(0, 5), // Sys + Sec (Synergy)
+                Pair(4, 5)  // Law + Sec (Synergy)
+            )
+
+            tensionPairs.forEach { pair ->
+                val idxA = pair.first
+                val idxB = pair.second
+                val valA = values.getOrElse(idxA) { 0.5f }.coerceIn(0.1f, 1f)
+                val valB = values.getOrElse(idxB) { 0.5f }.coerceIn(0.1f, 1f)
+
+                val angleA = idxA * angleStep - (Math.PI / 2.0).toFloat()
+                val angleB = idxB * angleStep - (Math.PI / 2.0).toFloat()
+
+                val ptA = Offset(center.x + (radius * valA) * cos(angleA), center.y + (radius * valA) * sin(angleA))
+                val ptB = Offset(center.x + (radius * valB) * cos(angleB), center.y + (radius * valB) * sin(angleB))
+
+                val isFriction = (idxA == 1 && idxB == 3) || (idxA == 1 && idxB == 5) || (idxA == 5 && idxB == 2)
+                val lineColor = if (isFriction) OmnisAmber.copy(alpha = 0.45f) else OmnisCyan.copy(alpha = 0.35f)
+
+                drawLine(
+                    color = lineColor,
+                    start = ptA,
+                    end = ptB,
+                    strokeWidth = 1.2f
+                )
+            }
+
+            // 4. Polygon Area of Current Values
+            val polygonPath = Path()
+            val pointCoords = mutableListOf<Offset>()
+            for (i in 0 until numPoints) {
+                val angle = i * angleStep - (Math.PI / 2.0).toFloat()
+                val v = values.getOrElse(i) { 0.5f }.coerceIn(0.05f, 1f)
+                val r = radius * v
+                val x = center.x + r * cos(angle)
+                val y = center.y + r * sin(angle)
+                val pt = Offset(x, y)
+                pointCoords.add(pt)
+                if (i == 0) polygonPath.moveTo(x, y) else polygonPath.lineTo(x, y)
+            }
+            polygonPath.close()
+
+            // Fill polygon with translucent gradient
+            drawPath(
+                path = polygonPath,
+                color = OmnisCyan.copy(alpha = 0.22f)
+            )
+            // Stroke polygon boundary
+            drawPath(
+                path = polygonPath,
+                color = OmnisCyan,
+                style = Stroke(width = 2.2f)
+            )
+
+            // 5. Point Nodes on vertices
+            pointCoords.forEachIndexed { i, pt ->
+                val nodeColor = dimensionColors.getOrElse(i) { OmnisCyan }
+                drawCircle(
+                    color = OmnisBgDark,
+                    radius = 5.5f,
+                    center = pt
+                )
+                drawCircle(
+                    color = nodeColor,
+                    radius = 4f,
+                    center = pt
+                )
+            }
         }
     }
 }

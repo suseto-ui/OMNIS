@@ -89,13 +89,20 @@ class OmnisViewModel(
     }
 
     fun runMultiDomainSynthesis(action: String) {
-        val domains = _selectedDomains.value.joinToString(", ")
+        val selected = _selectedDomains.value
+        if (selected.isEmpty()) return
+        val domains = selected.joinToString(", ")
         val record = records.value.lastOrNull { it.role == "assistant" } ?: return
         
+        val clusterAnalysis = OmnisCorrelationEngine.evaluateCluster(selected)
+        val frictionNote = if (clusterAnalysis.hasFriction && clusterAnalysis.primaryPair != null) {
+            "\n[DETEKOVÁNA INTERFERENCE]: ${clusterAnalysis.primaryPair.domainA} vs ${clusterAnalysis.primaryPair.domainB} (${(clusterAnalysis.primaryPair.correlation * 100).toInt()}%). Vliv: ${clusterAnalysis.primaryPair.impactDescription}"
+        } else ""
+
         val prompt = when(action) {
-            "COMPARE" -> "Proveď detailní srovnávací analýzu domén ($domains) v kontextu předchozí odpovědi. Vytvoř srovnávací tabulku parametrů a vlivů."
-            "HARMONIZE" -> "Identifikuj konflikty mezi doménami ($domains) a navrhni harmonizační strategii pro synergický efekt."
-            else -> "Analyzuj domény ($domains)."
+            "COMPARE" -> "Proveď detailní srovnávací analýzu domén ($domains) v kontextu předchozí odpovědi. Vytvoř srovnávací tabulku parametrů a vlivů.$frictionNote"
+            "HARMONIZE" -> "Identifikuj konflikty mezi doménami ($domains) a navrhni harmonizační strategii pro synergický efekt.$frictionNote"
+            else -> "Analyzuj domény ($domains).$frictionNote"
         }
         
         sendQuery(prompt)
@@ -346,7 +353,7 @@ class OmnisViewModel(
     init {
         records = repository.allRecords.stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
+            SharingStarted.Eagerly,
             emptyList()
         )
 

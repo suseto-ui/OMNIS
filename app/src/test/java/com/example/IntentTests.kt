@@ -14,8 +14,10 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -106,5 +108,83 @@ class IntentTests {
         assertEquals(dummyFile.absolutePath, userRecord?.attachedImagePath)
 
         if (dummyFile.exists()) dummyFile.delete()
+    }
+
+    @Test
+    fun `test domain selection toggle and multi-domain synthesis trigger`() = runTest(testDispatcher) {
+        assertEquals(emptySet<String>(), viewModel.selectedDomains.value)
+
+        // Toggle selections
+        viewModel.toggleDomainSelection("Sys")
+        viewModel.toggleDomainSelection("Econ")
+        assertEquals(setOf("Sys", "Econ"), viewModel.selectedDomains.value)
+
+        // Toggle remove "Sys"
+        viewModel.toggleDomainSelection("Sys")
+        assertEquals(setOf("Econ"), viewModel.selectedDomains.value)
+
+        // Add back and add another
+        viewModel.toggleDomainSelection("Sec")
+        assertEquals(setOf("Econ", "Sec"), viewModel.selectedDomains.value)
+
+        // Clear selection
+        viewModel.clearSelection()
+        assertEquals(emptySet<String>(), viewModel.selectedDomains.value)
+    }
+
+    @Test
+    fun `test runMultiDomainSynthesis generates formatted prompt and dispatches query`() = runTest(testDispatcher) {
+        // Pre-insert an assistant record so synthesis can target it
+        val assistantRecord = com.example.data.OmnisRecord(
+            id = 42L,
+            role = "assistant",
+            content = "Strategický rozbor infrastruktury",
+            valSys = 0.85f,
+            valEcon = 0.70f,
+            compositeScore = 0.77f
+        )
+        fakeDao.insertRecord(assistantRecord)
+        advanceUntilIdle()
+
+        viewModel.toggleDomainSelection("Sys")
+        viewModel.toggleDomainSelection("Econ")
+
+        viewModel.runMultiDomainSynthesis("COMPARE")
+        advanceUntilIdle()
+
+        // Selection should be cleared after dispatch
+        assertEquals(emptySet<String>(), viewModel.selectedDomains.value)
+
+        // Records should have recorded the user query with domain comparison prompt
+        val records = viewModel.records.first { list -> list.any { it.role == "user" && it.content.contains("Sys, Econ") } }
+        val userQuery = records.find { it.role == "user" && it.content.contains("Sys, Econ") }
+        assertNotNull(userQuery)
+        assertEquals(true, userQuery?.content?.contains("srovnávací analýzu"))
+    }
+
+    @Test
+    fun `test runMultiDomainSynthesis injects friction diagnosis when conflicting domains selected`() = runTest(testDispatcher) {
+        val assistantRecord = com.example.data.OmnisRecord(
+            id = 100L,
+            role = "assistant",
+            content = "Výchozí analýza investičních priorit",
+            valEcon = 0.90f,
+            valEco = 0.40f,
+            compositeScore = 0.65f
+        )
+        fakeDao.insertRecord(assistantRecord)
+        advanceUntilIdle()
+
+        viewModel.toggleDomainSelection("Econ")
+        viewModel.toggleDomainSelection("Eco")
+
+        viewModel.runMultiDomainSynthesis("HARMONIZE")
+        advanceUntilIdle()
+
+        val records = viewModel.records.first { list -> list.any { it.role == "user" && it.content.contains("Econ, Eco") } }
+        val userQuery = records.find { it.role == "user" && it.content.contains("Econ, Eco") }
+        assertNotNull(userQuery)
+        assertTrue(userQuery!!.content.contains("DETEKOVÁNA INTERFERENCE"))
+        assertTrue(userQuery.content.contains("Econ vs Eco"))
     }
 }
