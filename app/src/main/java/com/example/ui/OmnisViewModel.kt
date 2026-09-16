@@ -18,8 +18,11 @@ import kotlinx.coroutines.launch
 
 enum class OmnisTab {
     CHAT,
-    MATRIX,
+    ANALYTICS,
     MEMORY,
+    NODES,
+    DASHBOARD,
+    MATRIX,
     DEV,
     TEST_SEMANTIC
 }

@@ -346,7 +346,7 @@ fun OmnisMainScreen(
                     }
                     Column {
                         Text("O.M.N.I.S.", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("Kognitivní Řízení", color = OmnisCyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                        Text("Kognitivní Řízení v2.7", color = OmnisCyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                     }
                 }
                 HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 12.dp))
@@ -369,17 +369,17 @@ fun OmnisMainScreen(
                     ),
                     modifier = Modifier
                         .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .height(56.dp)
+                        .height(52.dp)
                 )
-                
+
                 NavigationDrawerItem(
-                    label = { Text("Matice Dopadů", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                    selected = activeTab == OmnisTab.MATRIX,
+                    label = { Text("Analytický Přehled", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                    selected = activeTab == OmnisTab.ANALYTICS,
                     onClick = {
-                        viewModel.setTab(OmnisTab.MATRIX)
+                        viewModel.setTab(OmnisTab.ANALYTICS)
                         scope.launch { drawerState.close() }
                     },
-                    icon = { Icon(Icons.Default.Info, contentDescription = null) },
+                    icon = { Icon(Icons.Default.Analytics, contentDescription = null) },
                     colors = NavigationDrawerItemDefaults.colors(
                         selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
                         selectedIconColor = OmnisCyan,
@@ -390,11 +390,11 @@ fun OmnisMainScreen(
                     ),
                     modifier = Modifier
                         .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .height(56.dp)
+                        .height(52.dp)
                 )
-
+                
                 NavigationDrawerItem(
-                    label = { Text("Historická Paměť", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                    label = { Text("Historická Paměť & Archiv", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
                     selected = activeTab == OmnisTab.MEMORY,
                     onClick = {
                         viewModel.setTab(OmnisTab.MEMORY)
@@ -411,7 +411,70 @@ fun OmnisMainScreen(
                     ),
                     modifier = Modifier
                         .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .height(56.dp)
+                        .height(52.dp)
+                )
+
+                NavigationDrawerItem(
+                    label = { Text("Kognitivní Uzly", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                    selected = activeTab == OmnisTab.NODES,
+                    onClick = {
+                        viewModel.setTab(OmnisTab.NODES)
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.AccountTree, contentDescription = null) },
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
+                        selectedIconColor = OmnisCyan,
+                        selectedTextColor = OmnisCyan,
+                        unselectedContainerColor = Color.Transparent,
+                        unselectedIconColor = OmnisTextMuted,
+                        unselectedTextColor = OmnisTextMuted
+                    ),
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .height(52.dp)
+                )
+
+                NavigationDrawerItem(
+                    label = { Text("Správa Témat & Šablony", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                    selected = activeTab == OmnisTab.DASHBOARD,
+                    onClick = {
+                        viewModel.setTab(OmnisTab.DASHBOARD)
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.List, contentDescription = null) },
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
+                        selectedIconColor = OmnisCyan,
+                        selectedTextColor = OmnisCyan,
+                        unselectedContainerColor = Color.Transparent,
+                        unselectedIconColor = OmnisTextMuted,
+                        unselectedTextColor = OmnisTextMuted
+                    ),
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .height(52.dp)
+                )
+
+                NavigationDrawerItem(
+                    label = { Text("Octagon 8D Matice", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                    selected = activeTab == OmnisTab.MATRIX,
+                    onClick = {
+                        viewModel.setTab(OmnisTab.MATRIX)
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.Info, contentDescription = null) },
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
+                        selectedIconColor = OmnisCyan,
+                        selectedTextColor = OmnisCyan,
+                        unselectedContainerColor = Color.Transparent,
+                        unselectedIconColor = OmnisTextMuted,
+                        unselectedTextColor = OmnisTextMuted
+                    ),
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .height(52.dp)
                 )
 
                 if (devUnlocked) {
@@ -433,7 +496,7 @@ fun OmnisMainScreen(
                         ),
                         modifier = Modifier
                             .padding(horizontal = 12.dp, vertical = 4.dp)
-                            .height(56.dp)
+                            .height(52.dp)
                     )
 
                     NavigationDrawerItem(
@@ -454,7 +517,7 @@ fun OmnisMainScreen(
                         ),
                         modifier = Modifier
                             .padding(horizontal = 12.dp, vertical = 4.dp)
-                            .height(56.dp)
+                            .height(52.dp)
                     )
                 }
             }
@@ -523,7 +586,7 @@ fun OmnisMainScreen(
                                     border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan.copy(alpha = 0.4f))
                                 ) {
                                     Text(
-                                        text = "v2.6",
+                                        text = "v2.7",
                                         color = OmnisCyan,
                                         fontSize = 9.sp,
                                         fontFamily = FontFamily.Monospace,
@@ -555,88 +618,6 @@ fun OmnisMainScreen(
                     containerColor = OmnisPanelDark.copy(alpha = 0.95f)
                 )
             )
-        },
-        bottomBar = {
-            NavigationBar(
-                containerColor = OmnisPanelDark,
-                tonalElevation = 8.dp,
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .height(64.dp)
-                    .border(
-                        width = 1.dp,
-                        color = OmnisBorderDark,
-                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                    )
-            ) {
-                NavigationBarItem(
-                    selected = activeTab == OmnisTab.CHAT,
-                    onClick = { viewModel.setTab(OmnisTab.CHAT) },
-                    icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Kognitivní Chat") },
-                    label = { Text("Chat", fontSize = 10.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = OmnisCyan,
-                        selectedTextColor = OmnisCyan,
-                        indicatorColor = OmnisCyan.copy(alpha = 0.2f),
-                        unselectedIconColor = OmnisTextMuted,
-                        unselectedTextColor = OmnisTextMuted
-                    )
-                )
-                NavigationBarItem(
-                    selected = activeTab == OmnisTab.MATRIX,
-                    onClick = { viewModel.setTab(OmnisTab.MATRIX) },
-                    icon = { Icon(Icons.Default.Info, contentDescription = "Matice Dopadů") },
-                    label = { Text("Matice", fontSize = 10.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = OmnisCyan,
-                        selectedTextColor = OmnisCyan,
-                        indicatorColor = OmnisCyan.copy(alpha = 0.2f),
-                        unselectedIconColor = OmnisTextMuted,
-                        unselectedTextColor = OmnisTextMuted
-                    )
-                )
-                NavigationBarItem(
-                    selected = activeTab == OmnisTab.MEMORY,
-                    onClick = { viewModel.setTab(OmnisTab.MEMORY) },
-                    icon = { Icon(Icons.Default.Star, contentDescription = "Paměť") },
-                    label = { Text("Paměť", fontSize = 10.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = OmnisCyan,
-                        selectedTextColor = OmnisCyan,
-                        indicatorColor = OmnisCyan.copy(alpha = 0.2f),
-                        unselectedIconColor = OmnisTextMuted,
-                        unselectedTextColor = OmnisTextMuted
-                    )
-                )
-                if (devUnlocked) {
-                    NavigationBarItem(
-                        selected = activeTab == OmnisTab.TEST_SEMANTIC,
-                        onClick = { viewModel.setTab(OmnisTab.TEST_SEMANTIC) },
-                        icon = { Icon(Icons.Default.Science, contentDescription = "Test Semantika") },
-                        label = { Text("Test", fontSize = 10.sp) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = OmnisAmber,
-                            selectedTextColor = OmnisAmber,
-                            indicatorColor = OmnisAmber.copy(alpha = 0.2f),
-                            unselectedIconColor = OmnisTextMuted,
-                            unselectedTextColor = OmnisTextMuted
-                        )
-                    )
-                    NavigationBarItem(
-                        selected = activeTab == OmnisTab.DEV,
-                        onClick = { viewModel.setTab(OmnisTab.DEV) },
-                        icon = { Icon(Icons.Default.Build, contentDescription = "Laboratoř") },
-                        label = { Text("Laboratoř", fontSize = 10.sp) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = OmnisAmber,
-                            selectedTextColor = OmnisAmber,
-                            indicatorColor = OmnisAmber.copy(alpha = 0.2f),
-                            unselectedIconColor = OmnisTextMuted,
-                            unselectedTextColor = OmnisTextMuted
-                        )
-                    )
-                }
-            }
         }
     ) { innerPadding ->
         Box(
@@ -792,6 +773,42 @@ fun OmnisMainScreen(
                     onItemClick = { record ->
                         viewModel.jumpToContext(record)
                     }
+                )
+                OmnisTab.ANALYTICS -> OctagonDashboard(
+                    records = records,
+                    latestRecord = records.lastOrNull { it.role == "assistant" },
+                    simSys = viewModel.simSys.collectAsStateWithLifecycle().value,
+                    simEcon = viewModel.simEcon.collectAsStateWithLifecycle().value,
+                    simPsych = viewModel.simPsych.collectAsStateWithLifecycle().value,
+                    simEco = viewModel.simEco.collectAsStateWithLifecycle().value,
+                    simLaw = viewModel.simLaw.collectAsStateWithLifecycle().value,
+                    simSec = viewModel.simSec.collectAsStateWithLifecycle().value,
+                    simPhys = viewModel.simPhys.collectAsStateWithLifecycle().value,
+                    simSoc = viewModel.simSoc.collectAsStateWithLifecycle().value,
+                    fixedDomains = viewModel.fixedDomains.collectAsStateWithLifecycle().value,
+                    onToggleFix = viewModel::toggleDomainFixation,
+                    onSimChange = { sys, econ, psych, eco, law, sec, phys, soc ->
+                        viewModel.setSimSys(sys)
+                        viewModel.setSimEcon(econ)
+                        viewModel.setSimPsych(psych)
+                        viewModel.setSimEco(eco)
+                        viewModel.setSimLaw(law)
+                        viewModel.setSimSec(sec)
+                        viewModel.setSimPhys(phys)
+                        viewModel.setSimSoc(soc)
+                    },
+                    isComparing = viewModel.isComparing.collectAsStateWithLifecycle().value,
+                    comparisonResult = viewModel.comparisonResult.collectAsStateWithLifecycle().value,
+                    onSynthesize = { selectedIds -> viewModel.synthesizeSelectedRecords(selectedIds) },
+                    onClearComparison = { viewModel.clearComparison() }
+                )
+                OmnisTab.NODES -> MemoryView(
+                    records = records,
+                    onItemClick = { record -> viewModel.jumpToContext(record) }
+                )
+                OmnisTab.DASHBOARD -> MemoryView(
+                    records = records,
+                    onItemClick = { record -> viewModel.jumpToContext(record) }
                 )
                 OmnisTab.DEV -> DevView()
                 OmnisTab.TEST_SEMANTIC -> {
@@ -958,55 +975,63 @@ fun ChatView(
         // Input Bar
         Surface(
             color = OmnisPanelDark,
+            shape = RoundedCornerShape(20.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { 
-                    fileLauncher.launch(arrayOf(
-                        "text/*", 
-                        "application/pdf", 
-                        "application/msword", 
-                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        "application/vnd.ms-excel",
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        "application/vnd.ms-powerpoint",
-                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                        "application/json",
-                        "application/xml",
-                        "application/javascript",
-                        "application/x-python",
-                        "application/x-sh",
-                        "application/x-php",
-                        "text/markdown",
-                        "text/x-python",
-                        "text/x-java-source",
-                        "text/html",
-                        "text/css"
-                    )) 
-                }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.Add, contentDescription = "Přiložit soubor", tint = OmnisCyan)
+                IconButton(
+                    onClick = { 
+                        fileLauncher.launch(arrayOf(
+                            "text/*", 
+                            "application/pdf", 
+                            "application/msword", 
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "application/vnd.ms-excel",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            "application/vnd.ms-powerpoint",
+                            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                            "application/json",
+                            "application/xml",
+                            "application/javascript",
+                            "application/x-python",
+                            "application/x-sh",
+                            "application/x-php",
+                            "text/markdown",
+                            "text/x-python",
+                            "text/x-java-source",
+                            "text/html",
+                            "text/css"
+                        )) 
+                    }, 
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Přiložit soubor", tint = OmnisCyan, modifier = Modifier.size(20.dp))
                 }
 
-                IconButton(onClick = {
-                    photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = "Odeslat obrázek pro OCR", tint = OmnisCyan)
+                IconButton(
+                    onClick = {
+                        photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    }, 
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = "Vyfotit/Obrázek", tint = OmnisCyan, modifier = Modifier.size(20.dp))
                 }
 
-                Box(modifier = Modifier.weight(1f)) {
+                Box(modifier = Modifier.weight(1f).padding(horizontal = 2.dp)) {
                     OutlinedTextField(
                         value = inputQuery,
                         onValueChange = onQueryChange,
                         placeholder = {
                             Text(
-                                "Zadejte dotaz pro O.M.N.I.S...",
+                                "Zpráva pro O.M.N.I.S...",
                                 color = OmnisTextMuted,
                                 fontSize = 13.sp
                             )
@@ -1017,23 +1042,26 @@ fun ChatView(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
-                            focusedBorderColor = OmnisCyan,
-                            unfocusedBorderColor = OmnisBorderDark,
-                            focusedContainerColor = OmnisBgDark,
-                            unfocusedContainerColor = OmnisBgDark
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent
                         ),
                         shape = RoundedCornerShape(12.dp),
                         maxLines = 3,
                         trailingIcon = {
-                            IconButton(onClick = {
-                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "cs-CZ")
-                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Diktujte dotaz...")
-                                }
-                                speechLauncher.launch(intent)
-                            }) {
-                                Icon(Icons.Default.Mic, contentDescription = "Diktovat", tint = OmnisCyan)
+                            IconButton(
+                                onClick = {
+                                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "cs-CZ")
+                                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Diktujte dotaz...")
+                                    }
+                                    speechLauncher.launch(intent)
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Default.Mic, contentDescription = "Diktovat", tint = OmnisCyan, modifier = Modifier.size(20.dp))
                             }
                         }
                     )
@@ -1047,8 +1075,8 @@ fun ChatView(
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                CircularProgressIndicator(color = OmnisCyan, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                Text("Extrahuji text (OCR)...", color = OmnisCyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                                CircularProgressIndicator(color = OmnisCyan, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Text("OCR...", color = OmnisCyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                             }
                         }
                     }
@@ -1058,7 +1086,7 @@ fun ChatView(
                     onClick = onSend,
                     enabled = inputQuery.isNotBlank() && !isLoading && !isOcrLoading,
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
                         .background(
                             if (inputQuery.isNotBlank() && !isLoading && !isOcrLoading) OmnisCyan else OmnisBorderDark
@@ -1068,7 +1096,8 @@ fun ChatView(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Odeslat dotaz",
-                        tint = if (inputQuery.isNotBlank() && !isLoading && !isOcrLoading) Color.Black else OmnisTextMuted
+                        tint = if (inputQuery.isNotBlank() && !isLoading && !isOcrLoading) Color.Black else OmnisTextMuted,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }

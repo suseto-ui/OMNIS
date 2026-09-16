@@ -194,6 +194,8 @@ class QueryRequest(BaseModel):
         default=True, description="Povolit hloubkový introspektivní kognitivní proces"
     )
     history: List[ChatMessage] = Field(default_factory=list, description="Historie konverzace pro udržení kontextu")
+    image_data: Optional[str] = Field(None, description="Base64 kódovaná obrazová data pro multimodální analýzu v Gemini 3.1")
+    image_mime: Optional[str] = Field("image/jpeg", description="MIME typ obrázku (např. image/jpeg, image/png)")
 
 
 class TokenUsageStats(BaseModel):

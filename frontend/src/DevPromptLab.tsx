@@ -108,6 +108,10 @@ interface DevPromptLabProps {
   sessionTokenTelemetry: TokenTelemetryState;
   onRefreshTelemetry: () => Promise<void>;
   onResetTelemetry: () => Promise<void>;
+  onNavigateToTab?: (tab: string) => void;
+  onOpenHelpModal?: () => void;
+  onOpenSearchModal?: () => void;
+  onOpenMergeModal?: () => void;
 }
 
 // ==========================================================
@@ -772,8 +776,247 @@ export default function DevPromptLab({
       </div>
 
       {/* ==========================================================
-          INTERACTIVE TOKEN SANDBOX & PREDICTIVE CALCULATOR
+          DEV ROZCESTNÍK VŠECH STRÁNEK A MODULŮ SYSTÉMU O.M.N.I.S.
          ========================================================== */}
+      <div className="rounded-2xl bg-gradient-to-b from-[#0B1021] to-[#060913] border border-amber-500/30 p-4 sm:p-5 shadow-2xl space-y-4">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-100 font-sans tracking-wide">
+                Dev Katalog Stránek & Rychlá Navigace
+              </h2>
+              <p className="text-xs text-slate-400 font-mono">
+                Přímý přístup do všech 7 hlavních modulů a diagnostických dialogů aplikace
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20 font-bold hidden sm:inline">
+            7 AKTIVNÍCH OBRAZOVEK
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* 1. Kognitivní Chat */}
+          <div className="bg-[#0A0F1D]/80 border border-slate-800 hover:border-[#00F0FF]/50 rounded-xl p-3.5 space-y-2 flex flex-col justify-between transition-all group">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-[#00F0FF] bg-[#00F0FF]/10 px-2 py-0.5 rounded border border-[#00F0FF]/30 font-bold">
+                  MODUL 1
+                </span>
+                <span className="text-xs text-slate-500 font-mono">/chat</span>
+              </div>
+              <h3 className="text-xs font-mono font-bold text-slate-100 flex items-center gap-1.5 group-hover:text-[#00F0FF] transition-colors">
+                <Zap className="w-3.5 h-3.5 text-[#00F0FF]" />
+                Kognitivní Chat & Diktování
+              </h3>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Konverzační časová osa, Web Speech API české hlasové diktování, fotoaparát pro Gemini 3.1 multimodální analýzu.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateToTab?.("chat")}
+              className="w-full mt-2 py-1.5 px-3 rounded-lg bg-[#00F0FF]/10 hover:bg-[#00F0FF]/20 border border-[#00F0FF]/30 text-[#00F0FF] text-[11px] font-mono font-bold flex items-center justify-center gap-1.5 transition-all"
+            >
+              <span>Otevřít Chat</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* 2. Analytický Přehled */}
+          <div className="bg-[#0A0F1D]/80 border border-slate-800 hover:border-blue-500/50 rounded-xl p-3.5 space-y-2 flex flex-col justify-between transition-all group">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/30 font-bold">
+                  MODUL 2
+                </span>
+                <span className="text-xs text-slate-500 font-mono">/analytics</span>
+              </div>
+              <h3 className="text-xs font-mono font-bold text-slate-100 flex items-center gap-1.5 group-hover:text-blue-400 transition-colors">
+                <BarChart3 className="w-3.5 h-3.5 text-blue-400" />
+                Analytický Přehled & Audit
+              </h3>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Sjednocení Octagon 8D matice dopadů a kognitivních uzlů, kompozitní skóre, průměrná entropie a statistiky.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateToTab?.("analytics")}
+              className="w-full mt-2 py-1.5 px-3 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 text-[11px] font-mono font-bold flex items-center justify-center gap-1.5 transition-all"
+            >
+              <span>Otevřít Analýzu</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* 3. Archiv Vláken */}
+          <div className="bg-[#0A0F1D]/80 border border-slate-800 hover:border-cyan-500/50 rounded-xl p-3.5 space-y-2 flex flex-col justify-between transition-all group">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30 font-bold">
+                  MODUL 3
+                </span>
+                <span className="text-xs text-slate-500 font-mono">/archive</span>
+              </div>
+              <h3 className="text-xs font-mono font-bold text-slate-100 flex items-center gap-1.5 group-hover:text-cyan-400 transition-colors">
+                <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                Archiv Vláken & IndexedDB
+              </h3>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Persistentní paměťové úložiště, full-textové vyhledávání, slučování konverzačních vláken a JSON zálohy.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateToTab?.("archive")}
+              className="w-full mt-2 py-1.5 px-3 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-[11px] font-mono font-bold flex items-center justify-center gap-1.5 transition-all"
+            >
+              <span>Otevřít Archiv</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* 4. Kognitivní Uzly */}
+          <div className="bg-[#0A0F1D]/80 border border-slate-800 hover:border-purple-500/50 rounded-xl p-3.5 space-y-2 flex flex-col justify-between transition-all group">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/30 font-bold">
+                  MODUL 4
+                </span>
+                <span className="text-xs text-slate-500 font-mono">/nodes</span>
+              </div>
+              <h3 className="text-xs font-mono font-bold text-slate-100 flex items-center gap-1.5 group-hover:text-purple-400 transition-colors">
+                <Cpu className="w-3.5 h-3.5 text-purple-400" />
+                Kognitivní Uzly & Dekompozice
+              </h3>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Detailní prohlížení atomických kognitivních uzlů, sémantického jádra, úrovně entropie a dekompozice odpovědí.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateToTab?.("nodes")}
+              className="w-full mt-2 py-1.5 px-3 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-400 text-[11px] font-mono font-bold flex items-center justify-center gap-1.5 transition-all"
+            >
+              <span>Otevřít Uzly</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* 5. Správa Témat & Šablony */}
+          <div className="bg-[#0A0F1D]/80 border border-slate-800 hover:border-amber-500/50 rounded-xl p-3.5 space-y-2 flex flex-col justify-between transition-all group">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30 font-bold">
+                  MODUL 5
+                </span>
+                <span className="text-xs text-slate-500 font-mono">/dashboard</span>
+              </div>
+              <h3 className="text-xs font-mono font-bold text-slate-100 flex items-center gap-1.5 group-hover:text-amber-300 transition-colors">
+                <Sliders className="w-3.5 h-3.5 text-amber-300" />
+                Správa Témat & Šablony
+              </h3>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Uživatelské prostředí pro správu promtních šablon, pravidla automatické detekce klíčových témat.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateToTab?.("dashboard")}
+              className="w-full mt-2 py-1.5 px-3 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[11px] font-mono font-bold flex items-center justify-center gap-1.5 transition-all"
+            >
+              <span>Otevřít Témata</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* 6. Octagon 8D Matice */}
+          <div className="bg-[#0A0F1D]/80 border border-slate-800 hover:border-purple-400/50 rounded-xl p-3.5 space-y-2 flex flex-col justify-between transition-all group">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/30 font-bold">
+                  MODUL 6
+                </span>
+                <span className="text-xs text-slate-500 font-mono">/octagon</span>
+              </div>
+              <h3 className="text-xs font-mono font-bold text-slate-100 flex items-center gap-1.5 group-hover:text-purple-300 transition-colors">
+                <ShieldCheck className="w-3.5 h-3.5 text-purple-300" />
+                Octagon 8D Matice Dopadů
+              </h3>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                8D hodnocení dopadů (ekonomika, technologie, bezpečnost, ekologie atd.), bezpečnostní jistič a forenzní mapa.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateToTab?.("octagon")}
+              className="w-full mt-2 py-1.5 px-3 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-[11px] font-mono font-bold flex items-center justify-center gap-1.5 transition-all"
+            >
+              <span>Otevřít Octagon</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* 7. Dev Prompt Lab */}
+          <div className="bg-[#0A0F1D]/80 border border-emerald-500/40 rounded-xl p-3.5 space-y-2 flex flex-col justify-between transition-all">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30 font-bold">
+                  MODUL 7
+                </span>
+                <span className="text-xs text-emerald-400 font-mono font-bold">AKTUÁLNÍ</span>
+              </div>
+              <h3 className="text-xs font-mono font-bold text-emerald-400 flex items-center gap-1.5">
+                <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
+                Dev Lab & Telemetrie
+              </h3>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Benchmarking promptů, kalkulačka tokenů v reálném čase, Invariant runner a správa vývojového režimu.
+              </p>
+            </div>
+            <div className="w-full mt-2 py-1.5 px-3 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-mono font-bold text-center">
+              Aktivní Stránka
+            </div>
+          </div>
+
+          {/* Interactive Action Modals Quick Launch */}
+          <div className="bg-[#0A0F1D]/80 border border-slate-800 rounded-xl p-3.5 space-y-2 flex flex-col justify-between">
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30 font-bold">
+                DIAGNOSTICKÉ DIALOGY
+              </span>
+              <h3 className="text-xs font-mono font-bold text-slate-100 flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-amber-400" />
+                Nástroje & Dialogy
+              </h3>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Klávesové zkratky, vyhledávání ve vláknech a slučování rozhovorů.
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 mt-2">
+              <button
+                onClick={() => onOpenSearchModal?.()}
+                className="flex-1 py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-mono font-bold truncate"
+                title="Otevřít vyhledávání"
+              >
+                Vyhledat
+              </button>
+              <button
+                onClick={() => onOpenMergeModal?.()}
+                className="flex-1 py-1 px-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-mono font-bold truncate"
+                title="Otevřít slučovač vláken"
+              >
+                Sloučit
+              </button>
+              <button
+                onClick={() => onOpenHelpModal?.()}
+                className="flex-1 py-1 px-1.5 rounded bg-[#00F0FF]/15 hover:bg-[#00F0FF]/30 text-[#00F0FF] text-[10px] font-mono font-bold truncate"
+                title="Otevřít Průvodce (?)"
+              >
+                Průvodce
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div className="rounded-2xl bg-gradient-to-b from-[#0F172A] to-[#0A0F1D] border border-slate-800 p-4 sm:p-5 shadow-xl">
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">

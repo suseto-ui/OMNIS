@@ -6,7 +6,7 @@ import DevPromptLab from "./DevPromptLab";
 import { OctagonDashboard } from "./OctagonDashboard";
 import { UserDashboard, DEFAULT_TOPIC_RULES, TopicRule } from "./UserDashboard";
 import { 
-  Menu, RefreshCw, Sparkles, Send, Database, Compass, CheckCircle2, Zap, AlertCircle, MessageSquare, Activity, FlaskConical, Download, Upload, Sliders, Plus, Trash2, Edit3, Layers, Bookmark, Search, GitMerge, HardDrive, Mic, MicOff, Brain, BarChart3
+  Menu, RefreshCw, Sparkles, Send, Database, Compass, CheckCircle2, Zap, AlertCircle, MessageSquare, Activity, FlaskConical, Download, Upload, Sliders, Plus, Trash2, Edit3, Layers, Bookmark, Search, GitMerge, HardDrive, Mic, MicOff, Brain, BarChart3, ChevronRight, Home, HelpCircle, Camera, Paperclip, Image as ImageIcon
 } from "lucide-react";
 import { saveThreadsToIndexedDB, loadThreadsFromIndexedDB } from "./indexedDbStorage";
 import { MergeThreadsModal } from "./components/MergeThreadsModal";
@@ -15,6 +15,7 @@ import { ThreadsArchiveDashboard } from "./components/ThreadsArchiveDashboard";
 import { CognitiveNodesDashboard } from "./components/CognitiveNodesDashboard";
 import { AnalyticsOverviewDashboard } from "./components/AnalyticsOverviewDashboard";
 import { KeyboardShortcutsModal } from "./components/KeyboardShortcutsModal";
+import { OnboardingTourModal } from "./components/OnboardingTourModal";
 
 export interface ChatThread {
   id: string;
@@ -159,6 +160,10 @@ export default function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [ontologyDomain, setOntologyDomain] = useState("SYSTEMS_INTELLIGENCE");
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showOnboardingTour, setShowOnboardingTour] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("omnis_onboarding_completed") !== "true";
+  });
 
   // Dynamic Height & Mobile Responsive Layout Provider States (Debounced to prevent layout thrashing)
   const [windowHeight, setWindowHeight] = useState(typeof window !== "undefined" ? window.innerHeight : 800);
@@ -383,7 +388,11 @@ export default function App() {
     const q = typeof queryOverride === "string" ? queryOverride : inputQuery;
     if (!q.trim() || isLoading) return;
     
+    const imgData = attachedImage?.data;
+    const imgMime = attachedImage?.mime;
+
     setInputQuery("");
+    setAttachedImage(null);
     setIsLoading(true);
 
     // Cache query locally to guarantee zero data loss in offline states
@@ -405,7 +414,7 @@ export default function App() {
     
     try {
       const history = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
-      const data = await omnisEngine.processQuery(q, ontologyDomain, true, history);
+      const data = await omnisEngine.processQuery(q, ontologyDomain, true, history, imgData, imgMime);
       const assistantMsg: MessageItem = {
         id: "a-" + Date.now(),
         role: "assistant",
@@ -598,7 +607,36 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
     showToast(`Vlákna byla úspěšně sloučena (${mergedThread.messages.length} zpráv celkem)!`, "success");
   }, [showToast]);
 
-  // Web Speech API Voice Dictation States & Logic
+  const [attachedImage, setAttachedImage] = useState<{ data: string; mime: string; name: string } | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSelectImage = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const dataUrl = evt.target?.result as string;
+      setAttachedImage({
+        data: dataUrl,
+        mime: file.type || "image/jpeg",
+        name: file.name
+      });
+      showToast(`Obrázek "${file.name}" připraven pro multimodální analýzu v Gemini 3.1.`, "success");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }, [showToast]);
+
+  // Automatic background sync loop: IndexedDB ↔ PostgreSQL
+  useEffect(() => {
+    if (threads.length > 0) {
+      const timer = setTimeout(() => {
+        omnisEngine.syncIndexedDbWithPostgres(threads);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [threads]);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
@@ -703,7 +741,14 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
       {/* HEADER */}
       <header className={`flex-shrink-0 bg-[#0A0F1D]/80 backdrop-blur-md border-b border-slate-800/80 relative z-30 ${headerPaddingClass}`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setIsMenuOpen(true)}
+              title="Otevřít Hlavní Menu O.M.N.I.S."
+              className="p-2 rounded-xl bg-slate-900/90 hover:bg-[#00F0FF]/15 border border-slate-700/80 hover:border-[#00F0FF]/40 text-slate-200 hover:text-[#00F0FF] transition-all min-h-[38px] min-w-[38px] flex items-center justify-center flex-shrink-0 shadow-[0_0_10px_rgba(0,0,0,0.3)]"
+            >
+              <Menu className="w-5 h-5 text-[#00F0FF]" />
+            </button>
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#00F0FF] to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(0,240,255,0.3)]">
               <Sparkles className="w-5 h-5 text-slate-950" />
             </div>
@@ -845,6 +890,81 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
           </div>
         </div>
       </header>
+
+      {/* BREADCRUMBS NAVIGATION BAR */}
+      <div className="bg-[#040711] border-b border-slate-800/80 px-4 py-1.5 flex items-center justify-between gap-2 text-xs font-mono text-slate-400 overflow-x-auto scrollbar-none flex-shrink-0 z-10">
+        <div className="flex items-center gap-1.5 flex-nowrap">
+          <button
+            onClick={() => setActiveTab("chat")}
+            className="flex items-center gap-1 text-slate-400 hover:text-[#00F0FF] transition-colors flex-shrink-0"
+            title="Přejít na výchozí obrazovku Chatu"
+          >
+            <Home className="w-3.5 h-3.5 text-[#00F0FF]" />
+            <span className="hidden sm:inline">Domů</span>
+          </button>
+          
+          <ChevronRight className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+
+          <button
+            onClick={() => setActiveTab(activeTab)}
+            className={`font-bold transition-colors flex-shrink-0 uppercase ${
+              activeTab === "chat" ? "text-[#00F0FF]" :
+              activeTab === "analytics" ? "text-blue-400" :
+              activeTab === "archive" ? "text-cyan-400" :
+              activeTab === "nodes" ? "text-[#A855F7]" :
+              activeTab === "dashboard" ? "text-amber-400" :
+              activeTab === "octagon" ? "text-purple-400" : "text-[#10B981]"
+            }`}
+          >
+            {activeTab === "chat" && "Chat & Diktování"}
+            {activeTab === "analytics" && "Analytický Přehled"}
+            {activeTab === "archive" && "Archiv Vláken"}
+            {activeTab === "nodes" && "Kognitivní Uzly"}
+            {activeTab === "dashboard" && "Správa Témat"}
+            {activeTab === "octagon" && "8D Matice Dopadů"}
+            {activeTab === "dev_lab" && "Dev Lab"}
+          </button>
+
+          {activeTab === "chat" && activeThread && (
+            <>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+              <span 
+                onClick={() => setShowSearchModal(true)}
+                title="Aktivní vlákno (kliknutím otevřete vyhledávání/přepínač)"
+                className="text-slate-200 truncate max-w-[140px] sm:max-w-[240px] bg-slate-900/90 hover:bg-slate-800 px-2 py-0.5 rounded border border-slate-700/80 cursor-pointer transition-colors"
+              >
+                {activeThread.title}
+              </span>
+            </>
+          )}
+
+          {activeTab === "analytics" && (
+            <>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+              <span className="text-slate-300 bg-blue-950/40 px-2 py-0.5 rounded border border-blue-800/50">
+                Sjednocený Audit (8D & Uzly)
+              </span>
+            </>
+          )}
+
+          {activeTab === "archive" && (
+            <>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+              <span className="text-slate-300 bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-800/50">
+                {threads.length} Uložených Vláken
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Quick Context & Domain Badge */}
+        <div className="flex items-center gap-2 flex-shrink-0 text-[10px]">
+          <span className="hidden md:inline text-slate-500 uppercase">Doména:</span>
+          <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[#00F0FF] font-bold">
+            {ontologyDomain}
+          </span>
+        </div>
+      </div>
 
       {/* MAIN */}
       <div className={`flex-1 flex flex-col max-w-7xl w-full mx-auto min-h-0 ${mainPaddingClass}`}>
@@ -1067,41 +1187,103 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
                 </div>
               )}
 
+              {/* Image Preview Banner if an image is selected */}
+              {attachedImage && (
+                <div className="max-w-4xl mx-auto mb-2.5 p-2 bg-[#0A0F1D] border border-[#00F0FF]/40 rounded-xl flex items-center justify-between gap-3 animate-in fade-in">
+                  <div className="flex items-center gap-2.5 overflow-hidden">
+                    <img src={attachedImage.data} alt="Attachment" className="w-10 h-10 object-cover rounded-lg border border-[#00F0FF]/30 flex-shrink-0" />
+                    <div className="truncate">
+                      <span className="text-[10px] font-mono text-[#00F0FF] font-bold block uppercase">Připraveno pro Gemini 3.1 Multimodal</span>
+                      <span className="text-xs font-mono text-slate-300 truncate block">{attachedImage.name}</span>
+                    </div>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setAttachedImage(null)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    title="Odebrat přílohu"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Hidden Image Inputs */}
+              <input
+                type="file"
+                ref={imageInputRef}
+                accept="image/*"
+                onChange={handleSelectImage}
+                className="hidden"
+              />
+              <input
+                type="file"
+                ref={cameraInputRef}
+                accept="image/*"
+                capture="environment"
+                onChange={handleSelectImage}
+                className="hidden"
+              />
+
               <form 
                 onSubmit={e => { e.preventDefault(); handleSendQuery(); }} 
-                className="flex gap-3 max-w-4xl mx-auto items-center"
+                className={`max-w-4xl mx-auto flex items-center gap-2 bg-slate-900/90 backdrop-blur-md border rounded-2xl p-2 shadow-2xl transition-colors ${
+                  isListening ? "border-red-500/60 shadow-[0_0_15px_rgba(239,68,68,0.2)]" : "border-slate-700/70 focus-within:border-[#00F0FF]/60"
+                }`}
               >
+                {/* Left Attachment Actions */}
+                <div className="flex items-center gap-1 pl-1">
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    title="Vyfotit snímek fotoaparátem (Gemini 3.1 Obrazový Stream)"
+                    className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-[#00F0FF] hover:bg-slate-800/80 transition-all flex-shrink-0"
+                  >
+                    <Camera className="w-5 h-5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    title="Připojit obrázek ze zařízení"
+                    className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-purple-400 hover:bg-slate-800/80 transition-all flex-shrink-0"
+                  >
+                    <ImageIcon className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Text Box */}
                 <input 
                   type="text" 
                   value={inputQuery} 
                   onChange={e => setInputQuery(e.target.value)}
-                  placeholder={isListening ? "Diktujte dotaz do mikrofonu..." : "Zpráva pro O.M.N.I.S..."}
-                  className={`flex-1 bg-slate-900 border rounded-xl px-5 py-4 text-base focus:outline-none min-h-[52px] font-mono text-slate-100 transition-colors ${
-                    isListening ? "border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.2)]" : "border-slate-700/60 focus:border-[#00F0FF]/50"
-                  }`}
+                  placeholder={isListening ? "Diktujte dotaz do mikrofonu..." : attachedImage ? "Zadejte dotaz k přiloženému obrázku..." : "Zpráva pro O.M.N.I.S..."}
+                  className="flex-1 bg-transparent px-3 py-2 text-sm sm:text-base focus:outline-none font-mono text-slate-100 min-w-0"
                 />
 
-                {/* Microphone Dictation Button */}
-                <button
-                  type="button"
-                  onClick={toggleDictation}
-                  title={isListening ? "Zastavit hlasové diktování" : "Spustit hlasové diktování (Web Speech API)"}
-                  className={`min-h-[52px] min-w-[52px] rounded-xl flex items-center justify-center transition-all ${
-                    isListening
-                      ? "bg-red-600 hover:bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-pulse"
-                      : "bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-700/60"
-                  }`}
-                >
-                  {isListening ? <Mic className="w-5 h-5 text-white animate-bounce" /> : <MicOff className="w-5 h-5" />}
-                </button>
+                {/* Right Actions: Dictation Mic & Send */}
+                <div className="flex items-center gap-1.5 pr-1">
+                  <button
+                    type="button"
+                    onClick={toggleDictation}
+                    title={isListening ? "Zastavit hlasové diktování" : "Spustit hlasové diktování (Web Speech API)"}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all flex-shrink-0 ${
+                      isListening
+                        ? "bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.6)] animate-pulse"
+                        : "text-slate-400 hover:text-white hover:bg-slate-800/80"
+                    }`}
+                  >
+                    {isListening ? <Mic className="w-5 h-5 text-white animate-bounce" /> : <MicOff className="w-5 h-5" />}
+                  </button>
 
-                <button 
-                  type="submit" 
-                  disabled={isLoading || !inputQuery.trim()}
-                  className="bg-[#00F0FF] hover:opacity-80 text-slate-950 px-6 rounded-xl font-bold font-mono transition-opacity disabled:opacity-50 min-h-[52px] min-w-[52px] flex items-center justify-center shadow-[0_0_15px_rgba(0,240,255,0.2)]"
-                >
-                  <Send className="w-5 h-5" />
-                </button>
+                  <button 
+                    type="submit" 
+                    disabled={isLoading || (!inputQuery.trim() && !attachedImage)}
+                    className="w-10 h-10 bg-[#00F0FF] hover:opacity-90 active:scale-95 text-slate-950 rounded-xl font-bold transition-all disabled:opacity-40 flex items-center justify-center shadow-[0_0_12px_rgba(0,240,255,0.25)] flex-shrink-0"
+                  >
+                    <Send className="w-5 h-5" />
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -1153,6 +1335,10 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
               await fetch("/api/dev/reset-tokens", { method: "POST" });
               fetchTelemetry();
             }}
+            onNavigateToTab={(tab) => setActiveTab(tab)}
+            onOpenHelpModal={() => setShowHelpModal(true)}
+            onOpenSearchModal={() => setShowSearchModal(true)}
+            onOpenMergeModal={() => setShowMergeModal(true)}
           /></div>}
         {activeTab === "octagon" && <div className="flex-1 overflow-auto"><OctagonDashboard /></div>}
         {activeTab === "dashboard" && <div className="flex-1 overflow-auto"><UserDashboard 
@@ -1162,79 +1348,188 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
         
       </div>
 
-      {/* MOBILE BOTTOM NAVIGATION BAR */}
-      <div className="sm:hidden flex-shrink-0 bg-[#060913]/95 backdrop-blur-md border-t border-slate-800/80 px-2 py-1 flex items-center overflow-x-auto scrollbar-none relative z-30 shadow-[0_-8px_24px_rgba(0,0,0,0.5)]">
-        <button
-          onClick={() => setActiveTab("chat")}
-          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
-        >
-          <MessageSquare className={`w-4 h-4 transition-transform duration-300 ${activeTab === "chat" ? "scale-110 text-[#00F0FF]" : "text-slate-500"}`} />
-          <span className={activeTab === "chat" ? "text-[#00F0FF] drop-shadow-[0_0_6px_rgba(0,240,255,0.4)]" : "text-slate-500"}>CHAT</span>
-          {activeTab === "chat" && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-[#00F0FF] rounded-full shadow-[0_0_8px_#00F0FF]"></span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("analytics")}
-          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
-        >
-          <BarChart3 className={`w-4 h-4 transition-transform duration-300 ${activeTab === "analytics" ? "scale-110 text-blue-400" : "text-slate-500"}`} />
-          <span className={activeTab === "analytics" ? "text-blue-400 drop-shadow-[0_0_6px_rgba(59,130,246,0.4)]" : "text-slate-500"}>ANALÝZA</span>
-          {activeTab === "analytics" && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-blue-400 rounded-full shadow-[0_0_8px_#3b82f6]"></span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("archive")}
-          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
-        >
-          <Layers className={`w-4 h-4 transition-transform duration-300 ${activeTab === "archive" ? "scale-110 text-cyan-400" : "text-slate-500"}`} />
-          <span className={activeTab === "archive" ? "text-cyan-400 drop-shadow-[0_0_6px_rgba(6,182,212,0.4)]" : "text-slate-500"}>ARCHIV</span>
-          {activeTab === "archive" && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-cyan-400 rounded-full shadow-[0_0_8px_#06b6d4]"></span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("nodes")}
-          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
-        >
-          <Brain className={`w-4 h-4 transition-transform duration-300 ${activeTab === "nodes" ? "scale-110 text-[#A855F7]" : "text-slate-500"}`} />
-          <span className={activeTab === "nodes" ? "text-[#A855F7] drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]" : "text-slate-500"}>UZLY</span>
-          {activeTab === "nodes" && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-[#A855F7] rounded-full shadow-[0_0_8px_#A855F7]"></span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("dashboard")}
-          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
-        >
-          <Sliders className={`w-4 h-4 transition-transform duration-300 ${activeTab === "dashboard" ? "scale-110 text-amber-400" : "text-slate-500"}`} />
-          <span className={activeTab === "dashboard" ? "text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.4)]" : "text-slate-500"}>TÉMATA</span>
-          {activeTab === "dashboard" && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-amber-400 rounded-full shadow-[0_0_8px_#f59e0b]"></span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("octagon")}
-          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
-        >
-          <Activity className={`w-4 h-4 transition-transform duration-300 ${activeTab === "octagon" ? "scale-110 text-purple-400" : "text-slate-500"}`} />
-          <span className={activeTab === "octagon" ? "text-purple-400 drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]" : "text-slate-500"}>OCTAGON</span>
-          {activeTab === "octagon" && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-purple-400 rounded-full shadow-[0_0_8px_#c084fc]"></span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("dev_lab")}
-          className="flex-1 py-1 px-2 flex flex-col items-center gap-1 text-[10px] font-mono font-bold tracking-wider transition-all min-h-[44px] justify-center relative flex-shrink-0"
-        >
-          <FlaskConical className={`w-4 h-4 transition-transform duration-300 ${activeTab === "dev_lab" ? "scale-110 text-[#10B981]" : "text-slate-500 text-xs"}`} />
-          <span className={activeTab === "dev_lab" ? "text-[#10B981] drop-shadow-[0_0_6px_rgba(16,185,129,0.4)]" : "text-slate-500"}>DEV</span>
-          {activeTab === "dev_lab" && (
-            <span className="absolute bottom-0 w-8 h-0.5 bg-[#10B981] rounded-full shadow-[0_0_8px_#10B981]"></span>
-          )}
-        </button>
-      </div>
+      {/* SIDE-DRAWER NAVIGATION MENU (Top-Left Hamburger Triggered) */}
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-50 flex animate-in fade-in duration-200">
+          {/* Backdrop Overlay */}
+          <div 
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsMenuOpen(false)}
+          />
+
+          {/* Drawer Content */}
+          <div className="relative w-full max-w-xs bg-[#060913] border-r border-slate-800 shadow-2xl flex flex-col h-full z-10 font-sans">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-800/80 flex items-center justify-between bg-[#0A0F1D]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#00F0FF] to-blue-600 flex items-center justify-center shadow-[0_0_12px_rgba(0,240,255,0.3)]">
+                  <Sparkles className="w-4 h-4 text-slate-950" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-100 font-mono">O.M.N.I.S. Menu</h2>
+                  <p className="text-[10px] text-[#00F0FF] font-mono uppercase tracking-wider">Kognitivní Navigace</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsMenuOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                title="Zavřít menu"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Navigation List */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-1">
+              <div className="text-[10px] font-mono font-bold text-slate-500 uppercase px-3 py-1 tracking-wider">
+                Hlavní Moduly
+              </div>
+
+              <button
+                onClick={() => { setActiveTab("chat"); setIsMenuOpen(false); }}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 transition-all text-left ${
+                  activeTab === "chat"
+                    ? "bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30 font-bold"
+                    : "text-slate-300 hover:bg-slate-900 border border-transparent"
+                }`}
+              >
+                <MessageSquare className="w-5 h-5 text-[#00F0FF] flex-shrink-0" />
+                <div className="truncate">
+                  <div className="text-xs font-mono font-bold">Kognitivní Chat</div>
+                  <div className="text-[10px] text-slate-400 font-sans truncate">Multimodální rozhraní & diktování</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("analytics"); setIsMenuOpen(false); }}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 transition-all text-left ${
+                  activeTab === "analytics"
+                    ? "bg-blue-500/15 text-blue-300 border border-blue-500/30 font-bold"
+                    : "text-slate-300 hover:bg-slate-900 border border-transparent"
+                }`}
+              >
+                <BarChart3 className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                <div className="truncate">
+                  <div className="text-xs font-mono font-bold">Analytický Přehled</div>
+                  <div className="text-[10px] text-slate-400 font-sans truncate">Sjednocený audit 8D & Uzlů</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("archive"); setIsMenuOpen(false); }}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 transition-all text-left ${
+                  activeTab === "archive"
+                    ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold"
+                    : "text-slate-300 hover:bg-slate-900 border border-transparent"
+                }`}
+              >
+                <Layers className="w-5 h-5 text-cyan-400 flex-shrink-0" />
+                <div className="truncate">
+                  <div className="text-xs font-mono font-bold">Archiv Vláken</div>
+                  <div className="text-[10px] text-slate-400 font-sans truncate">IndexedDB paměť & vyhledávání</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("nodes"); setIsMenuOpen(false); }}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 transition-all text-left ${
+                  activeTab === "nodes"
+                    ? "bg-purple-500/15 text-purple-300 border border-purple-500/30 font-bold"
+                    : "text-slate-300 hover:bg-slate-900 border border-transparent"
+                }`}
+              >
+                <Brain className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                <div className="truncate">
+                  <div className="text-xs font-mono font-bold">Kognitivní Uzly</div>
+                  <div className="text-[10px] text-slate-400 font-sans truncate">Dekompozice & entropie odpovědí</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("dashboard"); setIsMenuOpen(false); }}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 transition-all text-left ${
+                  activeTab === "dashboard"
+                    ? "bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold"
+                    : "text-slate-300 hover:bg-slate-900 border border-transparent"
+                }`}
+              >
+                <Sliders className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                <div className="truncate">
+                  <div className="text-xs font-mono font-bold">Správa Témat</div>
+                  <div className="text-[10px] text-slate-400 font-sans truncate">Šablony & detekční klíčová slova</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("octagon"); setIsMenuOpen(false); }}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 transition-all text-left ${
+                  activeTab === "octagon"
+                    ? "bg-purple-500/15 text-purple-300 border border-purple-500/30 font-bold"
+                    : "text-slate-300 hover:bg-slate-900 border border-transparent"
+                }`}
+              >
+                <Activity className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                <div className="truncate">
+                  <div className="text-xs font-mono font-bold">Octagon 8D Matice</div>
+                  <div className="text-[10px] text-slate-400 font-sans truncate">8-Dimenzionální audit dopadů</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("dev_lab"); setIsMenuOpen(false); }}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 transition-all text-left ${
+                  activeTab === "dev_lab"
+                    ? "bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 font-bold"
+                    : "text-slate-300 hover:bg-slate-900 border border-transparent"
+                }`}
+              >
+                <FlaskConical className="w-5 h-5 text-[#10B981] flex-shrink-0" />
+                <div className="truncate">
+                  <div className="text-xs font-mono font-bold">Dev Lab & Telemetrie</div>
+                  <div className="text-[10px] text-slate-400 font-sans truncate">Benchmark promptů & tokeny</div>
+                </div>
+              </button>
+
+              <div className="pt-3 border-t border-slate-800 space-y-1">
+                <div className="text-[10px] font-mono font-bold text-slate-500 uppercase px-3 py-1 tracking-wider">
+                  Nástroje & Akce
+                </div>
+
+                <button
+                  onClick={() => { setShowSearchModal(true); setIsMenuOpen(false); }}
+                  className="w-full p-2.5 rounded-xl flex items-center gap-2.5 text-xs font-mono text-slate-300 hover:bg-slate-800/80 transition-colors text-left"
+                >
+                  <Search className="w-4 h-4 text-[#00F0FF]" />
+                  <span>Vyhledat ve vláknech</span>
+                </button>
+
+                <button
+                  onClick={() => { setShowMergeModal(true); setIsMenuOpen(false); }}
+                  className="w-full p-2.5 rounded-xl flex items-center gap-2.5 text-xs font-mono text-slate-300 hover:bg-slate-800/80 transition-colors text-left"
+                >
+                  <GitMerge className="w-4 h-4 text-purple-400" />
+                  <span>Sloučit konverzace</span>
+                </button>
+
+                <button
+                  onClick={() => { setShowHelpModal(true); setIsMenuOpen(false); }}
+                  className="w-full p-2.5 rounded-xl flex items-center gap-2.5 text-xs font-mono text-slate-300 hover:bg-slate-800/80 transition-colors text-left"
+                >
+                  <HelpCircle className="w-4 h-4 text-amber-400" />
+                  <span>Průvodce & Klávesové Zkratky</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 border-t border-slate-800/80 bg-[#0A0F1D] text-center">
+              <span className="text-[10px] font-mono text-slate-500">
+                O.M.N.I.S. Cognitive System v2.7
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* FULL-TEXT SEARCH MODAL */}
       {showSearchModal && (
@@ -1262,6 +1557,18 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
           onOpenSearch={() => setShowSearchModal(true)}
           onOpenMerge={() => setShowMergeModal(true)}
           onToggleDictation={toggleDictation}
+          onStartTour={() => {
+            setShowHelpModal(false);
+            setShowOnboardingTour(true);
+          }}
+        />
+      )}
+
+      {/* ONBOARDING INTERACTIVE TOUR MODAL */}
+      {showOnboardingTour && (
+        <OnboardingTourModal
+          onClose={() => setShowOnboardingTour(false)}
+          onNavigateTab={(tab) => setActiveTab(tab)}
         />
       )}
 

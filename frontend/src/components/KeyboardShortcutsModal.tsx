@@ -1,11 +1,12 @@
 import React from "react";
-import { X, Command, Mic, Search, GitMerge, Brain, Layers, Activity, HardDrive, Keyboard } from "lucide-react";
+import { X, Command, Mic, Search, GitMerge, Brain, Layers, Activity, HardDrive, Keyboard, Sparkles } from "lucide-react";
 
 interface KeyboardShortcutsModalProps {
   onClose: () => void;
   onOpenSearch: () => void;
   onOpenMerge: () => void;
   onToggleDictation: () => void;
+  onStartTour?: () => void;
 }
 
 export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
@@ -13,6 +14,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
   onOpenSearch,
   onOpenMerge,
   onToggleDictation,
+  onStartTour,
 }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
@@ -140,7 +142,19 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-[#060A17] border-t border-slate-800 flex justify-end">
+        <div className="p-4 bg-[#060A17] border-t border-slate-800 flex items-center justify-between">
+          {onStartTour ? (
+            <button
+              onClick={onStartTour}
+              className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-[#A855F7]/15 hover:bg-[#A855F7]/25 text-[#A855F7] border border-[#A855F7]/30 flex items-center gap-1.5 transition-all"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Spustit Průvodce</span>
+            </button>
+          ) : (
+            <div />
+          )}
+
           <button
             onClick={onClose}
             className="px-5 py-2 rounded-xl text-xs font-mono font-bold bg-[#00F0FF] hover:bg-[#00F0FF]/80 text-slate-950 transition-all"

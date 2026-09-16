@@ -50,12 +50,54 @@ async def list_memories(
     return [MemoryItem.model_validate(r) for r in records]
 
 
-@memory_router.get("/conversations", response_model=List[ConversationDetail])
-async def list_conversations(
-    limit: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
-) -> List[ConversationDetail]:
-    stmt = select(Conversation).order_by(desc(Conversation.updated_at)).limit(limit)
-    result = await db.execute(stmt)
-    records = result.scalars().all()
-    return [ConversationDetail.model_validate(r) for r in records]
+from pydantic import BaseModel
+from datetime import datetime, timezone
+
+class SyncThreadsRequest(BaseModel):
+    threads: List[dict]
+
+@memory_router.post("/memory/sync")
+async def sync_threads(
+    payload: SyncThreadsRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Asynchronní synchronizace konverzačních vláken z klientské IndexedDB do PostgreSQL / Cloud SQL.
+    """
+    synced_count = 0
+    try:
+        for t in payload.threads:
+            t_id = t.get("id")
+            if not t_id:
+                continue
+            
+            # Skupina konverzace podle ID
+            stmt = select(Conversation).where(Conversation.id == str(t_id))
+            result = await db.execute(stmt)
+            existing_conv = result.scalar_one_or_none()
+            
+            if not existing_conv:
+                new_conv = Conversation(
+                    id=str(t_id),
+                    title=t.get("title", "Synchronizované Vlákno"),
+                    ontology_domain=t.get("ontologyDomain", "SYSTEMS_INTELLIGENCE"),
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc)
+                )
+                db.add(new_conv)
+                synced_count += 1
+        
+        await db.commit()
+        return {
+            "status": "success",
+            "message": f"Úspěšně synchronizováno {synced_count} nově vytvořených vláken z IndexedDB.",
+            "synced_count": synced_count
+        }
+    except Exception as exc:
+        await db.rollback()
+        logger.error(f"Chyba při asynchronní synchronizaci z IndexedDB: {exc}")
+        return {
+            "status": "partial_success",
+            "message": f"Chyba synchronizace (uloženo lokálně v IndexedDB): {str(exc)}",
+            "synced_count": 0
+        }

@@ -226,11 +226,31 @@ export class OmnisEngine {
     }
   }
 
+  public async syncIndexedDbWithPostgres(threads: any[]): Promise<boolean> {
+    try {
+      const response = await fetch("/api/memory/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ threads })
+      });
+      if (response.ok) {
+        console.log("[IndexedDB Sync Loop] Synchronizace lokálních vláken do PostgreSQL dokončena.");
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.warn("[IndexedDB Sync Loop] Offline režim - synchronizace odložena na později.", e);
+      return false;
+    }
+  }
+
   public async processQuery(
     query: string,
     ontologyDomain: string = "SYSTEMS_INTELLIGENCE",
     enableThinking: boolean = true,
-    history: Array<{role: string, content: string}> = []
+    history: Array<{role: string, content: string}> = [],
+    imageData?: string,
+    imageMime?: string
   ): Promise<OmnisCognitiveResult> {
     const requestExecution = async (signal: AbortSignal): Promise<OmnisCognitiveResult> => {
       const response = await fetch("/api/query", {
@@ -240,7 +260,9 @@ export class OmnisEngine {
           query,
           ontology_domain: ontologyDomain,
           enable_thinking: enableThinking,
-          history: history.map(h => ({ role: h.role, content: h.content }))
+          history: history.map(h => ({ role: h.role, content: h.content })),
+          image_data: imageData,
+          image_mime: imageMime || "image/jpeg"
         }),
         signal
       });

@@ -124,6 +124,8 @@ async def process_user_query(
         context_memories=context_memories,
         enable_thinking=request.enable_thinking,
         history=request.history,
+        image_data=request.image_data,
+        image_mime=request.image_mime,
     )
 
     user_msg = Message(

@@ -182,7 +182,9 @@ class GeminiCognitiveService:
         context_memories: Optional[List[str]] = None,
         enable_thinking: bool = True,
         history: Optional[List[ChatMessage]] = None,
-    ) -> Tuple[str, Optional[str], List[str], ImpactMatrixScores, Optional[Dict[str, Any]], TokenUsageStats]:
+        image_data: Optional[str] = None,
+        image_mime: Optional[str] = "image/jpeg",
+    ) -> Tuple[str, Optional[str], List[str], ImpactMatrixScores, Optional[Dict[str, Any]], TokenUsageStats, float, List[str]]:
         """
         Executes an O.M.N.I.S. cognitive query cycle with full conversational context.
         """
@@ -259,8 +261,20 @@ class GeminiCognitiveService:
                 role = "user" if msg.role == "user" else "model"
                 gemini_history.append({"role": role, "parts": [{"text": msg.content}]})
 
-        # Finální zpráva s instrukcemi
-        gemini_history.append({"role": "user", "parts": [{"text": system_prompt + "\n" + user_content}]})
+        # Finální zpráva s instrukcemi a případným vysoce rozlišitelným obrazovým streamem
+        user_parts = [{"text": system_prompt + "\n" + user_content}]
+        if image_data:
+            b64_clean = image_data
+            if "," in b64_clean:
+                b64_clean = b64_clean.split(",", 1)[1]
+            user_parts.append({
+                "inline_data": {
+                    "mime_type": image_mime or "image/jpeg",
+                    "data": b64_clean
+                }
+            })
+
+        gemini_history.append({"role": "user", "parts": user_parts})
 
         models_to_try = [
             MODEL_NAME,

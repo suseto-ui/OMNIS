@@ -22,7 +22,69 @@ export const DEFAULT_TOPIC_RULES: TopicRule[] = [
   { id: "tr8", topicName: "Cloud SQL Architektura", keyword: "databáz" },
 ];
 
-// Initial preset prompt templates
+// Memoized Templates List Component
+const TemplateListMemo = React.memo<{
+  templates: typeof PRESET_TEMPLATES;
+  onUseTemplate: (text: string) => void;
+  onDeleteTemplate: (id: string) => void;
+}>(({ templates, onUseTemplate, onDeleteTemplate }) => {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {templates.map(tpl => (
+        <div key={tpl.id} className="bg-[#0A0F1D]/50 border border-slate-900 rounded-lg p-3 space-y-2 flex flex-col justify-between hover:border-[#00F0FF]/30 transition-all">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono text-[#00F0FF] bg-[#00F0FF]/10 px-1.5 py-0.5 rounded border border-[#00F0FF]/20 font-bold">
+                {tpl.category}
+              </span>
+              <button 
+                onClick={() => onDeleteTemplate(tpl.id)}
+                className="text-slate-500 hover:text-red-400 p-1 transition-colors"
+                title="Smazat šablonu"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <h5 className="text-xs font-mono font-bold text-slate-200">{tpl.title}</h5>
+            <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">{tpl.text}</p>
+          </div>
+          <button
+            onClick={() => onUseTemplate(tpl.text)}
+            className="w-full bg-[#00F0FF]/10 hover:bg-[#00F0FF]/20 border border-[#00F0FF]/30 text-[#00F0FF] text-[11px] font-mono font-bold py-1.5 rounded transition-all mt-2"
+          >
+            Vložit do chatu
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+});
+
+// Memoized Topic Rules List Component
+const TopicRulesMemo = React.memo<{
+  topicRules: TopicRule[];
+  onDeleteRule: (id: string) => void;
+}>(({ topicRules, onDeleteRule }) => {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+      {topicRules.map(rule => (
+        <div key={rule.id} className="bg-[#0A0F1D]/50 border border-slate-900 rounded-lg p-2.5 flex items-center justify-between gap-2 hover:border-[#A855F7]/30 transition-all">
+          <div className="truncate">
+            <span className="text-[10px] font-mono text-purple-400 block truncate font-bold">{rule.topicName}</span>
+            <span className="text-[9px] font-mono text-slate-400">klíč: "{rule.keyword}"</span>
+          </div>
+          <button
+            onClick={() => onDeleteRule(rule.id)}
+            className="text-slate-500 hover:text-red-400 p-1 transition-colors flex-shrink-0"
+            title="Smazat pravidlo"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+});
 const PRESET_TEMPLATES = [
   {
     id: "t1",
@@ -329,44 +391,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onUseTemplate, sho
             OBLÍBENÉ PROMPTNÍ ŠABLONY
           </h3>
 
-          <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-            {templates.map(tpl => (
-              <div 
-                key={tpl.id}
-                className="bg-[#070B18]/70 border border-slate-800 hover:border-purple-500/40 p-3 rounded-xl transition-all group"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                      {tpl.category}
-                    </span>
-                    <h4 className="text-xs font-mono font-bold text-slate-100">{tpl.title}</h4>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button 
-                      onClick={() => {
-                        onUseTemplate(tpl.text);
-                        showToast(`Šablona "${tpl.title}" byla vložena do chatu.`, "success");
-                      }}
-                      className="text-[10px] font-mono font-bold text-[#00F0FF] bg-[#00F0FF]/10 hover:bg-[#00F0FF]/20 px-2 py-1 rounded-md transition-colors min-h-[28px]"
-                    >
-                      POUŽÍT
-                    </button>
-                    <button 
-                      onClick={() => deleteTemplate(tpl.id)}
-                      className="p-1 rounded-md text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                      title="Smazat šablonu"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-400 font-mono mt-2 line-clamp-2">
-                  {tpl.text}
-                </p>
-              </div>
-            ))}
-          </div>
+          <TemplateListMemo
+            templates={templates}
+            onUseTemplate={(text) => {
+              onUseTemplate(text);
+              showToast("Šablona byla vložena do chatu.", "success");
+            }}
+            onDeleteTemplate={deleteTemplate}
+          />
 
           {/* Form to add custom template */}
           <div className="bg-[#070B18]/80 p-3.5 rounded-xl border border-slate-800/80 space-y-3">
@@ -427,26 +459,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onUseTemplate, sho
             Definujte pravidla pro automatickou detekci klíčových témat v chatu. Pokud zpráva obsahuje definované klíčové slovo, O.M.N.I.S. navrhne uložení téma jako šablonu.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-            {topicRules.map(rule => (
-              <div 
-                key={rule.id}
-                className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#070B18]/70 border border-slate-800 hover:border-[#00F0FF]/30 transition-all text-xs font-mono"
-              >
-                <div className="flex flex-col min-w-0">
-                  <span className="font-bold text-slate-200 truncate">{rule.topicName}</span>
-                  <span className="text-[10px] text-[#00F0FF]">Klíč: "{rule.keyword}"</span>
-                </div>
-                <button
-                  onClick={() => deleteTopicRule(rule.id)}
-                  className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors flex-shrink-0"
-                  title="Smazat detekční pravidlo"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
+          <TopicRulesMemo
+            topicRules={topicRules}
+            onDeleteRule={deleteTopicRule}
+          />
 
           {/* Form to add custom topic rule */}
           <div className="bg-[#070B18]/80 p-3 rounded-xl border border-slate-800 space-y-2">
@@ -607,7 +623,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ onUseTemplate, sho
                     { id: "L-9280", time: "13:58:12", query: "Analýza rizik zranitelnosti dodavatelského řetězce", status: "Processed", domain: "SYSTEMS_INTELLIGENCE", nodesChecked: 5 },
                     { id: "L-9279", time: "13:42:01", query: "Optimalizace sémantického štítu proti jailbreaku", status: "Secure", domain: "REGULATORY_LAW", nodesChecked: 6 }
                   ].map(log => (
-                    <div key={tpl.id} className="bg-[#0A0F1D]/50 border border-slate-900 rounded-lg p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2 hover:bg-purple-500/5 transition-all">
+                    <div key={log.id} className="bg-[#0A0F1D]/50 border border-slate-900 rounded-lg p-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2 hover:bg-purple-500/5 transition-all">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-slate-500">#{log.id}</span>
