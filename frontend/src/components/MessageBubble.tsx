@@ -15,7 +15,12 @@ import {
   RefreshCw,
   HelpCircle,
   Star,
-  Sliders
+  Sliders,
+  Bookmark,
+  Trash2,
+  Layers,
+  Cpu,
+  Network
 } from "lucide-react";
 import { MarkdownRenderer } from "../MarkdownRenderer";
 
@@ -65,23 +70,32 @@ export interface MessageItem {
 
 interface MessageBubbleProps {
   msg: MessageItem;
+  isInActiveContext?: boolean;
   onSetActiveTab: (tab: "phases" | "chat" | "matrix" | "forensics" | "lab") => void;
   onSendQuery: (query: string) => void;
   onRefineMessage: (id: string, originalContent: string, prompt: string) => Promise<void>;
   onRateMessage?: (id: string, rating: number) => Promise<void>;
+  onClearHistoryFrom?: (id: string) => void;
+  onSaveAsTemplate?: (msg: MessageItem) => void;
+  onDeepDive?: (msg: MessageItem) => void;
 }
 
 const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   msg,
+  isInActiveContext = true,
   onSetActiveTab,
   onSendQuery,
   onRefineMessage,
   onRateMessage,
+  onClearHistoryFrom,
+  onSaveAsTemplate,
+  onDeepDive,
 }) => {
   const isUser = msg.role === "user";
   
   // Local state for UI toggles
   const [thoughtsOpen, setThoughtsOpen] = useState(false);
+  const [deepDiveOpen, setDeepDiveOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [feedbackRating, setFeedbackRating] = useState<number>(0);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
@@ -126,7 +140,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
   }, [handleRefine, refinePrompt]);
 
   return (
-    <div className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-full`}>
+    <div id={`msg-${msg.id}`} className={`flex flex-col ${isUser ? "items-end" : "items-start"} max-w-full scroll-mt-20`}>
       {/* Message Bubble Container */}
       <div
         className={`max-w-[88%] sm:max-w-3xl rounded-2xl p-4 sm:p-5 border transition-all ${
@@ -150,14 +164,44 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             <span className="text-xs font-semibold font-mono text-slate-300">
               {isUser ? "Uživatel" : "O.M.N.I.S. Cognitive Synthesis"}
             </span>
+            {isInActiveContext && (
+              <span
+                title="Tato zpráva je součástí aktivního kontextového vlákna"
+                className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono bg-[#00F0FF]/10 text-[#00F0FF] border border-[#00F0FF]/30"
+              >
+                <Zap className="w-2.5 h-2.5 text-[#00F0FF] animate-pulse" />
+                KONTEXT THREADU
+              </span>
+            )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-slate-500 font-mono">
               {new Date(msg.created_at).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
               })}
             </span>
+
+            {onSaveAsTemplate && (
+              <button
+                onClick={() => onSaveAsTemplate(msg)}
+                title="Uložit jako šablonu v Uživatelském panelu"
+                className="p-1 rounded hover:bg-amber-500/20 text-slate-400 hover:text-amber-300 transition-colors"
+              >
+                <Bookmark className="w-3.5 h-3.5 text-amber-400" />
+              </button>
+            )}
+
+            {onClearHistoryFrom && (
+              <button
+                onClick={() => onClearHistoryFrom(msg.id)}
+                title="Promazat historii od této zprávy"
+                className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             {!isUser && (
               <button
                 onClick={() => handleCopyText(msg.content)}
@@ -194,6 +238,57 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             {thoughtsOpen && (
               <div className="p-3 bg-black/40 border-t border-slate-800/60 text-xs text-slate-300 font-mono whitespace-pre-wrap leading-relaxed">
                 {msg.cognitive_process}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Deep Dive Atomic Cognitive Nodes Button & Panel */}
+        {!isUser && (
+          <div className="mb-4">
+            <button
+              onClick={() => {
+                setDeepDiveOpen(!deepDiveOpen);
+                if (onDeepDive && !deepDiveOpen) {
+                  onDeepDive(msg);
+                }
+              }}
+              className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-950/60 via-indigo-950/60 to-cyan-950/60 border border-purple-500/40 text-xs font-mono text-purple-300 hover:text-white hover:border-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.15)] transition-all group"
+            >
+              <span className="flex items-center gap-2 font-bold">
+                <Layers className="w-4 h-4 text-[#00F0FF] group-hover:rotate-180 transition-transform duration-500" />
+                <span>DEEP DIVE: Atomické Kognitivní Uzly</span>
+              </span>
+              <span className="text-[10px] bg-purple-500/20 text-[#00F0FF] px-2 py-0.5 rounded border border-purple-500/30 flex items-center gap-1">
+                <Cpu className="w-3 h-3 animate-pulse" />
+                {deepDiveOpen ? "Skrýt dekompozici" : "Rozložit kognitivní uzly"}
+              </span>
+            </button>
+
+            {deepDiveOpen && (
+              <div className="mt-2.5 p-4 rounded-xl bg-slate-950/90 border border-purple-500/40 space-y-3 font-mono text-xs animate-in fade-in duration-300 shadow-xl">
+                <div className="flex items-center justify-between border-b border-purple-500/30 pb-2">
+                  <span className="font-bold text-[#00F0FF] flex items-center gap-1.5">
+                    <Network className="w-4 h-4 text-purple-400" />
+                    Atomická Dekompozice Kognitivního Procesu
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Sigma-Omega Invarianty</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="p-3 rounded-lg bg-slate-900/90 border border-purple-500/20 space-y-1">
+                    <span className="text-[10px] text-purple-400 font-bold uppercase block">Uzel 01: Sémantické Jádro</span>
+                    <p className="text-[11px] text-slate-300">Extrakce fundamentálních systémových axiomů a nepředpojatých premis ze vstupu.</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-slate-900/90 border border-cyan-500/20 space-y-1">
+                    <span className="text-[10px] text-[#00F0FF] font-bold uppercase block">Uzel 02: Entropická Redukce</span>
+                    <p className="text-[11px] text-slate-300">Stochastické odfiltrování konverzačního šumu a izolace invariantních proměnných.</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-slate-900/90 border border-amber-500/20 space-y-1">
+                    <span className="text-[10px] text-amber-400 font-bold uppercase block">Uzel 03: Homeostatická Kotva</span>
+                    <p className="text-[11px] text-slate-300">Vyvážení zpětných vazeb a zamezení kmitání v hypotézách odpovědi.</p>
+                  </div>
+                </div>
               </div>
             )}
           </div>

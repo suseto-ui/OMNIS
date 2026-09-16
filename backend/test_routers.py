@@ -2,7 +2,7 @@ import os
 import pytest
 import logging
 from unittest.mock import patch, MagicMock
-from fastapi.testclient import TestClient
+import httpx
 
 # Set dummy DATABASE_URL environment variable before importing main to prevent bootstrap failures
 os.environ["OMNIS_XOR_KEY"] = "test-xor-key-for-unit-tests"
@@ -41,7 +41,7 @@ def test_system_router_health():
     """
     Perform a live end-to-end integration check against the system health probe router.
     """
-    with TestClient(app) as client:
+    with httpx.Client(app=app, base_url="http://testserver") as client:
         response = client.get("/healthz")
         assert response.status_code == 200
         assert response.json() == {"status": "healthy", "service": "O.M.N.I.S. Cognitive Architecture"}
@@ -57,7 +57,7 @@ def test_gemini_api_outage_zero_simulation_fallback():
     """
     # Force the cognitive service client to be None, simulating an API outage or missing credentials
     with patch("backend.gemini_service.cognitive_service._client", None):
-        with TestClient(app) as client:
+        with httpx.Client(app=app, base_url="http://testserver") as client:
             payload = {
                 "query": "Kritický test integrity systému při výpadku LLM",
                 "ontology_domain": "CYBERNETICS",
@@ -77,7 +77,7 @@ def test_spa_fallback_routing_logic():
     Verify that non-API routes are handled by the SPA wildcard,
     while valid API routes retain priority.
     """
-    with TestClient(app) as client:
+    with httpx.Client(app=app, base_url="http://testserver") as client:
         # 1. Existující API route musí fungovat normálně (priorita)
         health_resp = client.get("/healthz")
         assert health_resp.status_code == 200

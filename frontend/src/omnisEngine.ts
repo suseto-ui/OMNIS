@@ -229,7 +229,8 @@ export class OmnisEngine {
   public async processQuery(
     query: string,
     ontologyDomain: string = "SYSTEMS_INTELLIGENCE",
-    enableThinking: boolean = true
+    enableThinking: boolean = true,
+    history: Array<{role: string, content: string}> = []
   ): Promise<OmnisCognitiveResult> {
     const requestExecution = async (signal: AbortSignal): Promise<OmnisCognitiveResult> => {
       const response = await fetch("/api/query", {
@@ -239,6 +240,7 @@ export class OmnisEngine {
           query,
           ontology_domain: ontologyDomain,
           enable_thinking: enableThinking,
+          history: history.map(h => ({ role: h.role, content: h.content }))
         }),
         signal
       });

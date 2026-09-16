@@ -123,6 +123,7 @@ async def process_user_query(
         ontology_domain=request.ontology_domain,
         context_memories=context_memories,
         enable_thinking=request.enable_thinking,
+        history=request.history,
     )
 
     user_msg = Message(

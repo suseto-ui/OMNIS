@@ -12,7 +12,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 import base64
 
-from .schemas import ImpactMatrixScores, TokenUsageStats
+from .schemas import ImpactMatrixScores, TokenUsageStats, ChatMessage
 from .omnis_pipeline import assemble_omnis_cognitive_cycle
 from .token_service import token_telemetry_service
 
@@ -181,11 +181,10 @@ class GeminiCognitiveService:
         ontology_domain: str = "SYSTEMS_INTELLIGENCE",
         context_memories: Optional[List[str]] = None,
         enable_thinking: bool = True,
+        history: Optional[List[ChatMessage]] = None,
     ) -> Tuple[str, Optional[str], List[str], ImpactMatrixScores, Optional[Dict[str, Any]], TokenUsageStats]:
         """
-        Executes an O.M.N.I.S. cognitive query cycle.
-        Returns:
-            (answer, cognitive_thoughts, follow_up_questions, impact_matrix_scores, consequence_forensics, token_usage)
+        Executes an O.M.N.I.S. cognitive query cycle with full conversational context.
         """
         system_prompt = (
             "<system_identity>\n"
@@ -253,6 +252,16 @@ class GeminiCognitiveService:
 
         user_content = f"Ontologická doména: {ontology_domain}\n{context_block}\nDotaz uživatele: {query}"
 
+        # Sestavení historie pro Gemini (konverze role 'assistant' na 'model')
+        gemini_history = []
+        if history:
+            for msg in history:
+                role = "user" if msg.role == "user" else "model"
+                gemini_history.append({"role": role, "parts": [{"text": msg.content}]})
+
+        # Finální zpráva s instrukcemi
+        gemini_history.append({"role": "user", "parts": [{"text": system_prompt + "\n" + user_content}]})
+
         models_to_try = [
             MODEL_NAME,
             "gemini-3.1-pro-preview",
@@ -276,9 +285,7 @@ class GeminiCognitiveService:
                             None,
                             lambda m=current_model: self._client.models.generate_content(
                                 model=m,
-                                contents=[
-                                    {"role": "user", "parts": [{"text": system_prompt + "\n" + user_content}]}
-                                ],
+                                contents=gemini_history,
                             ),
                         )
                         raw_text = response.text or ""

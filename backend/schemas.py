@@ -177,6 +177,11 @@ class ConsequenceForensicsSchema(BaseModel):
     )
 
 
+class ChatMessage(BaseModel):
+    """Representuje jednu zprávu v historii chatu."""
+    role: str  # 'user' nebo 'assistant'
+    content: str
+
 class QueryRequest(BaseModel):
     """User prompt query with ontological parameters."""
     query: str = Field(..., min_length=2, max_length=10000, description="Uživatelský dotaz")
@@ -188,6 +193,7 @@ class QueryRequest(BaseModel):
     enable_thinking: bool = Field(
         default=True, description="Povolit hloubkový introspektivní kognitivní proces"
     )
+    history: List[ChatMessage] = Field(default_factory=list, description="Historie konverzace pro udržení kontextu")
 
 
 class TokenUsageStats(BaseModel):
