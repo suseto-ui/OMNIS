@@ -59,7 +59,19 @@ object OmnisPromptSanitizer {
         Pattern.compile("(?i)\\bdeveloper\\s+mode\\s+(enabled|activate)\\b"),
         Pattern.compile("(?i)\\bprompt\\s+leak\\b"),
         Pattern.compile("(?i)\\bdo\\s+anything\\s+now\\b"),
-        Pattern.compile("(?i)\\bforget\\s+all\\s+(rules|instructions)\\b")
+        Pattern.compile("(?i)\\bforget\\s+all\\s+(rules|instructions)\\b"),
+        // Delimiter escaping & role spoofing
+        Pattern.compile("(?i)</?\\s*untrusted_context\\b.*?>?"),
+        Pattern.compile("(?i)\\[/?(system|assistant|admin|root)\\]"),
+        Pattern.compile("(?i)\\boverride\\s+(all\\s+)?safety(\\s+settings?)?\\b"),
+        // Script injection & data exfiltration
+        Pattern.compile("(?i)<script\\b[^>]*>.*?</script>"),
+        Pattern.compile("(?i)<script\\b[^>]*>"),
+        Pattern.compile("(?i)</script>"),
+        Pattern.compile("(?i)javascript:[^\\s\"'<>]+"),
+        Pattern.compile("(?i)data:text/html\\b"),
+        // Base64 obfuscated payload triggers
+        Pattern.compile("(?i)\\b(base64|b64):\\s*[A-Za-z0-9+/=]{16,}")
     )
 
     data class SanitizationResult(

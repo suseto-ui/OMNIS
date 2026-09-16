@@ -1,7 +1,6 @@
 package com.example.data
 
 import android.util.Log
-import com.example.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

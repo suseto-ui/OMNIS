@@ -1,5 +1,7 @@
 package com.example.ui
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -153,45 +155,52 @@ class OmnisViewModel(
         _isOcrLoading.value = true
         viewModelScope.launch {
             try {
-                val bitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                    android.graphics.ImageDecoder.decodeBitmap(
-                        android.graphics.ImageDecoder.createSource(getApplication<Application>().contentResolver, uri)
-                    )
-                } else {
-                    @Suppress("DEPRECATION")
-                    android.provider.MediaStore.Images.Media.getBitmap(getApplication<Application>().contentResolver, uri)
-                }
-                
-                // Scale down bitmap to avoid memory issues and too large payloads
-                val maxDim = 1024f
-                val scale = kotlin.math.min(maxDim / bitmap.width, maxDim / bitmap.height)
-                val scaledBitmap = if (scale < 1f) {
-                    android.graphics.Bitmap.createScaledBitmap(
-                        bitmap, 
-                        (bitmap.width * scale).toInt(), 
-                        (bitmap.height * scale).toInt(), 
-                        true
-                    )
-                } else {
-                    bitmap
-                }
-
-                val outputStream = java.io.ByteArrayOutputStream()
-                scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, outputStream)
-                val base64Image = android.util.Base64.encodeToString(outputStream.toByteArray(), android.util.Base64.NO_WRAP)
-                
-                val text = OmnisGeminiClient.extractTextFromImage(base64Image)
-                
-                if (text != null && text.isNotBlank()) {
-                    // Save image locally
-                    val file = java.io.File(getApplication<Application>().filesDir, "ocr_${System.currentTimeMillis()}.jpg")
-                    java.io.FileOutputStream(file).use { out ->
-                        scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+                val textWithFile = withContext(Dispatchers.IO) {
+                    val bitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                        android.graphics.ImageDecoder.decodeBitmap(
+                            android.graphics.ImageDecoder.createSource(getApplication<Application>().contentResolver, uri)
+                        )
+                    } else {
+                        @Suppress("DEPRECATION")
+                        android.provider.MediaStore.Images.Media.getBitmap(getApplication<Application>().contentResolver, uri)
                     }
                     
+                    // Scale down bitmap to avoid memory issues and too large payloads
+                    val maxDim = 1024f
+                    val scale = kotlin.math.min(maxDim / bitmap.width, maxDim / bitmap.height)
+                    val scaledBitmap = if (scale < 1f) {
+                        android.graphics.Bitmap.createScaledBitmap(
+                            bitmap, 
+                            (bitmap.width * scale).toInt(), 
+                            (bitmap.height * scale).toInt(), 
+                            true
+                        )
+                    } else {
+                        bitmap
+                    }
+
+                    val outputStream = java.io.ByteArrayOutputStream()
+                    scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, outputStream)
+                    val base64Image = android.util.Base64.encodeToString(outputStream.toByteArray(), android.util.Base64.NO_WRAP)
+                    
+                    val text = OmnisGeminiClient.extractTextFromImage(base64Image)
+                    
+                    if (text != null && text.isNotBlank()) {
+                        // Save image locally
+                        val file = java.io.File(getApplication<Application>().filesDir, "ocr_${System.currentTimeMillis()}.jpg")
+                        java.io.FileOutputStream(file).use { out ->
+                            scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+                        }
+                        Pair(file.absolutePath, text)
+                    } else {
+                        null
+                    }
+                }
+                
+                if (textWithFile != null) {
                     _ocrValidationState.value = OcrValidationState(
-                        imageLocalPath = file.absolutePath,
-                        extractedText = text
+                        imageLocalPath = textWithFile.first,
+                        extractedText = textWithFile.second
                     )
                 } else {
                     _errorMessage.value = "Systém neidentifikoval žádný text."
@@ -209,28 +218,30 @@ class OmnisViewModel(
         _isOcrLoading.value = true
         viewModelScope.launch {
             try {
-                val contentResolver = getApplication<Application>().contentResolver
-                val inputStream = contentResolver.openInputStream(uri)
-                val bytes = inputStream?.readBytes()
-                inputStream?.close()
+                val text = withContext(Dispatchers.IO) {
+                    val contentResolver = getApplication<Application>().contentResolver
+                    val inputStream = contentResolver.openInputStream(uri)
+                    val bytes = inputStream?.readBytes()
+                    inputStream?.close()
 
-                if (bytes != null) {
-                    val base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                    val text = OmnisGeminiClient.extractTextFromDocument(base64Data, mimeType)
-
-                    if (text != null && text.isNotBlank()) {
-                        val currentText = _inputQuery.value
-                        val newText = if (currentText.isNotBlank()) {
-                            "$currentText\n\n--- Obsah PDF ($fileName) ---\n$text\n--- Konec PDF ---"
-                        } else {
-                            "--- Obsah PDF ($fileName) ---\n$text\n--- Konec PDF ---"
-                        }
-                        _inputQuery.value = newText
+                    if (bytes != null) {
+                        val base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                        OmnisGeminiClient.extractTextFromDocument(base64Data, mimeType)
                     } else {
-                        _errorMessage.value = "Z dokumentu se nepodařilo přečíst žádný text."
+                        null
                     }
+                }
+
+                if (text != null && text.isNotBlank()) {
+                    val currentText = _inputQuery.value
+                    val newText = if (currentText.isNotBlank()) {
+                        "$currentText\n\n--- Obsah PDF ($fileName) ---\n$text\n--- Konec PDF ---"
+                    } else {
+                        "--- Obsah PDF ($fileName) ---\n$text\n--- Konec PDF ---"
+                    }
+                    _inputQuery.value = newText
                 } else {
-                    _errorMessage.value = "Chyba při čtení souboru."
+                    _errorMessage.value = "Z dokumentu se nepodařilo přečíst žádný text."
                 }
             } catch (e: Exception) {
                 Log.e("OmnisViewModel", "Document extraction Failed", e)

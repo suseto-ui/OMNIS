@@ -1,7 +1,6 @@
 package com.example.api
 
 import android.util.Log
-import com.example.BuildConfig
 import com.example.defense.*
 import com.squareup.moshi.Json
 import com.squareup.moshi.Moshi
@@ -167,7 +166,7 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
     }
 
     private fun callGeminiApi(query: String, domain: String, injectionDetected: Boolean = false): SynthesisResult? {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        val apiKey = com.example.BuildConfig.GEMINI_API_KEY
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
             Log.w(TAG, "GEMINI_API_KEY is not configured, falling back to deterministic synthesis")
             return null
@@ -440,7 +439,7 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
     }
 
     suspend fun extractTextFromImage(base64Image: String): String? = withContext(ioDispatcher) {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        val apiKey = com.example.BuildConfig.GEMINI_API_KEY
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
             Log.w(TAG, "GEMINI_API_KEY is not configured, cannot extract text from image.")
             return@withContext null
@@ -498,7 +497,7 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
     }
 
     suspend fun extractTextFromDocument(base64Data: String, mimeType: String): String? = withContext(ioDispatcher) {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        val apiKey = com.example.BuildConfig.GEMINI_API_KEY
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
             Log.w(TAG, "GEMINI_API_KEY is not configured, cannot extract text from document.")
             return@withContext null
@@ -556,7 +555,7 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
     }
 
     suspend fun synthesizeComparison(records: List<com.example.data.OmnisRecord>): ComparisonResult? = withContext(ioDispatcher) {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        val apiKey = com.example.BuildConfig.GEMINI_API_KEY
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
             return@withContext generateLocalComparisonSynthesis(records)
         }

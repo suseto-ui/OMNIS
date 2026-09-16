@@ -1253,12 +1253,18 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
                 </div>
 
                 {/* Text Box */}
-                <input 
-                  type="text" 
+                <textarea 
+                  rows={1}
                   value={inputQuery} 
                   onChange={e => setInputQuery(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendQuery();
+                    }
+                  }}
                   placeholder={isListening ? "Diktujte dotaz do mikrofonu..." : attachedImage ? "Zadejte dotaz k přiloženému obrázku..." : "Zpráva pro O.M.N.I.S..."}
-                  className="flex-1 bg-transparent px-3 py-2 text-sm sm:text-base focus:outline-none font-mono text-slate-100 min-w-0"
+                  className="flex-1 bg-transparent px-3 py-2 text-sm sm:text-base focus:outline-none font-mono text-slate-100 min-w-0 resize-none max-h-24 overflow-y-auto"
                 />
 
                 {/* Right Actions: Dictation Mic & Send */}
