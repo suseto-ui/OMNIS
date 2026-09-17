@@ -187,4 +187,57 @@ class IntentTests {
         assertTrue(userQuery!!.content.contains("DETEKOVÁNA INTERFERENCE"))
         assertTrue(userQuery.content.contains("Econ vs Eco"))
     }
+
+    @Test
+    fun `test Prompt Gateway intercepts ambiguous query and elevates semantics`() = runTest(testDispatcher) {
+        // Vágní, krátký dotaz bez kontextu a parametrů
+        val vagueQuery = "jak to udělat"
+        viewModel.sendQuery(vagueQuery)
+        advanceUntilIdle()
+
+        // Nesmí být odesláno přímo do databáze (zadrženo pro HITL revizi)
+        val reviewState = viewModel.pendingGatewayReview.value
+        assertNotNull(reviewState)
+        assertEquals("needs_review", reviewState?.status)
+        assertEquals(vagueQuery, reviewState?.originalPrompt)
+        assertTrue(reviewState!!.suggestedPrompt.contains("### [SÉMANTICKÉ ZADÁNÍ PRO O.M.N.I.S. CORE]"))
+        assertTrue(reviewState.suggestedPrompt.contains("[DOPLŇTE"))
+
+        // Potvrzení optimalizovaného promptu operátorem
+        val customConfirmedPrompt = "Navrhni a implementuj bezpečný token bucket v Kotlinu"
+        viewModel.confirmGatewayReview(customConfirmedPrompt)
+        advanceUntilIdle()
+
+        // Brána uvolněna a dotaz propsán do záznamů
+        assertNull(viewModel.pendingGatewayReview.value)
+        val records = viewModel.records.first { list -> list.any { it.role == "user" && it.content == customConfirmedPrompt } }
+        assertNotNull(records)
+    }
+
+    @Test
+    fun `test Prompt Gateway bypass with original prompt upon operator demand`() = runTest(testDispatcher) {
+        val vagueQuery = "pomoz"
+        viewModel.sendQuery(vagueQuery)
+        advanceUntilIdle()
+
+        assertNotNull(viewModel.pendingGatewayReview.value)
+        viewModel.bypassGatewayReview()
+        advanceUntilIdle()
+
+        assertNull(viewModel.pendingGatewayReview.value)
+        val records = viewModel.records.first { list -> list.any { it.role == "user" && it.content == vagueQuery } }
+        assertNotNull(records)
+    }
+
+    @Test
+    fun `test Prompt Gateway allows mature high quality query to bypass gate directly`() = runTest(testDispatcher) {
+        val richQuery = "Navrhni a implementuj distribuovanou databázovou architekturu s nízkou latencí v Kotlinu"
+        viewModel.sendQuery(richQuery)
+        advanceUntilIdle()
+
+        // Žádný HITL dialog se nezobrazí, dotaz jde přímo na exekuci
+        assertNull(viewModel.pendingGatewayReview.value)
+        val records = viewModel.records.first { list -> list.any { it.role == "user" && it.content == richQuery } }
+        assertNotNull(records)
+    }
 }

@@ -2,6 +2,11 @@ package com.example.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,7 +40,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import android.content.Context
 import android.widget.Toast
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import org.json.JSONObject
+import org.json.JSONArray
 import com.example.api.ComparisonResult
 import com.example.data.OmnisRecord
 import com.example.ui.theme.*
@@ -85,7 +95,8 @@ fun OctagonDashboard(
     isComparing: Boolean,
     comparisonResult: ComparisonResult?,
     onSynthesize: (Set<Long>) -> Unit,
-    onClearComparison: () -> Unit
+    onClearComparison: () -> Unit,
+    onDirectMitigate: ((String) -> Unit)? = null
 ) {
     // Multi-selection hook for 8D elements
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
@@ -95,6 +106,26 @@ fun OctagonDashboard(
     val animatedComposite by animateFloatAsState(targetValue = composite, label = "composite")
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
+    var showImportDialog by remember { mutableStateOf(false) }
+    var importJsonText by remember { mutableStateOf("") }
+    var showGhostPastOverlay by remember { mutableStateOf(true) }
+
+    // Custom Profile Preset Slots (Slot 1 & Slot 2)
+    val sharedPrefs = remember { context.getSharedPreferences("omnis_tensor_presets", Context.MODE_PRIVATE) }
+    var preset1Saved by remember { mutableStateOf(sharedPrefs.contains("preset_1_sys")) }
+    var preset2Saved by remember { mutableStateOf(sharedPrefs.contains("preset_2_sys")) }
+
+    // Historical Time-Travel Playback Engine
+    val coroutineScope = rememberCoroutineScope()
+    var isPlayingHistory by remember { mutableStateOf(false) }
+    var playbackIndex by remember { mutableIntStateOf(0) }
+    var playbackSpeedMultiplier by remember { mutableFloatStateOf(1.0f) }
+
+    val pastTensorValues = remember(latestRecord) {
+        latestRecord?.let {
+            listOf(it.valSys, it.valEcon, it.valPsych, it.valEco, it.valLaw, it.valSec, it.valPhys, it.valSoc)
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize().testTag("octagon_dashboard")) {
         LazyColumn(
@@ -156,9 +187,10 @@ fun OctagonDashboard(
 
                         Spacer(modifier = Modifier.height(14.dp))
                         
-                        // 8D Radar Geometric Visualizer with Tension Links
+                        // 8D Radar Geometric Visualizer with Tension Links & Ghost Past Overlay
                         OctagonRadarVisualizer(
                             values = listOf(simSys, simEcon, simPsych, simEco, simLaw, simSec, simPhys, simSoc),
+                            pastValues = if (showGhostPastOverlay) pastTensorValues else null,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(220.dp)
@@ -166,6 +198,95 @@ fun OctagonDashboard(
                             fixedDomains = fixedDomains,
                             onToggleFix = onToggleFix
                         )
+
+                        if (pastTensorValues != null) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Box(modifier = Modifier.size(8.dp).background(OmnisViolet, CircleShape))
+                                    Text("Předchozí stav (#${latestRecord?.id})", color = OmnisViolet, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                                }
+                                TextButton(
+                                    onClick = { showGhostPastOverlay = !showGhostPastOverlay },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) {
+                                    Text(
+                                        if (showGhostPastOverlay) "Skrýt delta obrys" else "Zobrazit delta obrys",
+                                        color = OmnisCyan,
+                                        fontSize = 10.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+
+                            // Anomaly Alert Banner
+                            val currentSimList = listOf(simSys, simEcon, simPsych, simEco, simLaw, simSec, simPhys, simSoc)
+                            val domainNames = listOf("Sys", "Econ", "Psych", "Eco", "Law", "Sec", "Phys", "Soc")
+                            val anomalies = domainNames.filterIndexed { idx, _ ->
+                                val cur = currentSimList[idx]
+                                val prev = pastTensorValues[idx]
+                                kotlin.math.abs(cur - prev) >= 0.35f
+                            }
+
+                            if (anomalies.isNotEmpty()) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = OmnisRed.copy(alpha = 0.12f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, OmnisRed.copy(alpha = 0.4f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 6.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.Warning, contentDescription = null, tint = OmnisRed, modifier = Modifier.size(16.dp))
+                                            Text(
+                                                text = "Detekována anomálie tenzoru (Δ ≥ 0.35): ${anomalies.joinToString(", ")}",
+                                                color = OmnisRed,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+                                        Button(
+                                            onClick = {
+                                                val mitigationPrompt = "PROVEĎ AUTO-SYNTÉZU A MITIGACI TENZORU: Byly detekovány kritické anomálie v dimenzích [${anomalies.joinToString(", ")}]. " +
+                                                    "Aktuální 8D parametry jsou: Sys=$simSys, Econ=$simEcon, Psych=$simPsych, Eco=$simEco, Law=$simLaw, Sec=$simSec, Phys=$simPhys, Soc=$simSoc. " +
+                                                    "Navrhni okamžitá nápravná opatření a stabilizační architekturu pro vyrovnání napětí v systému."
+                                                if (onDirectMitigate != null) {
+                                                    onDirectMitigate(mitigationPrompt)
+                                                } else {
+                                                    clipboardManager.setText(AnnotatedString(mitigationPrompt))
+                                                    Toast.makeText(context, "Prompt pro auto-mitigaci byl zkopírován do schránky", Toast.LENGTH_LONG).show()
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = OmnisRed),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                            modifier = Modifier.height(28.dp)
+                                        ) {
+                                            Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.White)
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Mitigovat", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(10.dp))
                         HorizontalDivider(color = OmnisBorderDark, thickness = 1.dp)
@@ -197,15 +318,59 @@ fun OctagonDashboard(
                 }
             }
 
-            // Interactive What-If Sliders
+            // Interactive What-If Sliders & Domain Pinning
             item {
-                Text(
-                    text = "8D CO-KDYŽ SIMULACE & FIXACE DOMÉN",
-                    color = OmnisTextMuted,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "8D CO-KDYŽ SIMULACE & FIXACE DOMÉN",
+                            color = OmnisTextMuted,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (fixedDomains.isNotEmpty()) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFFFD700).copy(alpha = 0.15f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.5f))
+                            ) {
+                                Text(
+                                    text = "${fixedDomains.size} FIX",
+                                    color = Color(0xFFFFD700),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+                    if (fixedDomains.isNotEmpty()) {
+                        TextButton(
+                            onClick = {
+                                fixedDomains.forEach { onToggleFix(it) }
+                                Toast.makeText(context, "Všechny fixace uvolněny", Toast.LENGTH_SHORT).show()
+                            },
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                            modifier = Modifier.height(24.dp)
+                        ) {
+                            Text(
+                                text = "Uvolnit vše",
+                                color = OmnisCyan,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
             }
 
             // Ontological Simulation Presets
@@ -253,6 +418,106 @@ fun OctagonDashboard(
                         )
                     )
                     SuggestionChip(
+                        onClick = {
+                            // Target equilibrium mean based on fixed vs free axes
+                            val freeDomains = listOf("Sys", "Econ", "Psych", "Eco", "Law", "Sec", "Phys", "Soc").filter { !fixedDomains.contains(it) }
+                            if (freeDomains.isEmpty()) {
+                                Toast.makeText(context, "Všechny osy jsou uzamčeny", Toast.LENGTH_SHORT).show()
+                            } else {
+                                // Calculate mean of fixed domains or fallback to optimal 0.78 equilibrium
+                                val fixedMean = if (fixedDomains.isNotEmpty()) {
+                                    val fixedVals = mutableListOf<Float>()
+                                    if (fixedDomains.contains("Sys")) fixedVals.add(simSys)
+                                    if (fixedDomains.contains("Econ")) fixedVals.add(simEcon)
+                                    if (fixedDomains.contains("Psych")) fixedVals.add(simPsych)
+                                    if (fixedDomains.contains("Eco")) fixedVals.add(simEco)
+                                    if (fixedDomains.contains("Law")) fixedVals.add(simLaw)
+                                    if (fixedDomains.contains("Sec")) fixedVals.add(simSec)
+                                    if (fixedDomains.contains("Phys")) fixedVals.add(simPhys)
+                                    if (fixedDomains.contains("Soc")) fixedVals.add(simSoc)
+                                    fixedVals.average().toFloat()
+                                } else {
+                                    0.78f
+                                }
+
+                                val targetVal = fixedMean.coerceIn(0.60f, 0.85f)
+                                onSimChange(
+                                    if (fixedDomains.contains("Sys")) simSys else targetVal,
+                                    if (fixedDomains.contains("Econ")) simEcon else targetVal,
+                                    if (fixedDomains.contains("Psych")) simPsych else targetVal,
+                                    if (fixedDomains.contains("Eco")) simEco else targetVal,
+                                    if (fixedDomains.contains("Law")) simLaw else targetVal,
+                                    if (fixedDomains.contains("Sec")) simSec else targetVal,
+                                    if (fixedDomains.contains("Phys")) simPhys else targetVal,
+                                    if (fixedDomains.contains("Soc")) simSoc else targetVal
+                                )
+                                Toast.makeText(context, "Auto-harmonizace provedena (cílová rovnováha: ${(targetVal * 100).toInt()}%)", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        icon = { Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp), tint = OmnisCyan) },
+                        label = { Text("Auto-Harmonizace", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = OmnisCyan.copy(alpha = 0.15f),
+                            labelColor = OmnisCyan
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = OmnisCyan.copy(alpha = 0.5f)
+                        )
+                    )
+                    SuggestionChip(
+                        onClick = {
+                            // Stress Scenario: Kybernetický Útok (High Sec & Law, Low Sys & Econ)
+                            onSimChange(
+                                if (fixedDomains.contains("Sys")) simSys else 0.30f,
+                                if (fixedDomains.contains("Econ")) simEcon else 0.40f,
+                                if (fixedDomains.contains("Psych")) simPsych else 0.50f,
+                                if (fixedDomains.contains("Eco")) simEco else 0.70f,
+                                if (fixedDomains.contains("Law")) simLaw else 0.85f,
+                                if (fixedDomains.contains("Sec")) simSec else 0.98f,
+                                if (fixedDomains.contains("Phys")) simPhys else 0.60f,
+                                if (fixedDomains.contains("Soc")) simSoc else 0.45f
+                            )
+                            Toast.makeText(context, "Simulace: Kybernetický Útok / Kritická Infrastruktura", Toast.LENGTH_SHORT).show()
+                        },
+                        icon = { Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(14.dp), tint = OmnisRed) },
+                        label = { Text("Zátěž: Kybernetický Útok", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = OmnisRed.copy(alpha = 0.15f),
+                            labelColor = OmnisRed
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = OmnisRed.copy(alpha = 0.5f)
+                        )
+                    )
+                    SuggestionChip(
+                        onClick = {
+                            // Stress Scenario: Ekologická / Energetická Krize (High Eco & Phys, Low Econ)
+                            onSimChange(
+                                if (fixedDomains.contains("Sys")) simSys else 0.65f,
+                                if (fixedDomains.contains("Econ")) simEcon else 0.25f,
+                                if (fixedDomains.contains("Psych")) simPsych else 0.60f,
+                                if (fixedDomains.contains("Eco")) simEco else 0.95f,
+                                if (fixedDomains.contains("Law")) simLaw else 0.80f,
+                                if (fixedDomains.contains("Sec")) simSec else 0.55f,
+                                if (fixedDomains.contains("Phys")) simPhys else 0.90f,
+                                if (fixedDomains.contains("Soc")) simSoc else 0.75f
+                            )
+                            Toast.makeText(context, "Simulace: Ekologicko-Energetická Krize", Toast.LENGTH_SHORT).show()
+                        },
+                        icon = { Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(14.dp), tint = OmnisAmber) },
+                        label = { Text("Zátěž: Eko-Energetická Krize", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = OmnisAmber.copy(alpha = 0.15f),
+                            labelColor = OmnisAmber
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = OmnisAmber.copy(alpha = 0.5f)
+                        )
+                    )
+                    SuggestionChip(
                         onClick = { onSimChange(0.70f, 0.70f, 0.70f, 0.70f, 0.70f, 0.70f, 0.70f, 0.70f) },
                         label = { Text("Vyvážený Reset (0.70)", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
                         colors = SuggestionChipDefaults.suggestionChipColors(
@@ -262,6 +527,118 @@ fun OctagonDashboard(
                         border = SuggestionChipDefaults.suggestionChipBorder(
                             enabled = true,
                             borderColor = OmnisBorderDark
+                        )
+                    )
+                    // Custom Preset Slot 1 (Load / Save on Long Press via icon action)
+                    SuggestionChip(
+                        onClick = {
+                            if (preset1Saved) {
+                                val sSys = sharedPrefs.getFloat("preset_1_sys", 0.7f)
+                                val sEcon = sharedPrefs.getFloat("preset_1_econ", 0.7f)
+                                val sPsych = sharedPrefs.getFloat("preset_1_psych", 0.7f)
+                                val sEco = sharedPrefs.getFloat("preset_1_eco", 0.7f)
+                                val sLaw = sharedPrefs.getFloat("preset_1_law", 0.7f)
+                                val sSec = sharedPrefs.getFloat("preset_1_sec", 0.7f)
+                                val sPhys = sharedPrefs.getFloat("preset_1_phys", 0.7f)
+                                val sSoc = sharedPrefs.getFloat("preset_1_soc", 0.7f)
+                                onSimChange(
+                                    if (fixedDomains.contains("Sys")) simSys else sSys,
+                                    if (fixedDomains.contains("Econ")) simEcon else sEcon,
+                                    if (fixedDomains.contains("Psych")) simPsych else sPsych,
+                                    if (fixedDomains.contains("Eco")) simEco else sEco,
+                                    if (fixedDomains.contains("Law")) simLaw else sLaw,
+                                    if (fixedDomains.contains("Sec")) simSec else sSec,
+                                    if (fixedDomains.contains("Phys")) simPhys else sPhys,
+                                    if (fixedDomains.contains("Soc")) simSoc else sSoc
+                                )
+                                Toast.makeText(context, "Preset Alpha načten", Toast.LENGTH_SHORT).show()
+                            } else {
+                                sharedPrefs.edit()
+                                    .putFloat("preset_1_sys", simSys)
+                                    .putFloat("preset_1_econ", simEcon)
+                                    .putFloat("preset_1_psych", simPsych)
+                                    .putFloat("preset_1_eco", simEco)
+                                    .putFloat("preset_1_law", simLaw)
+                                    .putFloat("preset_1_sec", simSec)
+                                    .putFloat("preset_1_phys", simPhys)
+                                    .putFloat("preset_1_soc", simSoc)
+                                    .apply()
+                                preset1Saved = true
+                                Toast.makeText(context, "Preset Alpha uložen z aktuálního stavu", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        icon = {
+                            Icon(
+                                if (preset1Saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = OmnisViolet
+                            )
+                        },
+                        label = { Text(if (preset1Saved) "Slot α (Načíst)" else "Slot α (Uložit)", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = OmnisViolet.copy(alpha = 0.15f),
+                            labelColor = OmnisViolet
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = OmnisViolet.copy(alpha = 0.5f)
+                        )
+                    )
+                    // Custom Preset Slot 2
+                    SuggestionChip(
+                        onClick = {
+                            if (preset2Saved) {
+                                val sSys = sharedPrefs.getFloat("preset_2_sys", 0.7f)
+                                val sEcon = sharedPrefs.getFloat("preset_2_econ", 0.7f)
+                                val sPsych = sharedPrefs.getFloat("preset_2_psych", 0.7f)
+                                val sEco = sharedPrefs.getFloat("preset_2_eco", 0.7f)
+                                val sLaw = sharedPrefs.getFloat("preset_2_law", 0.7f)
+                                val sSec = sharedPrefs.getFloat("preset_2_sec", 0.7f)
+                                val sPhys = sharedPrefs.getFloat("preset_2_phys", 0.7f)
+                                val sSoc = sharedPrefs.getFloat("preset_2_soc", 0.7f)
+                                onSimChange(
+                                    if (fixedDomains.contains("Sys")) simSys else sSys,
+                                    if (fixedDomains.contains("Econ")) simEcon else sEcon,
+                                    if (fixedDomains.contains("Psych")) simPsych else sPsych,
+                                    if (fixedDomains.contains("Eco")) simEco else sEco,
+                                    if (fixedDomains.contains("Law")) simLaw else sLaw,
+                                    if (fixedDomains.contains("Sec")) simSec else sSec,
+                                    if (fixedDomains.contains("Phys")) simPhys else sPhys,
+                                    if (fixedDomains.contains("Soc")) simSoc else sSoc
+                                )
+                                Toast.makeText(context, "Preset Beta načten", Toast.LENGTH_SHORT).show()
+                            } else {
+                                sharedPrefs.edit()
+                                    .putFloat("preset_2_sys", simSys)
+                                    .putFloat("preset_2_econ", simEcon)
+                                    .putFloat("preset_2_psych", simPsych)
+                                    .putFloat("preset_2_eco", simEco)
+                                    .putFloat("preset_2_law", simLaw)
+                                    .putFloat("preset_2_sec", simSec)
+                                    .putFloat("preset_2_phys", simPhys)
+                                    .putFloat("preset_2_soc", simSoc)
+                                    .apply()
+                                preset2Saved = true
+                                Toast.makeText(context, "Preset Beta uložen z aktuálního stavu", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        icon = {
+                            Icon(
+                                if (preset2Saved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = OmnisCyan
+                            )
+                        },
+                        label = { Text(if (preset2Saved) "Slot β (Načíst)" else "Slot β (Uložit)", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = OmnisCyan.copy(alpha = 0.15f),
+                            labelColor = OmnisCyan
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = OmnisCyan.copy(alpha = 0.5f)
                         )
                     )
                     SuggestionChip(
@@ -295,6 +672,130 @@ fun OctagonDashboard(
                             borderColor = OmnisViolet.copy(alpha = 0.5f)
                         )
                     )
+                    SuggestionChip(
+                        onClick = {
+                            val report = StringBuilder().apply {
+                                appendLine("# 🌐 OMNIS 8D ARCHITECTURAL AUDIT REPORT")
+                                appendLine("---")
+                                appendLine("- **Generováno:** ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
+                                appendLine("- **Kompozitní Index:** ${(composite * 100).toInt()}%")
+                                appendLine("- **Referenční záznam:** #${latestRecord?.id ?: "N/A"}")
+                                appendLine()
+                                appendLine("### 📊 8D Tenzorový Rozpad")
+                                appendLine("| Dimenze | Kód | Aktuální Váha | Fixace | Popis |")
+                                appendLine("|---|---|---|---|---|")
+                                appendLine("| Systémové Inženýrství | `Sys` | ${(simSys * 100).toInt()}% | ${if (fixedDomains.contains("Sys")) "🔒 Uzamčeno" else "🔓 Volné"} | Modularita & Kybernetika |")
+                                appendLine("| Ekonomie | `Econ` | ${(simEcon * 100).toInt()}% | ${if (fixedDomains.contains("Econ")) "🔒 Uzamčeno" else "🔓 Volné"} | Nákladová efektivita |")
+                                appendLine("| Kognice & Etika | `Psych` | ${(simPsych * 100).toInt()}% | ${if (fixedDomains.contains("Psych")) "🔒 Uzamčeno" else "🔓 Volné"} | Důvěra operátora |")
+                                appendLine("| Ekologie | `Eco` | ${(simEco * 100).toInt()}% | ${if (fixedDomains.contains("Eco")) "🔒 Uzamčeno" else "🔓 Volné"} | Regenerativní biosféra |")
+                                appendLine("| Právo & Soulad | `Law` | ${(simLaw * 100).toInt()}% | ${if (fixedDomains.contains("Law")) "🔒 Uzamčeno" else "🔓 Volné"} | Legislativa a normy |")
+                                appendLine("| Zero-Trust Bezpečnost | `Sec` | ${(simSec * 100).toInt()}% | ${if (fixedDomains.contains("Sec")) "🔒 Uzamčeno" else "🔓 Volné"} | Bezpečnost a rizika |")
+                                appendLine("| Termodynamika | `Phys` | ${(simPhys * 100).toInt()}% | ${if (fixedDomains.contains("Phys")) "🔒 Uzamčeno" else "🔓 Volné"} | Fyzikální limity |")
+                                appendLine("| Sociální Dopad | `Soc` | ${(simSoc * 100).toInt()}% | ${if (fixedDomains.contains("Soc")) "🔒 Uzamčeno" else "🔓 Volné"} | Kulturní dynamika |")
+                                appendLine()
+                                appendLine("### 🛡️ Bezpečnostní status: Zero-Trust Strict Sandbox Active")
+                            }.toString()
+
+                            clipboardManager.setText(AnnotatedString(report))
+                            Toast.makeText(context, "Auditní zpráva zkopírována do schránky (Markdown)", Toast.LENGTH_LONG).show()
+                        },
+                        icon = { Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(14.dp), tint = OmnisEmerald) },
+                        label = { Text("Export Audit Report", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = OmnisEmerald.copy(alpha = 0.15f),
+                            labelColor = OmnisEmerald
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = OmnisEmerald.copy(alpha = 0.5f)
+                        )
+                    )
+                    SuggestionChip(
+                        onClick = {
+                            val clipText = clipboardManager.getText()?.text ?: ""
+                            importJsonText = clipText
+                            showImportDialog = true
+                        },
+                        icon = { Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.dp), tint = OmnisCyan) },
+                        label = { Text("Import JSON", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = OmnisCyan.copy(alpha = 0.15f),
+                            labelColor = OmnisCyan
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            enabled = true,
+                            borderColor = OmnisCyan.copy(alpha = 0.5f)
+                        )
+                    )
+                    // Historical Playback / Step-Through
+                    if (assistantRecords.isNotEmpty()) {
+                        SuggestionChip(
+                            onClick = {
+                                if (isPlayingHistory) {
+                                    isPlayingHistory = false
+                                } else {
+                                    isPlayingHistory = true
+                                    coroutineScope.launch {
+                                        val recordsList = assistantRecords.reversed() // oldest to newest
+                                        for (i in recordsList.indices) {
+                                            if (!isPlayingHistory) break
+                                            playbackIndex = i
+                                            val r = recordsList[i]
+                                            onSimChange(
+                                                if (fixedDomains.contains("Sys")) simSys else r.valSys,
+                                                if (fixedDomains.contains("Econ")) simEcon else r.valEcon,
+                                                if (fixedDomains.contains("Psych")) simPsych else r.valPsych,
+                                                if (fixedDomains.contains("Eco")) simEco else r.valEco,
+                                                if (fixedDomains.contains("Law")) simLaw else r.valLaw,
+                                                if (fixedDomains.contains("Sec")) simSec else r.valSec,
+                                                if (fixedDomains.contains("Phys")) simPhys else r.valPhys,
+                                                if (fixedDomains.contains("Soc")) simSoc else r.valSoc
+                                            )
+                                            delay((1000L / playbackSpeedMultiplier).toLong())
+                                        }
+                                        isPlayingHistory = false
+                                    }
+                                }
+                            },
+                            icon = {
+                                Icon(
+                                    if (isPlayingHistory) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = OmnisAmber
+                                )
+                            },
+                            label = { Text(if (isPlayingHistory) "Přehrávání (${playbackIndex + 1}/${assistantRecords.size})" else "Přehrát Historii", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = OmnisAmber.copy(alpha = 0.15f),
+                                labelColor = OmnisAmber
+                            ),
+                            border = SuggestionChipDefaults.suggestionChipBorder(
+                                enabled = true,
+                                borderColor = OmnisAmber.copy(alpha = 0.5f)
+                            )
+                        )
+                        SuggestionChip(
+                            onClick = {
+                                playbackSpeedMultiplier = when (playbackSpeedMultiplier) {
+                                    0.5f -> 1.0f
+                                    1.0f -> 2.0f
+                                    2.0f -> 4.0f
+                                    else -> 0.5f
+                                }
+                            },
+                            icon = { Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(14.dp), tint = OmnisAmber) },
+                            label = { Text("${playbackSpeedMultiplier}x Rychlost", fontSize = 11.sp, fontFamily = FontFamily.Monospace) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = OmnisAmber.copy(alpha = 0.15f),
+                                labelColor = OmnisAmber
+                            ),
+                            border = SuggestionChipDefaults.suggestionChipBorder(
+                                enabled = true,
+                                borderColor = OmnisAmber.copy(alpha = 0.5f)
+                            )
+                        )
+                    }
                 }
             }
 
@@ -334,7 +835,9 @@ fun OctagonDashboard(
                     color = Color(0xFFC084FC),
                     icon = Icons.Default.Face,
                     testTag = "slider_psych",
-                    onValueChange = { onSimChange(simSys, simEcon, it, simEco, simLaw, simSec, simPhys, simSoc) }
+                    isFixed = fixedDomains.contains("Psych"),
+                    onToggleFix = { onToggleFix("Psych") },
+                    onValueChange = { if (!fixedDomains.contains("Psych")) onSimChange(simSys, simEcon, it, simEco, simLaw, simSec, simPhys, simSoc) }
                 )
             }
 
@@ -346,7 +849,9 @@ fun OctagonDashboard(
                     color = Color(0xFF34D399),
                     icon = Icons.Default.Spa,
                     testTag = "slider_eco",
-                    onValueChange = { onSimChange(simSys, simEcon, simPsych, it, simLaw, simSec, simPhys, simSoc) }
+                    isFixed = fixedDomains.contains("Eco"),
+                    onToggleFix = { onToggleFix("Eco") },
+                    onValueChange = { if (!fixedDomains.contains("Eco")) onSimChange(simSys, simEcon, simPsych, it, simLaw, simSec, simPhys, simSoc) }
                 )
             }
 
@@ -358,7 +863,9 @@ fun OctagonDashboard(
                     color = Color(0xFFFB7185),
                     icon = Icons.Default.Gavel,
                     testTag = "slider_law",
-                    onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, it, simSec, simPhys, simSoc) }
+                    isFixed = fixedDomains.contains("Law"),
+                    onToggleFix = { onToggleFix("Law") },
+                    onValueChange = { if (!fixedDomains.contains("Law")) onSimChange(simSys, simEcon, simPsych, simEco, it, simSec, simPhys, simSoc) }
                 )
             }
 
@@ -370,7 +877,9 @@ fun OctagonDashboard(
                     color = Color(0xFFEF4444),
                     icon = Icons.Default.Security,
                     testTag = "slider_sec",
-                    onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, simLaw, it, simPhys, simSoc) }
+                    isFixed = fixedDomains.contains("Sec"),
+                    onToggleFix = { onToggleFix("Sec") },
+                    onValueChange = { if (!fixedDomains.contains("Sec")) onSimChange(simSys, simEcon, simPsych, simEco, simLaw, it, simPhys, simSoc) }
                 )
             }
 
@@ -382,7 +891,9 @@ fun OctagonDashboard(
                     color = Color(0xFFFB923C),
                     icon = Icons.Default.Speed,
                     testTag = "slider_phys",
-                    onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, simLaw, simSec, it, simSoc) }
+                    isFixed = fixedDomains.contains("Phys"),
+                    onToggleFix = { onToggleFix("Phys") },
+                    onValueChange = { if (!fixedDomains.contains("Phys")) onSimChange(simSys, simEcon, simPsych, simEco, simLaw, simSec, it, simSoc) }
                 )
             }
 
@@ -394,8 +905,128 @@ fun OctagonDashboard(
                     color = Color(0xFFF472B6),
                     icon = Icons.Default.Groups,
                     testTag = "slider_soc",
-                    onValueChange = { onSimChange(simSys, simEcon, simPsych, simEco, simLaw, simSec, simPhys, it) }
+                    isFixed = fixedDomains.contains("Soc"),
+                    onToggleFix = { onToggleFix("Soc") },
+                    onValueChange = { if (!fixedDomains.contains("Soc")) onSimChange(simSys, simEcon, simPsych, simEco, simLaw, simSec, simPhys, it) }
                 )
+            }
+
+            // 8D Tensor Differential Delta Analyzer (Simulated vs Last Stored)
+            if (pastTensorValues != null) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
+                            .testTag("tensor_delta_analyzer_card"),
+                        colors = CardDefaults.cardColors(containerColor = OmnisPanelDark),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.CompareArrows, contentDescription = null, tint = OmnisCyan, modifier = Modifier.size(16.dp))
+                                    Text(
+                                        text = "8D Diferenciální Delta Analýza",
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text(
+                                    text = "Ref: #${latestRecord?.id}",
+                                    color = OmnisViolet,
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            val currentDims = listOf(
+                                Triple("Sys", simSys, pastTensorValues[0]),
+                                Triple("Econ", simEcon, pastTensorValues[1]),
+                                Triple("Psych", simPsych, pastTensorValues[2]),
+                                Triple("Eco", simEco, pastTensorValues[3]),
+                                Triple("Law", simLaw, pastTensorValues[4]),
+                                Triple("Sec", simSec, pastTensorValues[5]),
+                                Triple("Phys", simPhys, pastTensorValues[6]),
+                                Triple("Soc", simSoc, pastTensorValues[7])
+                            )
+
+                            currentDims.chunked(2).forEach { rowPair ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 3.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    rowPair.forEach { (name, cur, prev) ->
+                                        val delta = cur - prev
+                                        val deltaColor = when {
+                                            delta > 0.05f -> OmnisEmerald
+                                            delta < -0.05f -> OmnisRed
+                                            else -> OmnisTextMuted
+                                        }
+                                        val deltaSign = if (delta > 0) "+" else ""
+
+                                        Surface(
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = OmnisBgDark.copy(alpha = 0.6f),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark.copy(alpha = 0.5f))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = name,
+                                                    color = Color.White,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontFamily = FontFamily.Monospace
+                                                )
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "${(cur * 100).toInt()}%",
+                                                        color = OmnisTextMuted,
+                                                        fontSize = 10.sp,
+                                                        fontFamily = FontFamily.Monospace
+                                                    )
+                                                    Surface(
+                                                        shape = RoundedCornerShape(3.dp),
+                                                        color = deltaColor.copy(alpha = 0.15f)
+                                                    ) {
+                                                        Text(
+                                                            text = "$deltaSign${(delta * 100).toInt()}%",
+                                                            color = deltaColor,
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontFamily = FontFamily.Monospace,
+                                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // 8D Comparison Hook Section
@@ -563,6 +1194,82 @@ fun OctagonDashboard(
             result = comparisonResult,
             selectedRecords = selectedRecords,
             onDismiss = onClearComparison
+        )
+    }
+
+    // Import JSON Dialog
+    if (showImportDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Download, contentDescription = null, tint = OmnisCyan)
+                    Text("Import 8D Tenzoru", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Vložte JSON definici 8D parametrů (nebo načtěte ze schránky):",
+                        color = OmnisTextMuted,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
+                        value = importJsonText,
+                        onValueChange = { importJsonText = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .testTag("import_json_input"),
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        ),
+                        placeholder = {
+                            Text("{\"sys\": 0.8, \"econ\": 0.6, ...}", color = OmnisTextMuted.copy(alpha = 0.5f), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = OmnisCyan,
+                            unfocusedBorderColor = OmnisBorderDark,
+                            cursorColor = OmnisCyan
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        try {
+                            val obj = JSONObject(importJsonText)
+                            val newSys = (obj.optDouble("sys", simSys.toDouble())).toFloat().coerceIn(0f, 1f)
+                            val newEcon = (obj.optDouble("econ", simEcon.toDouble())).toFloat().coerceIn(0f, 1f)
+                            val newPsych = (obj.optDouble("psych", simPsych.toDouble())).toFloat().coerceIn(0f, 1f)
+                            val newEco = (obj.optDouble("eco", simEco.toDouble())).toFloat().coerceIn(0f, 1f)
+                            val newLaw = (obj.optDouble("law", simLaw.toDouble())).toFloat().coerceIn(0f, 1f)
+                            val newSec = (obj.optDouble("sec", simSec.toDouble())).toFloat().coerceIn(0f, 1f)
+                            val newPhys = (obj.optDouble("phys", simPhys.toDouble())).toFloat().coerceIn(0f, 1f)
+                            val newSoc = (obj.optDouble("soc", simSoc.toDouble())).toFloat().coerceIn(0f, 1f)
+                            
+                            onSimChange(newSys, newEcon, newPsych, newEco, newLaw, newSec, newPhys, newSoc)
+                            showImportDialog = false
+                            Toast.makeText(context, "8D Tenzor úspěšně importován", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Chyba formátu JSON: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = OmnisCyan)
+                ) {
+                    Text("Aplikovat tenzor", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportDialog = false }) {
+                    Text("Zrušit", color = OmnisTextMuted)
+                }
+            },
+            containerColor = OmnisPanelDark
         )
     }
 }
@@ -881,9 +1588,12 @@ fun OctagonDimensionSliderCard(
     onValueChange: (Float) -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = OmnisPanelDark,
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (isFixed) color else OmnisBorderDark),
+        shape = RoundedCornerShape(14.dp),
+        color = if (isFixed) OmnisPanelDark.copy(alpha = 0.95f) else OmnisPanelDark,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp, 
+            if (isFixed) color else OmnisBorderDark
+        ),
         modifier = Modifier
             .fillMaxWidth()
             .testTag(testTag)
@@ -894,43 +1604,84 @@ fun OctagonDimensionSliderCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(onClick = onToggleFix, modifier = Modifier.size(24.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, 
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
+                    IconButton(
+                        onClick = onToggleFix, 
+                        modifier = Modifier
+                            .size(36.dp)
+                            .minimumInteractiveComponentSize()
+                    ) {
                         Icon(
                             imageVector = if (isFixed) Icons.Default.Lock else icon, 
-                            contentDescription = null, 
-                            tint = color, 
+                            contentDescription = if (isFixed) "Odemknout dimenzi $title" else "Uzamknout dimenzi $title", 
+                            tint = if (isFixed) Color(0xFFFFD700) else color, 
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = title,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (isFixed) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFFFFD700).copy(alpha = 0.15f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.5f))
+                                ) {
+                                    Text(
+                                        text = "LOCK",
+                                        color = Color(0xFFFFD700),
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = desc,
+                            color = OmnisTextMuted,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = color.copy(alpha = 0.12f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.35f))
+                ) {
                     Text(
-                        text = title,
-                        color = Color.White,
+                        text = "${(value * 100).toInt()}%",
+                        color = color,
+                        fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
-                Text(
-                    text = "${(value * 100).toInt()}%",
-                    color = color,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    fontFamily = FontFamily.Monospace
-                )
             }
-            Text(
-                text = desc,
-                color = OmnisTextMuted,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(top = 2.dp, bottom = 6.dp)
-            )
+            Spacer(modifier = Modifier.height(4.dp))
             Slider(
                 value = value,
                 onValueChange = onValueChange,
+                enabled = !isFixed,
                 valueRange = 0f..1f,
                 colors = SliderDefaults.colors(
-                    thumbColor = color,
-                    activeTrackColor = color,
+                    thumbColor = if (isFixed) OmnisTextMuted else color,
+                    activeTrackColor = if (isFixed) OmnisTextMuted.copy(alpha = 0.5f) else color,
                     inactiveTrackColor = OmnisBorderDark
                 ),
                 modifier = Modifier.fillMaxWidth()
@@ -943,6 +1694,7 @@ fun OctagonDimensionSliderCard(
 fun OctagonRadarVisualizer(
     values: List<Float>,
     modifier: Modifier = Modifier,
+    pastValues: List<Float>? = null,
     fixedDomains: Set<String> = emptySet(),
     onToggleFix: ((String) -> Unit)? = null
 ) {
@@ -969,6 +1721,17 @@ fun OctagonRadarVisualizer(
             typeface = android.graphics.Typeface.MONOSPACE
         }
     }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "radarPulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1.0f,
+        targetValue = 1.65f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseScale"
+    )
 
     Box(
         modifier = modifier.pointerInput(labels) {
@@ -1089,7 +1852,33 @@ fun OctagonRadarVisualizer(
                 )
             }
 
-            // 4. Polygon Area of Current Values
+            // 4. Past Record Ghost Polygon (Temporal Delta Comparison)
+            pastValues?.let { pastList ->
+                if (pastList.size == numPoints) {
+                    val pastPath = Path()
+                    for (i in 0 until numPoints) {
+                        val angle = i * angleStep - (Math.PI / 2.0).toFloat()
+                        val pv = pastList[i].coerceIn(0.05f, 1f)
+                        val pr = radius * pv
+                        val px = center.x + pr * cos(angle)
+                        val py = center.y + pr * sin(angle)
+                        if (i == 0) pastPath.moveTo(px, py) else pastPath.lineTo(px, py)
+                    }
+                    pastPath.close()
+
+                    drawPath(
+                        path = pastPath,
+                        color = OmnisViolet.copy(alpha = 0.12f)
+                    )
+                    drawPath(
+                        path = pastPath,
+                        color = OmnisViolet.copy(alpha = 0.65f),
+                        style = Stroke(width = 1.5f)
+                    )
+                }
+            }
+
+            // 5. Polygon Area of Current Values
             val polygonPath = Path()
             val pointCoords = mutableListOf<Offset>()
             for (i in 0 until numPoints) {
@@ -1116,16 +1905,52 @@ fun OctagonRadarVisualizer(
                 style = Stroke(width = 2.2f)
             )
 
-            // 5. Point Nodes on vertices
+            // 6. Point Nodes on vertices & Anomaly Detection Halo
             pointCoords.forEachIndexed { i, pt ->
                 val nodeColor = dimensionColors.getOrElse(i) { OmnisCyan }
+                val currentVal = values.getOrElse(i) { 0.5f }
+                val pastVal = pastValues?.getOrNull(i)
+                val isAnomaly = pastVal != null && kotlin.math.abs(currentVal - pastVal) >= 0.35f
+                val domainName = labels.getOrElse(i) { "" }
+                val isFixed = fixedDomains.contains(domainName)
+
+                if (isAnomaly) {
+                    // Pulsating warning beacon halo
+                    drawCircle(
+                        color = OmnisRed.copy(alpha = 0.35f),
+                        radius = 8f * pulseScale,
+                        center = pt
+                    )
+                    drawCircle(
+                        color = OmnisRed,
+                        radius = 6.5f,
+                        center = pt,
+                        style = Stroke(width = 1.5f)
+                    )
+                }
+
+                if (isFixed) {
+                    // Golden outer ring for fixed axis
+                    drawCircle(
+                        color = Color(0xFFFFD700).copy(alpha = 0.4f),
+                        radius = 8f,
+                        center = pt
+                    )
+                    drawCircle(
+                        color = Color(0xFFFFD700),
+                        radius = 6.5f,
+                        center = pt,
+                        style = Stroke(width = 1.5f)
+                    )
+                }
+
                 drawCircle(
                     color = OmnisBgDark,
                     radius = 5.5f,
                     center = pt
                 )
                 drawCircle(
-                    color = nodeColor,
+                    color = if (isFixed) Color(0xFFFFD700) else if (isAnomaly) OmnisRed else nodeColor,
                     radius = 4f,
                     center = pt
                 )

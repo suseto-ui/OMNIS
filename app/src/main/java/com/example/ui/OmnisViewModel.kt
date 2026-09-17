@@ -10,6 +10,8 @@ import com.example.api.OmnisGeminiClient
 import com.example.data.OmnisDatabase
 import com.example.data.OmnisRecord
 import com.example.data.OmnisRepository
+import com.example.defense.OmnisPromptGateway
+import com.example.defense.PromptGatewayResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -105,13 +107,13 @@ class OmnisViewModel(
             else -> "Analyzuj domény ($domains).$frictionNote"
         }
         
-        sendQuery(prompt)
+        executeDirectQuery(prompt)
         clearSelection()
     }
 
     fun optimizeForDomain(domain: String, record: OmnisRecord) {
         val prompt = "Přepracuj svou předchozí odpověď (ID #${record.id}) tak, aby byla maximalizována integrita a výkon v doméně: $domain. Zaměř se na diagnostiku a eliminaci rizik v této oblasti."
-        sendQuery(prompt)
+        executeDirectQuery(prompt)
         clearFocus()
     }
 
@@ -152,6 +154,34 @@ class OmnisViewModel(
             if (file.exists()) file.delete()
         }
         _ocrValidationState.value = null
+    }
+
+    // Prompt Gateway State (Semantic Elevator & Human-in-the-Loop)
+    private val _pendingGatewayReview = MutableStateFlow<PromptGatewayResult?>(null)
+    val pendingGatewayReview: StateFlow<PromptGatewayResult?> = _pendingGatewayReview.asStateFlow()
+
+    private var pendingGatewayImagePath: String? = null
+
+    fun dismissGatewayReview() {
+        _pendingGatewayReview.value = null
+        pendingGatewayImagePath = null
+    }
+
+    fun confirmGatewayReview(optimizedPrompt: String) {
+        val imagePath = pendingGatewayImagePath
+        _pendingGatewayReview.value = null
+        pendingGatewayImagePath = null
+        executeDirectQuery(optimizedPrompt, imagePath)
+    }
+
+    fun bypassGatewayReview() {
+        val orig = _pendingGatewayReview.value?.originalPrompt
+        val imagePath = pendingGatewayImagePath
+        _pendingGatewayReview.value = null
+        pendingGatewayImagePath = null
+        if (!orig.isNullOrBlank()) {
+            executeDirectQuery(orig, imagePath)
+        }
     }
 
     // Simple error channel for UI to observe
@@ -427,6 +457,24 @@ class OmnisViewModel(
         val query = (customQuery ?: _inputQuery.value).trim()
         if (query.isBlank() || _isLoading.value) return
 
+        // 1. & 2. FÁZE: Evaluátor & Sémantická brána (Quality Gate)
+        val gatewayResult = OmnisPromptGateway.processPromptGateway(query, _selectedDomain.value)
+        if (gatewayResult.status == "needs_review") {
+            // Zadržet exekuci a předat k Human-in-the-Loop revizi
+            pendingGatewayImagePath = imagePath
+            _pendingGatewayReview.value = gatewayResult
+            _inputQuery.value = ""
+            return
+        }
+
+        // Pokud je schválen bypass (vysoká specificita), pokračovat přímo do exekuce
+        executeDirectQuery(query, imagePath)
+    }
+
+    fun executeDirectQuery(query: String, imagePath: String? = null) {
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank() || _isLoading.value) return
+
         _inputQuery.value = ""
         _isLoading.value = true
         _errorMessage.value = null
@@ -436,14 +484,14 @@ class OmnisViewModel(
                 // Save user record
                 val userRecord = OmnisRecord(
                     role = "user",
-                    content = query,
+                    content = trimmedQuery,
                     domain = _selectedDomain.value,
                     attachedImagePath = imagePath
                 )
                 repository.insert(userRecord)
 
                 // Synthesize response via Gemini / cognitive engine
-                val result = OmnisGeminiClient.synthesize(query, _selectedDomain.value)
+                val result = OmnisGeminiClient.synthesize(trimmedQuery, _selectedDomain.value)
 
                 val asstRecord = OmnisRecord(
                     role = "assistant",
@@ -476,7 +524,7 @@ class OmnisViewModel(
                 _simSoc.value = result.valSoc
             } catch (e: Exception) {
                 // Log error and surface to UI via errorMessage flow
-                Log.e("OmnisViewModel", "sendQuery failed", e)
+                Log.e("OmnisViewModel", "executeDirectQuery failed", e)
                 _errorMessage.value = e.localizedMessage ?: e.toString()
             } finally {
                 _isLoading.value = false

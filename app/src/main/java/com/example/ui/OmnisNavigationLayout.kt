@@ -76,6 +76,7 @@ fun OmnisMainScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val inputQuery by viewModel.inputQuery.collectAsStateWithLifecycle()
     val ocrValidationState by viewModel.ocrValidationState.collectAsStateWithLifecycle()
+    val pendingGatewayReview by viewModel.pendingGatewayReview.collectAsStateWithLifecycle()
     
     val navState = remember { com.example.ui.OmnisNavigationState() }
     val showDeleteConfirm by navState.showDeleteConfirm.collectAsStateWithLifecycle()
@@ -92,6 +93,21 @@ fun OmnisMainScreen(
             onTextChanged = viewModel::updateOcrValidationText,
             onConfirm = viewModel::confirmOcrValidation,
             onCancel = viewModel::cancelOcrValidation
+        )
+    }
+
+    pendingGatewayReview?.let { reviewState ->
+        com.example.ui.PromptGatewayReviewModal(
+            reviewState = reviewState,
+            onConfirmed = { optimizedPrompt ->
+                viewModel.confirmGatewayReview(optimizedPrompt)
+            },
+            onBypassWithOriginal = {
+                viewModel.bypassGatewayReview()
+            },
+            onDismiss = {
+                viewModel.dismissGatewayReview()
+            }
         )
     }
 
@@ -537,6 +553,10 @@ fun OmnisMainScreen(
                         },
                         onClearComparison = {
                             viewModel.clearComparison()
+                        },
+                        onDirectMitigate = { prompt ->
+                            viewModel.setTab(OmnisTab.CHAT)
+                            viewModel.sendQuery(prompt)
                         }
                     )
                 }
@@ -572,7 +592,11 @@ fun OmnisMainScreen(
                     isComparing = viewModel.isComparing.collectAsStateWithLifecycle().value,
                     comparisonResult = viewModel.comparisonResult.collectAsStateWithLifecycle().value,
                     onSynthesize = { selectedIds -> viewModel.synthesizeSelectedRecords(selectedIds) },
-                    onClearComparison = { viewModel.clearComparison() }
+                    onClearComparison = { viewModel.clearComparison() },
+                    onDirectMitigate = { prompt ->
+                        viewModel.setTab(OmnisTab.CHAT)
+                        viewModel.sendQuery(prompt)
+                    }
                 )
                 OmnisTab.NODES -> MemoryView(
                     records = records,
@@ -854,7 +878,7 @@ fun ChatView(
         // Input Bar
         Surface(
             color = OmnisPanelDark,
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(22.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark),
             modifier = Modifier
                 .fillMaxWidth()
@@ -863,7 +887,7 @@ fun ChatView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
@@ -890,7 +914,9 @@ fun ChatView(
                             "text/css"
                         )) 
                     }, 
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier
+                        .size(40.dp)
+                        .minimumInteractiveComponentSize()
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Přiložit soubor", tint = OmnisCyan, modifier = Modifier.size(20.dp))
                 }
@@ -899,7 +925,9 @@ fun ChatView(
                     onClick = {
                         photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     }, 
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier
+                        .size(40.dp)
+                        .minimumInteractiveComponentSize()
                 ) {
                     Icon(Icons.Default.CameraAlt, contentDescription = "Vyfotit/Obrázek", tint = OmnisCyan, modifier = Modifier.size(20.dp))
                 }
@@ -921,7 +949,7 @@ fun ChatView(
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 20.dp, max = 120.dp)
+                            .heightIn(min = 22.dp, max = 120.dp)
                             .testTag("chat_input_field"),
                         maxLines = 4,
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(OmnisCyan),
@@ -942,9 +970,11 @@ fun ChatView(
                                         }
                                         speechLauncher.launch(intent)
                                     },
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .minimumInteractiveComponentSize()
                                 ) {
-                                    Icon(Icons.Default.Mic, contentDescription = "Diktovat", tint = OmnisCyan, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Mic, contentDescription = "Diktovat hlasem", tint = OmnisCyan, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -954,13 +984,13 @@ fun ChatView(
                         Box(
                             modifier = Modifier
                                 .matchParentSize()
-                                .background(OmnisBgDark.copy(alpha = 0.8f), RoundedCornerShape(12.dp))
+                                .background(OmnisBgDark.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
                                 .border(1.dp, OmnisCyan, RoundedCornerShape(12.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                CircularProgressIndicator(color = OmnisCyan, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                Text("OCR...", color = OmnisCyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                                CircularProgressIndicator(color = OmnisCyan, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Text("OCR zpracování...", color = OmnisCyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                             }
                         }
                     }
@@ -970,7 +1000,8 @@ fun ChatView(
                     onClick = onSend,
                     enabled = inputQuery.isNotBlank() && !isLoading && !isOcrLoading,
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(42.dp)
+                        .minimumInteractiveComponentSize()
                         .clip(CircleShape)
                         .background(
                             if (inputQuery.isNotBlank() && !isLoading && !isOcrLoading) OmnisCyan else OmnisBorderDark
@@ -981,7 +1012,7 @@ fun ChatView(
                         imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Odeslat dotaz",
                         tint = if (inputQuery.isNotBlank() && !isLoading && !isOcrLoading) Color.Black else OmnisTextMuted,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -1383,6 +1414,7 @@ fun MetricPill(
                 this.contentDescription = "Doména $label: $percent procent. $stateDescription. Dlouhým stiskem zobrazíte detail."
                 this.selected = isSelected
             }
+            .minimumInteractiveComponentSize()
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -1393,9 +1425,20 @@ fun MetricPill(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(imageVector = icon, contentDescription = null, tint = color.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
+            Icon(
+                imageVector = icon, 
+                contentDescription = null, 
+                tint = if (isSelected) color else color.copy(alpha = 0.85f), 
+                modifier = Modifier.size(16.dp)
+            )
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = label, color = OmnisTextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                Text(
+                    text = label, 
+                    color = if (isSelected) Color.White else OmnisTextMuted, 
+                    fontSize = 10.sp, 
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                )
                 Text(
                     text = "$percent%",
                     color = color,
