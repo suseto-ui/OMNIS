@@ -44,6 +44,11 @@ fun ActionDrivenInteractivePanel(
     var isExpanded by remember { mutableStateOf(false) }
     var selectedActionId by remember { mutableStateOf<String?>("db_connectivity_test") }
 
+    // Dynamic Parameter State
+    var targetEngine by remember { mutableStateOf("PostgreSQL") }
+    var networkInterface by remember { mutableStateOf("eth0") }
+    var chaosSimulationEnabled by remember { mutableStateOf(true) }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -160,13 +165,39 @@ fun ActionDrivenInteractivePanel(
                         )
                     }
 
+                    // Dynamic Action Parameter Controls
+                    when (selectedActionId) {
+                        "db_connectivity_test" -> {
+                            OutlinedTextField(
+                                value = targetEngine,
+                                onValueChange = { targetEngine = it },
+                                label = { Text("DB Engine / Target", fontSize = 10.sp) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth().height(50.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Color.White),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = OmnisCyan, unfocusedBorderColor = OmnisBorderDark)
+                            )
+                        }
+                        "ebpf_xdp_offload" -> {
+                            OutlinedTextField(
+                                value = networkInterface,
+                                onValueChange = { networkInterface = it },
+                                label = { Text("Network Interface", fontSize = 10.sp) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth().height(50.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Color.White),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = OmnisCyan, unfocusedBorderColor = OmnisBorderDark)
+                            )
+                        }
+                    }
+
                     // Structured Payload Preview
                     val payload = when (selectedActionId) {
                         "db_connectivity_test" -> ActionPayload(
                             intent = "execute_diagnostic",
                             actionId = "db_connectivity_test",
                             parameters = mapOf(
-                                "engine" to "PostgreSQL",
+                                "engine" to targetEngine,
                                 "include_tls_validation" to true
                             )
                         )
@@ -174,7 +205,7 @@ fun ActionDrivenInteractivePanel(
                             intent = "optimize_network_layer",
                             actionId = "ebpf_xdp_offload",
                             parameters = mapOf(
-                                "interface" to "eth0",
+                                "interface" to networkInterface,
                                 "sync_type" to "CRDT_EVENT_DRIVEN"
                             )
                         )
@@ -183,7 +214,7 @@ fun ActionDrivenInteractivePanel(
                             actionId = "resilience_circuit_breaker_audit",
                             parameters = mapOf(
                                 "domain_boundary" to "ALL_DOMAINS",
-                                "chaos_simulation" to true
+                                "chaos_simulation" to chaosSimulationEnabled
                             )
                         )
                         "ai_governance_export" -> ActionPayload(

@@ -582,9 +582,16 @@ fun OmnisMainScreen(
                         viewModel.sendQuery(prompt)
                     }
                 )
-                OmnisTab.NODES -> MemoryView(
+                OmnisTab.NODES -> CognitiveNodesView(
                     records = records,
-                    onItemClick = { record -> viewModel.jumpToContext(record) }
+                    onExecuteAction = { payload ->
+                        viewModel.setTab(OmnisTab.CHAT)
+                        viewModel.executeActionPayload(payload)
+                    },
+                    onNavigateToChat = { prompt ->
+                        viewModel.setTab(OmnisTab.CHAT)
+                        viewModel.sendQuery(prompt)
+                    }
                 )
                 OmnisTab.DASHBOARD -> MemoryView(
                     records = records,
