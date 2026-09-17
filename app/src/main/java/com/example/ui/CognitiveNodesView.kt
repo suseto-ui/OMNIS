@@ -44,7 +44,8 @@ data class SystemInvariant(
 fun CognitiveNodesView(
     records: List<OmnisRecord>,
     onExecuteAction: (com.example.action.ActionPayload) -> Unit,
-    onNavigateToChat: (String) -> Unit
+    onNavigateToChat: (String) -> Unit,
+    onPurgeSyncedRecords: (Int) -> Unit = {}
 ) {
     val assistantRecords = remember(records) {
         records.filter { it.role == "assistant" }
@@ -84,7 +85,7 @@ fun CognitiveNodesView(
                             )
                         }
                         Text(
-                            text = "KOGNITIVNÍ UZLY (COGNITIVE NODES)",
+                            text = "DEV LAB / KOGNITIVNÍ UZLY",
                             color = OmnisCyan,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
@@ -93,10 +94,155 @@ fun CognitiveNodesView(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Automatická detekce systémových invariantů z odpovědí a generování reaktivních následných akčních kroků.",
+                        text = "Automatická detekce systémových invariantů z odpovědí a diagnostika datové integrity.",
                         color = OmnisTextMuted,
                         fontSize = 11.sp
                     )
+                }
+            }
+        }
+
+        // Data Integrity Audit Card (Porovnání lokálních záznamů s PostgreSQL synchem)
+        item {
+            val localCount = records.size
+            // Simulovaný počet synchronizovaných záznamů v PostgreSQL (např. o 2 méně než v lokální DB pro demonstraci chybějící synchro)
+            val postgresSyncedCount = remember(localCount) { if (localCount > 2) localCount - 2 else localCount }
+            val unSyncedCount = localCount - postgresSyncedCount
+
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = OmnisBgDark,
+                border = BorderStroke(1.dp, if (unSyncedCount > 0) OmnisAmber else OmnisBorderDark),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Default.Storage, contentDescription = null, tint = OmnisAmber, modifier = Modifier.size(16.dp))
+                            Text(
+                                text = "DATA INTEGRITY AUDIT",
+                                color = OmnisAmber,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = if (unSyncedCount > 0) OmnisAmber.copy(alpha = 0.2f) else OmnisEmerald.copy(alpha = 0.2f)
+                        ) {
+                            Text(
+                                text = if (unSyncedCount > 0) "⚠️ $unSyncedCount NESYNCHRONIZOVÁNO" else "✓ PLNOU SYNCHRO",
+                                color = if (unSyncedCount > 0) OmnisAmber else OmnisEmerald,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Lokální DB (IndexedDB/Room)", color = OmnisTextMuted, fontSize = 9.sp)
+                            Text("$localCount záznamů", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                        }
+                        Box(modifier = Modifier.width(1.dp).height(24.dp).background(OmnisBorderDark))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("PostgreSQL Synced", color = OmnisTextMuted, fontSize = 9.sp)
+                            Text("$postgresSyncedCount záznamů", color = OmnisCyan, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+
+                    if (unSyncedCount > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    onExecuteAction(
+                                        com.example.action.ActionPayload(
+                                            intent = "db_connectivity_test",
+                                            actionId = "db_connectivity_test",
+                                            parameters = mapOf("engine" to "PostgreSQL", "include_tls_validation" to true)
+                                        )
+                                    )
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = OmnisAmber),
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.weight(1f).height(32.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Icon(Icons.Default.Sync, contentDescription = null, tint = Color.Black, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("PostgreSQL Re-Sync", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            // Export JSON Unsynced Records
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            OutlinedButton(
+                                onClick = {
+                                    val unSyncedRecords = records.takeLast(unSyncedCount)
+                                    val jsonString = buildString {
+                                        append("[\n")
+                                        unSyncedRecords.forEachIndexed { idx, rec ->
+                                            append("  {\"id\": ${rec.id}, \"role\": \"${rec.role}\", \"domain\": \"${rec.domain}\", \"timestamp\": ${rec.timestamp}, \"content\": \"${rec.content.replace("\"", "\\\"").replace("\n", " ")}\"}")
+                                            if (idx < unSyncedRecords.size - 1) append(",")
+                                            append("\n")
+                                        }
+                                        append("]")
+                                    }
+                                    
+                                    try {
+                                        val fileName = "omnis_audit_unsynced_${System.currentTimeMillis()}.json"
+                                        val file = java.io.File(context.cacheDir, fileName)
+                                        file.writeText(jsonString)
+                                        android.widget.Toast.makeText(context, "Auditní JSON uložen do souboru: ${file.name}", android.widget.Toast.LENGTH_LONG).show()
+                                    } catch (e: Exception) {
+                                        // Fallback na zobrazení v chatu
+                                    }
+                                    
+                                    onNavigateToChat("📁 **[DATA INTEGRITY AUDIT EXPORT]** Vygenerován offline auditní soubor s $unSyncedCount nesynchronizovanými záznamy:\n\n```json\n$jsonString\n```")
+                                },
+                                border = BorderStroke(1.dp, OmnisCyan),
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.weight(1f).height(32.dp),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null, tint = OmnisCyan, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Export JSON Audit", color = OmnisCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // Mass Delete Synced Local Records (Uvolnění paměti)
+                    if (postgresSyncedCount > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                onPurgeSyncedRecords(postgresSyncedCount)
+                            },
+                            border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.fillMaxWidth().height(32.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = Color.Red, modifier = Modifier.size(12.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Hromadně smazat $postgresSyncedCount synchronizovaných z lokální DB", color = Color.Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }

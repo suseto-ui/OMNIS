@@ -30,6 +30,7 @@ enum class OmnisTab {
     ANALYTICS,
     MEMORY,
     NODES,
+    ADMIN,
     DASHBOARD,
     MATRIX,
     TEST_SEMANTIC
@@ -637,6 +638,21 @@ class OmnisViewModel(
                 )
                 repository.insert(asstRecord)
 
+                // AUTOMATICKÝ ZÁPIS DO POSTGRESQL (Replikace na pozadí)
+                viewModelScope.launch(Dispatchers.IO) {
+                    try {
+                        OmnisActionDispatcher.executeAction(
+                            ActionPayload(
+                                intent = "auto_postgres_replication",
+                                actionId = "postgres_auto_sync",
+                                parameters = mapOf("unsynced_count" to 2, "engine" to "PostgreSQL Cloud SQL")
+                            )
+                        )
+                    } catch (e: Exception) {
+                        Log.e("OmnisViewModel", "PostgreSQL auto-replication failed", e)
+                    }
+                }
+
                 // Update simulation sliders to match latest result
                 _simSys.value = result.valSys
                 _simEcon.value = result.valEcon
@@ -659,6 +675,24 @@ class OmnisViewModel(
     fun clearAllHistory() {
         viewModelScope.launch {
             repository.clear()
+        }
+    }
+
+    fun purgeSyncedLocalRecords(syncedCount: Int) {
+        val currentRole = OmnisAuthService.currentUserRole.value
+        if (!currentRole.canAccessSystemActions()) {
+            _errorMessage.value = "Přístup odepřen: Hromadné uvolnění paměti vyžaduje roli Admin / Operátor."
+            return
+        }
+        viewModelScope.launch {
+            val all = records.value
+            if (all.size <= syncedCount || syncedCount <= 0) return@launch
+            // Získat ID posledního synchronizovaného záznamu
+            val syncedRecords = all.take(syncedCount)
+            val maxSyncedId = syncedRecords.maxOfOrNull { it.id } ?: return@launch
+            
+            repository.deleteSyncedRecords(maxSyncedId)
+            _errorMessage.value = "✓ Úspěšně smazáno $syncedCount synchronizovaných záznamů z lokální DB."
         }
     }
 

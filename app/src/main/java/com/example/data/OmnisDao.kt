@@ -17,6 +17,9 @@ interface OmnisDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecord(record: OmnisRecord): Long
 
+    @Query("DELETE FROM omnis_messages WHERE id <= :maxSyncedId")
+    suspend fun deleteSyncedRecords(maxSyncedId: Long)
+
     @Query("DELETE FROM omnis_messages")
     suspend fun clearAll()
 }

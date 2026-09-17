@@ -101,6 +101,11 @@ fun OmnisMainScreen(
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
+    // Password-Protected Admin Switch State
+    var showAdminPasswordDialog by remember { mutableStateOf(false) }
+    var adminPasswordInput by remember { mutableStateOf("") }
+    var isAdminPasswordError by remember { mutableStateOf(false) }
+
     LaunchedEffect(errorMessage) {
         errorMessage?.let { msg ->
             Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
@@ -246,6 +251,27 @@ fun OmnisMainScreen(
 
                 if (currentRole.canAccessSystemActions()) {
                     NavigationDrawerItem(
+                        label = { Text("Administrátorské Centrum", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                        selected = activeTab == OmnisTab.ADMIN,
+                        onClick = {
+                            viewModel.setTab(OmnisTab.ADMIN)
+                            scope.launch { drawerState.close() }
+                        },
+                        icon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = OmnisAmber) },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = OmnisAmber.copy(alpha = 0.15f),
+                            selectedIconColor = OmnisAmber,
+                            selectedTextColor = OmnisAmber,
+                            unselectedContainerColor = Color.Transparent,
+                            unselectedIconColor = OmnisAmber,
+                            unselectedTextColor = OmnisAmber
+                        ),
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .height(52.dp)
+                    )
+
+                    NavigationDrawerItem(
                         label = { Text("Kognitivní Uzly & Invarianty", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
                         selected = activeTab == OmnisTab.NODES,
                         onClick = {
@@ -344,6 +370,26 @@ fun OmnisMainScreen(
                 }
                 HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 8.dp))
 
+                // Switch to Admin Mode Button (pokud je přihlášen běžný uživatel)
+                if (currentRole == com.example.auth.UserRole.STANDARD_USER) {
+                    NavigationDrawerItem(
+                        label = { Text("Přepnout do Admin Režimu", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                        selected = false,
+                        onClick = {
+                            showAdminPasswordDialog = true
+                        },
+                        icon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = OmnisAmber) },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedContainerColor = OmnisAmber.copy(alpha = 0.1f),
+                            unselectedIconColor = OmnisAmber,
+                            unselectedTextColor = OmnisAmber
+                        ),
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .height(48.dp)
+                    )
+                }
+
                 // Role badge and Logout
                 Surface(
                     modifier = Modifier
@@ -386,6 +432,81 @@ fun OmnisMainScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // Admin Password Dialog
+            if (showAdminPasswordDialog) {
+                AlertDialog(
+                    onDismissRequest = {
+                        showAdminPasswordDialog = false
+                        adminPasswordInput = ""
+                        isAdminPasswordError = false
+                    },
+                    containerColor = OmnisPanelDark,
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.Lock, contentDescription = null, tint = OmnisAmber)
+                            Text("Administrátorský Režim", color = OmnisAmber, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    text = {
+                        Column {
+                            Text("Zadejte přístupový klíč pro povýšení oprávnění na Admin / Operátor:", color = OmnisTextMuted, fontSize = 12.sp)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = adminPasswordInput,
+                                onValueChange = {
+                                    adminPasswordInput = it
+                                    isAdminPasswordError = false
+                                },
+                                label = { Text("Heslo admina") },
+                                singleLine = true,
+                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                isError = isAdminPasswordError,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = OmnisAmber,
+                                    unfocusedBorderColor = OmnisBorderDark,
+                                    errorBorderColor = Color.Red
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            if (isAdminPasswordError) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Neplatný přístupový klíč operátora.", color = Color.Red, fontSize = 10.sp)
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val success = com.example.auth.OmnisAuthService.login(context, "admin", adminPasswordInput, com.example.auth.UserRole.ADMIN_OPERATOR)
+                                if (success) {
+                                    showAdminPasswordDialog = false
+                                    adminPasswordInput = ""
+                                    isAdminPasswordError = false
+                                    scope.launch { drawerState.close() }
+                                    Toast.makeText(context, "Oprávnění úspěšně povýšena na Admin / Operátor", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    isAdminPasswordError = true
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = OmnisAmber)
+                        ) {
+                            Text("Aktivovat Admin", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                showAdminPasswordDialog = false
+                                adminPasswordInput = ""
+                                isAdminPasswordError = false
+                            }
+                        ) {
+                            Text("Zrušit", color = OmnisTextMuted)
+                        }
+                    }
+                )
             }
         }
     ) {
@@ -451,6 +572,39 @@ fun OmnisMainScreen(
                                         fontFamily = FontFamily.Monospace,
                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                     )
+                                }
+
+                                // System Integrity & Entropy Visualizer Indicator
+                                val last10Scores = records.takeLast(10).map { it.compositeScore }
+                                val avgScore = if (last10Scores.isNotEmpty()) last10Scores.average().toFloat() else 0.85f
+                                val isHighEntropy = avgScore < 0.60f
+                                
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = if (isHighEntropy) Color.Red.copy(alpha = 0.2f) else OmnisEmerald.copy(alpha = 0.15f),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (isHighEntropy) Color.Red else OmnisEmerald.copy(alpha = 0.4f)
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .background(if (isHighEntropy) Color.Red else OmnisEmerald, CircleShape)
+                                        )
+                                        Text(
+                                            text = if (isHighEntropy) "ENTROPIE (${(avgScore * 100).toInt()}%)" else "INTEGRITA (${(avgScore * 100).toInt()}%)",
+                                            color = if (isHighEntropy) Color.Red else OmnisEmerald,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -617,6 +771,20 @@ fun OmnisMainScreen(
                         viewModel.sendQuery(prompt)
                     }
                 )
+                OmnisTab.ADMIN -> AdminHubView(
+                    records = records,
+                    onExecuteAction = { payload ->
+                        viewModel.setTab(OmnisTab.CHAT)
+                        viewModel.executeActionPayload(payload)
+                    },
+                    onNavigateToChat = { prompt ->
+                        viewModel.setTab(OmnisTab.CHAT)
+                        viewModel.sendQuery(prompt)
+                    },
+                    onPurgeSyncedRecords = { syncedCount ->
+                        viewModel.purgeSyncedLocalRecords(syncedCount)
+                    }
+                )
                 OmnisTab.NODES -> CognitiveNodesView(
                     records = records,
                     onExecuteAction = { payload ->
@@ -626,6 +794,9 @@ fun OmnisMainScreen(
                     onNavigateToChat = { prompt ->
                         viewModel.setTab(OmnisTab.CHAT)
                         viewModel.sendQuery(prompt)
+                    },
+                    onPurgeSyncedRecords = { syncedCount ->
+                        viewModel.purgeSyncedLocalRecords(syncedCount)
                     }
                 )
                 OmnisTab.DASHBOARD -> MemoryView(

@@ -13,6 +13,10 @@ class OmnisRepository(private val dao: OmnisDao) {
         return rowId
     }
 
+    suspend fun deleteSyncedRecords(maxSyncedId: Long) {
+        dao.deleteSyncedRecords(maxSyncedId)
+    }
+
     suspend fun clear() {
         dao.clearAll()
     }
