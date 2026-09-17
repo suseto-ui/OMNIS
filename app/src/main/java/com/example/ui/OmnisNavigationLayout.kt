@@ -83,6 +83,7 @@ fun OmnisMainScreen(
         return
     }
 
+    val isCircuitBreakerTripped by viewModel.isCircuitBreakerTripped.collectAsStateWithLifecycle()
     val activeTab by viewModel.activeTab.collectAsStateWithLifecycle()
     val records by viewModel.records.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
@@ -243,70 +244,104 @@ fun OmnisMainScreen(
                         .height(52.dp)
                 )
 
-                NavigationDrawerItem(
-                    label = { Text("Kognitivní Uzly", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                    selected = activeTab == OmnisTab.NODES,
-                    onClick = {
-                        viewModel.setTab(OmnisTab.NODES)
-                        scope.launch { drawerState.close() }
-                    },
-                    icon = { Icon(Icons.Default.AccountTree, contentDescription = null) },
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                        selectedIconColor = OmnisCyan,
-                        selectedTextColor = OmnisCyan,
-                        unselectedContainerColor = Color.Transparent,
-                        unselectedIconColor = OmnisTextMuted,
-                        unselectedTextColor = OmnisTextMuted
-                    ),
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .height(52.dp)
-                )
+                if (currentRole.canAccessSystemActions()) {
+                    NavigationDrawerItem(
+                        label = { Text("Kognitivní Uzly & Invarianty", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                        selected = activeTab == OmnisTab.NODES,
+                        onClick = {
+                            viewModel.setTab(OmnisTab.NODES)
+                            scope.launch { drawerState.close() }
+                        },
+                        icon = { Icon(Icons.Default.AccountTree, contentDescription = null) },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
+                            selectedIconColor = OmnisCyan,
+                            selectedTextColor = OmnisCyan,
+                            unselectedContainerColor = Color.Transparent,
+                            unselectedIconColor = OmnisTextMuted,
+                            unselectedTextColor = OmnisTextMuted
+                        ),
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .height(52.dp)
+                    )
 
-                NavigationDrawerItem(
-                    label = { Text("Správa Témat & Šablony", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                    selected = activeTab == OmnisTab.DASHBOARD,
-                    onClick = {
-                        viewModel.setTab(OmnisTab.DASHBOARD)
-                        scope.launch { drawerState.close() }
-                    },
-                    icon = { Icon(Icons.Default.List, contentDescription = null) },
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                        selectedIconColor = OmnisCyan,
-                        selectedTextColor = OmnisCyan,
-                        unselectedContainerColor = Color.Transparent,
-                        unselectedIconColor = OmnisTextMuted,
-                        unselectedTextColor = OmnisTextMuted
-                    ),
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .height(52.dp)
-                )
-
-                NavigationDrawerItem(
-                    label = { Text("Octagon 8D Matice", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                    selected = activeTab == OmnisTab.MATRIX,
-                    onClick = {
-                        viewModel.setTab(OmnisTab.MATRIX)
-                        scope.launch { drawerState.close() }
-                    },
-                    icon = { Icon(Icons.Default.Info, contentDescription = null) },
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                        selectedIconColor = OmnisCyan,
-                        selectedTextColor = OmnisCyan,
-                        unselectedContainerColor = Color.Transparent,
-                        unselectedIconColor = OmnisTextMuted,
-                        unselectedTextColor = OmnisTextMuted
-                    ),
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .height(52.dp)
-                )
+                    NavigationDrawerItem(
+                        label = { Text("Octagon 8D Matice", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                        selected = activeTab == OmnisTab.MATRIX,
+                        onClick = {
+                            viewModel.setTab(OmnisTab.MATRIX)
+                            scope.launch { drawerState.close() }
+                        },
+                        icon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
+                            selectedIconColor = OmnisCyan,
+                            selectedTextColor = OmnisCyan,
+                            unselectedContainerColor = Color.Transparent,
+                            unselectedIconColor = OmnisTextMuted,
+                            unselectedTextColor = OmnisTextMuted
+                        ),
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .height(52.dp)
+                    )
+                }
 
                 Spacer(modifier = Modifier.weight(1f))
+                HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 8.dp))
+
+                // Admin Circuit Breaker Switch (Hlavní Jistič)
+                if (currentRole.canAccessSystemActions()) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        color = OmnisPanelDark,
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isCircuitBreakerTripped) Color.Red else OmnisAmber)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PowerSettingsNew,
+                                    contentDescription = null,
+                                    tint = if (isCircuitBreakerTripped) Color.Red else OmnisAmber,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Column {
+                                    Text("HLAVNÍ JISTIČ", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                    Text(
+                                        text = if (isCircuitBreakerTripped) "VYPNUTO (Blokáda)" else "ZAPNUTO (Aktivní)",
+                                        color = if (isCircuitBreakerTripped) Color.Red else OmnisEmerald,
+                                        fontSize = 9.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = !isCircuitBreakerTripped,
+                                onCheckedChange = { viewModel.toggleCircuitBreaker() },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = OmnisEmerald,
+                                    uncheckedThumbColor = Color.Red,
+                                    checkedTrackColor = OmnisEmerald.copy(alpha = 0.3f),
+                                    uncheckedTrackColor = Color.Red.copy(alpha = 0.3f)
+                                )
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
                 HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 8.dp))
 
                 // Role badge and Logout

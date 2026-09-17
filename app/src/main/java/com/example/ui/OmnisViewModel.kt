@@ -62,6 +62,19 @@ class OmnisViewModel(
     private val _activeTab = MutableStateFlow(OmnisTab.CHAT)
     val activeTab: StateFlow<OmnisTab> = _activeTab.asStateFlow()
 
+    // System Circuit Breaker (Hlavní Jistič)
+    private val _isCircuitBreakerTripped = MutableStateFlow(false)
+    val isCircuitBreakerTripped: StateFlow<Boolean> = _isCircuitBreakerTripped.asStateFlow()
+
+    fun toggleCircuitBreaker() {
+        val currentRole = OmnisAuthService.currentUserRole.value
+        if (!currentRole.canAccessSystemActions()) {
+            _errorMessage.value = "Přístup odepřen: Ovládání hlavního jističe vyžaduje roli Admin / Operátor."
+            return
+        }
+        _isCircuitBreakerTripped.value = !_isCircuitBreakerTripped.value
+    }
+
     // Action-Driven Dispatcher State
     private val _lastActionResult = MutableStateFlow<ActionExecutionResult?>(null)
     val lastActionResult: StateFlow<ActionExecutionResult?> = _lastActionResult.asStateFlow()
@@ -580,6 +593,11 @@ class OmnisViewModel(
     fun executeDirectQuery(query: String, imagePath: String? = null) {
         val trimmedQuery = query.trim()
         if (trimmedQuery.isBlank() || _isLoading.value) return
+
+        if (_isCircuitBreakerTripped.value) {
+            _errorMessage.value = "⚠️ HLAVNÍ JISTIČ VYPNUT: Kognitivní exekuce byla pozastavena operátorem. Zapněte jistič v navigačním menu."
+            return
+        }
 
         _inputQuery.value = ""
         _isLoading.value = true
