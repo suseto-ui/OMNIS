@@ -159,285 +159,27 @@ fun OmnisMainScreen(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = OmnisBgDark,
-                drawerShape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
-                modifier = Modifier.width(280.dp)
-            ) {
-                Spacer(modifier = Modifier.height(24.dp))
-                Row(
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Brush.linearGradient(listOf(OmnisCyan, OmnisViolet))),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("Ω", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                    }
-                    Column {
-                        Text("O.M.N.I.S.", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("Kognitivní Řízení v2.7", color = OmnisCyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                    }
+            OmnisDrawerContent(
+                activeTab = activeTab,
+                currentRole = currentRole,
+                isCircuitBreakerTripped = isCircuitBreakerTripped,
+                onTabSelected = { tab ->
+                    viewModel.setTab(tab)
+                    scope.launch { drawerState.close() }
+                },
+                onToggleCircuitBreaker = { viewModel.toggleCircuitBreaker() },
+                onSwitchToAdminClick = { showAdminPasswordDialog = true },
+                onLogoutClick = {
+                    viewModel.logout()
+                    scope.launch { drawerState.close() }
                 }
-                HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 12.dp))
-                
-                NavigationDrawerItem(
-                    label = { Text("Kognitivní Chat", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                    selected = activeTab == OmnisTab.CHAT,
-                    onClick = {
-                        viewModel.setTab(OmnisTab.CHAT)
-                        scope.launch { drawerState.close() }
-                    },
-                    icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                        selectedIconColor = OmnisCyan,
-                        selectedTextColor = OmnisCyan,
-                        unselectedContainerColor = Color.Transparent,
-                        unselectedIconColor = OmnisTextMuted,
-                        unselectedTextColor = OmnisTextMuted
-                    ),
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .height(52.dp)
-                )
-
-                NavigationDrawerItem(
-                    label = { Text("Analytický Přehled", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                    selected = activeTab == OmnisTab.ANALYTICS,
-                    onClick = {
-                        viewModel.setTab(OmnisTab.ANALYTICS)
-                        scope.launch { drawerState.close() }
-                    },
-                    icon = { Icon(Icons.Default.Analytics, contentDescription = null) },
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                        selectedIconColor = OmnisCyan,
-                        selectedTextColor = OmnisCyan,
-                        unselectedContainerColor = Color.Transparent,
-                        unselectedIconColor = OmnisTextMuted,
-                        unselectedTextColor = OmnisTextMuted
-                    ),
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .height(52.dp)
-                )
-                
-                NavigationDrawerItem(
-                    label = { Text("Historická Paměť & Archiv", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                    selected = activeTab == OmnisTab.MEMORY,
-                    onClick = {
-                        viewModel.setTab(OmnisTab.MEMORY)
-                        scope.launch { drawerState.close() }
-                    },
-                    icon = { Icon(Icons.Default.Star, contentDescription = null) },
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                        selectedIconColor = OmnisCyan,
-                        selectedTextColor = OmnisCyan,
-                        unselectedContainerColor = Color.Transparent,
-                        unselectedIconColor = OmnisTextMuted,
-                        unselectedTextColor = OmnisTextMuted
-                    ),
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .height(52.dp)
-                )
-
-                if (currentRole.canAccessSystemActions()) {
-                    NavigationDrawerItem(
-                        label = { Text("Administrátorské Centrum", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                        selected = activeTab == OmnisTab.ADMIN,
-                        onClick = {
-                            viewModel.setTab(OmnisTab.ADMIN)
-                            scope.launch { drawerState.close() }
-                        },
-                        icon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = OmnisAmber) },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = OmnisAmber.copy(alpha = 0.15f),
-                            selectedIconColor = OmnisAmber,
-                            selectedTextColor = OmnisAmber,
-                            unselectedContainerColor = Color.Transparent,
-                            unselectedIconColor = OmnisAmber,
-                            unselectedTextColor = OmnisAmber
-                        ),
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                            .height(52.dp)
-                    )
-
-                    NavigationDrawerItem(
-                        label = { Text("Kognitivní Uzly & Invarianty", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                        selected = activeTab == OmnisTab.NODES,
-                        onClick = {
-                            viewModel.setTab(OmnisTab.NODES)
-                            scope.launch { drawerState.close() }
-                        },
-                        icon = { Icon(Icons.Default.AccountTree, contentDescription = null) },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                            selectedIconColor = OmnisCyan,
-                            selectedTextColor = OmnisCyan,
-                            unselectedContainerColor = Color.Transparent,
-                            unselectedIconColor = OmnisTextMuted,
-                            unselectedTextColor = OmnisTextMuted
-                        ),
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                            .height(52.dp)
-                    )
-
-                    NavigationDrawerItem(
-                        label = { Text("Octagon 8D Matice", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                        selected = activeTab == OmnisTab.MATRIX,
-                        onClick = {
-                            viewModel.setTab(OmnisTab.MATRIX)
-                            scope.launch { drawerState.close() }
-                        },
-                        icon = { Icon(Icons.Default.Info, contentDescription = null) },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                            selectedIconColor = OmnisCyan,
-                            selectedTextColor = OmnisCyan,
-                            unselectedContainerColor = Color.Transparent,
-                            unselectedIconColor = OmnisTextMuted,
-                            unselectedTextColor = OmnisTextMuted
-                        ),
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                            .height(52.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
-                HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 8.dp))
-
-                // Admin Circuit Breaker Switch (Hlavní Jistič)
-                if (currentRole.canAccessSystemActions()) {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        color = OmnisPanelDark,
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isCircuitBreakerTripped) Color.Red else OmnisAmber)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PowerSettingsNew,
-                                    contentDescription = null,
-                                    tint = if (isCircuitBreakerTripped) Color.Red else OmnisAmber,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Column {
-                                    Text("HLAVNÍ JISTIČ", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                                    Text(
-                                        text = if (isCircuitBreakerTripped) "VYPNUTO (Blokáda)" else "ZAPNUTO (Aktivní)",
-                                        color = if (isCircuitBreakerTripped) Color.Red else OmnisEmerald,
-                                        fontSize = 9.sp,
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                }
-                            }
-                            Switch(
-                                checked = !isCircuitBreakerTripped,
-                                onCheckedChange = { viewModel.toggleCircuitBreaker() },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = OmnisEmerald,
-                                    uncheckedThumbColor = Color.Red,
-                                    checkedTrackColor = OmnisEmerald.copy(alpha = 0.3f),
-                                    uncheckedTrackColor = Color.Red.copy(alpha = 0.3f)
-                                )
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
-                HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 8.dp))
-
-                // Switch to Admin Mode Button (pokud je přihlášen běžný uživatel)
-                if (currentRole == com.example.auth.UserRole.STANDARD_USER) {
-                    NavigationDrawerItem(
-                        label = { Text("Přepnout do Admin Režimu", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
-                        selected = false,
-                        onClick = {
-                            showAdminPasswordDialog = true
-                        },
-                        icon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = OmnisAmber) },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            unselectedContainerColor = OmnisAmber.copy(alpha = 0.1f),
-                            unselectedIconColor = OmnisAmber,
-                            unselectedTextColor = OmnisAmber
-                        ),
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                            .height(48.dp)
-                    )
-                }
-
-                // Role badge and Logout
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    color = OmnisCardDark,
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text("Role:", color = OmnisTextMuted, fontSize = 10.sp)
-                            Text(
-                                text = if (currentRole == com.example.auth.UserRole.ADMIN_OPERATOR) "Admin / Operátor" else "Běžný Uživatel",
-                                color = if (currentRole == com.example.auth.UserRole.ADMIN_OPERATOR) OmnisAmber else OmnisCyan,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                viewModel.logout()
-                                scope.launch { drawerState.close() }
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ExitToApp,
-                                contentDescription = "Odhlásit se",
-                                tint = Color.Red.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            // Admin Password Dialog
-            if (showAdminPasswordDialog) {
-                AlertDialog(
-                    onDismissRequest = {
+            )
+        }
+    ) {
+        // Admin Password Dialog
+        if (showAdminPasswordDialog) {
+            AlertDialog(
+                onDismissRequest = {
                         showAdminPasswordDialog = false
                         adminPasswordInput = ""
                         isAdminPasswordError = false
@@ -508,130 +250,23 @@ fun OmnisMainScreen(
                     }
                 )
             }
-        }
-    ) {
+
         Scaffold(
             modifier = Modifier
                 .fillMaxSize()
                 .background(OmnisBgDark),
             containerColor = OmnisBgDark,
             topBar = {
-                TopAppBar(
-                    navigationIcon = {
-                        IconButton(
-                            onClick = {
-                                scope.launch {
-                                    if (drawerState.isClosed) drawerState.open() else drawerState.close()
-                                }
-                            },
-                            modifier = Modifier
-                                .testTag("hamburger_menu_button")
-                                .minimumInteractiveComponentSize()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Menu,
-                                contentDescription = "Otevřít menu",
-                                tint = OmnisCyan
-                            )
+                OmnisTopAppBar(
+                    records = records,
+                    onOpenMenu = {
+                        scope.launch {
+                            if (drawerState.isClosed) drawerState.open() else drawerState.close()
                         }
                     },
-                    title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    Brush.linearGradient(listOf(OmnisCyan, OmnisViolet))
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Ω", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        }
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(
-                                    text = "O.M.N.I.S.",
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 16.sp,
-                                    letterSpacing = 0.5.sp,
-                                    color = Color.White
-                                )
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = OmnisCyan.copy(alpha = 0.15f),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan.copy(alpha = 0.4f))
-                                ) {
-                                    Text(
-                                        text = "v2.7",
-                                        color = OmnisCyan,
-                                        fontSize = 9.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-
-                                // System Integrity & Entropy Visualizer Indicator
-                                val last10Scores = records.takeLast(10).map { it.compositeScore }
-                                val avgScore = if (last10Scores.isNotEmpty()) last10Scores.average().toFloat() else 0.85f
-                                val isHighEntropy = avgScore < 0.60f
-                                
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = if (isHighEntropy) Color.Red.copy(alpha = 0.2f) else OmnisEmerald.copy(alpha = 0.15f),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        if (isHighEntropy) Color.Red else OmnisEmerald.copy(alpha = 0.4f)
-                                    )
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(6.dp)
-                                                .background(if (isHighEntropy) Color.Red else OmnisEmerald, CircleShape)
-                                        )
-                                        Text(
-                                            text = if (isHighEntropy) "ENTROPIE (${(avgScore * 100).toInt()}%)" else "INTEGRITA (${(avgScore * 100).toInt()}%)",
-                                            color = if (isHighEntropy) Color.Red else OmnisEmerald,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .statusBarsPadding()
-                    .height(48.dp),
-                actions = {
-                    IconButton(
-                        onClick = { navState.setShowDeleteConfirm(true) },
-                        modifier = Modifier
-                            .testTag("clear_history_button")
-                            .minimumInteractiveComponentSize()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Vymazat relaci",
-                            tint = OmnisTextMuted
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = OmnisPanelDark.copy(alpha = 0.95f)
+                    onClearSessionClick = { navState.setShowDeleteConfirm(true) }
                 )
-            )
-        }
+            }
     ) { innerPadding ->
         Box(
             modifier = Modifier
