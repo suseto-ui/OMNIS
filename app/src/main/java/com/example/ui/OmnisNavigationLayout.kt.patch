@@ -1,0 +1,11 @@
+--- /app/applet/app/src/main/java/com/example/ui/OmnisNavigationLayout.kt
++++ /app/applet/app/src/main/java/com/example/ui/OmnisNavigationLayout.kt
+@@ -1441,7 +1441,7 @@
+                 if (streamState.status == "MULTI-LAYER VERIFIED" && streamState.score != null) {
+                     Surface(
+                         shape = RoundedCornerShape(6.dp),
+-                        color = OmnisCyan.copy(alpha = 0.08f),
++                        color = OmnisCyan.copy(alpha = 0.15f),
+                         border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan.copy(alpha = 0.25f)),
+                         modifier = Modifier.padding(bottom = 8.dp)
+                     ) {

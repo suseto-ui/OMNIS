@@ -36,6 +36,7 @@ class IntentTests {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        com.example.api.OmnisGeminiClient.ioDispatcher = testDispatcher
         val application = ApplicationProvider.getApplicationContext<Application>()
         fakeDao = FakeOmnisDao()
         repository = OmnisRepository(fakeDao)
@@ -45,6 +46,7 @@ class IntentTests {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        com.example.api.OmnisGeminiClient.ioDispatcher = Dispatchers.IO
     }
 
     @Test

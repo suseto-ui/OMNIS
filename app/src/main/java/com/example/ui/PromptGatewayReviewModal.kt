@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.defense.PromptGatewayResult
@@ -58,6 +59,7 @@ fun PromptGatewayReviewModal(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
+                        modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -75,18 +77,22 @@ fun PromptGatewayReviewModal(
                                 modifier = Modifier.size(18.dp)
                             )
                         }
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "SÉMANTICKÁ BRÁNA (PROMPT GATEWAY)",
                                 color = OmnisAmber,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "Human-in-the-Loop Optimalizace (Prevence GIGO)",
                                 color = OmnisTextMuted,
-                                fontSize = 11.sp
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }

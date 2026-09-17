@@ -293,6 +293,7 @@ fun ChatView(
     records: List<OmnisRecord>,
     isLoading: Boolean,
     isOcrLoading: Boolean = false,
+    streamState: OmnisViewModel.StreamState? = null,
     inputQuery: String,
     onQueryChange: (String) -> Unit,
     onSend: () -> Unit,
@@ -383,9 +384,12 @@ fun ChatView(
         }
     }
 
-    LaunchedEffect(records.size, isLoading) {
+    LaunchedEffect(records.size, isLoading, streamState?.stage) {
         if (records.isNotEmpty() && scrollToId == null) {
-            listState.animateScrollToItem(records.size - 1)
+            val targetIndex = if (isLoading || streamState != null) records.size else records.size - 1
+            listState.animateScrollToItem(targetIndex)
+        } else if (records.isEmpty() && (isLoading || streamState != null)) {
+            listState.animateScrollToItem(0)
         }
     }
 
@@ -411,7 +415,11 @@ fun ChatView(
                 )
             }
 
-            if (isLoading) {
+            if (isLoading && streamState != null) {
+                item {
+                    StreamingCognitiveMessage(streamState)
+                }
+            } else if (isLoading) {
                 item {
                     Row(
                         modifier = Modifier
@@ -1383,6 +1391,134 @@ fun MemoryView(records: List<OmnisRecord>, onItemClick: (OmnisRecord) -> Unit) {
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StreamingCognitiveMessage(streamState: OmnisViewModel.StreamState) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Surface(
+            shape = RoundedCornerShape(
+                topStart = 16.dp,
+                topEnd = 16.dp,
+                bottomStart = 2.dp,
+                bottomEnd = 16.dp
+            ),
+            color = OmnisPanelDark,
+            border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan.copy(alpha = 0.4f)),
+            modifier = Modifier.fillMaxWidth(0.96f)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                // Sender label
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = OmnisCyan.copy(alpha = 0.6f),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = when(streamState.stage) {
+                                "introspection" -> "O.M.N.I.S. CORE (Introspekce...)"
+                                "execution" -> "O.M.N.I.S. CORE (Generování...)"
+                                "verification" -> "O.M.N.I.S. CORE (Verifikováno)"
+                                else -> "O.M.N.I.S. CORE (Zpracovávám...)"
+                            },
+                            color = if (streamState.stage == "verification") OmnisCyan else OmnisCyan.copy(alpha = 0.6f),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                if (streamState.status == "MULTI-LAYER VERIFIED" && streamState.score != null) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = OmnisCyan.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan.copy(alpha = 0.35f)),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = OmnisCyan, modifier = Modifier.size(12.dp))
+                            Text(
+                                text = "MULTI-LAYER VERIFIED (${(streamState.score * 100).toInt()}%)",
+                                color = OmnisCyan,
+                                fontSize = 9.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = OmnisBgDark,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (streamState.stage != "verification") {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(12.dp),
+                                        color = OmnisCyan,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = OmnisCyan,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "Kognitivní introspekce",
+                                    color = OmnisCyan,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowUp,
+                                contentDescription = null,
+                                tint = OmnisCyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Text(
+                            text = if (streamState.stage == "verification") "Syntéza úspěšně dokončena. Čekám na vykreslení výsledku." else streamState.text,
+                            color = OmnisTextMuted,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
                     }
                 }
             }

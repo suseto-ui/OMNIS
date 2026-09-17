@@ -11,25 +11,12 @@ import org.junit.Test
 class NavigationStateTest {
 
     @Test
-    fun `test DEV unlock logic`() {
+    fun `test delete confirm dialog state`() {
         val state = OmnisNavigationState()
         
-        // Initial state
-        assertFalse(state.devUnlocked.value)
+        assertFalse(state.showDeleteConfirm.value)
         
-        // Wrong password
-        val wrongResult = state.unlockDev("wrong_pass")
-        assertFalse(wrongResult)
-        assertFalse(state.devUnlocked.value)
-        
-        // Correct password
-        state.setDevPassword("omnis2026")
-        state.setShowDevLockDialog(true)
-        val correctResult = state.unlockDev("omnis2026")
-        
-        assertTrue(correctResult)
-        assertTrue(state.devUnlocked.value)
-        assertEquals("", state.devPassword.value) // password should be cleared
-        assertFalse(state.showDevLockDialog.value) // dialog should be closed
+        state.setShowDeleteConfirm(true)
+        assertTrue(state.showDeleteConfirm.value)
     }
 }

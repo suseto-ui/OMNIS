@@ -46,6 +46,10 @@ class FakeOmnisDao : OmnisDao {
         return recordsFlow.value.size.toLong()
     }
 
+    override suspend fun deleteSyncedRecords(maxSyncedId: Long) {
+        recordsFlow.value = recordsFlow.value.filter { it.id > maxSyncedId }
+    }
+
     override suspend fun clearAll() {
         recordsFlow.value = emptyList()
     }
@@ -123,6 +127,10 @@ class OmnisQueryOutputVerificationTest {
         // Input query should immediately be cleared
         assertEquals("", viewModel.inputQuery.value)
 
+        if (viewModel.pendingGatewayReview.value != null) {
+            viewModel.bypassGatewayReview()
+        }
+
         advanceUntilIdle()
 
         // Assert: Verify state and output functionality
@@ -161,6 +169,9 @@ class OmnisQueryOutputVerificationTest {
 
         // Act: Submit query
         viewModel.sendQuery("Test výpadku konektivity")
+        if (viewModel.pendingGatewayReview.value != null) {
+            viewModel.bypassGatewayReview()
+        }
         advanceUntilIdle()
 
         // Assert: Zero-simulation policy must be strictly honored
@@ -195,6 +206,9 @@ class OmnisQueryOutputVerificationTest {
         val query = "znovu"
         viewModel.onQueryChange(query)
         viewModel.sendQuery()
+        if (viewModel.pendingGatewayReview.value != null) {
+            viewModel.bypassGatewayReview()
+        }
         advanceUntilIdle()
 
         // Assert: Result must be a real synthesis, not an error

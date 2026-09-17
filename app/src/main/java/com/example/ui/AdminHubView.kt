@@ -5,6 +5,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +25,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import com.example.action.ActionPayload
 import com.example.data.OmnisRecord
 import com.example.ui.theme.*
@@ -108,29 +111,34 @@ fun AdminHubView(
         // Fast Navigation Switcher Chips
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 AdminNavChip(
-                    title = "PostgreSQL DB",
+                    title = "PostgreSQL",
                     icon = Icons.Default.Storage,
                     isSelected = selectedSection == "DB_HEALTH",
-                    onClick = { selectedSection = "DB_HEALTH" },
-                    modifier = Modifier.weight(1f)
+                    onClick = { selectedSection = "DB_HEALTH" }
                 )
                 AdminNavChip(
-                    title = "Dispečer Akcí",
+                    title = "Dispečer",
                     icon = Icons.Default.Terminal,
                     isSelected = selectedSection == "DISPATCHER",
-                    onClick = { selectedSection = "DISPATCHER" },
-                    modifier = Modifier.weight(1f)
+                    onClick = { selectedSection = "DISPATCHER" }
                 )
                 AdminNavChip(
                     title = "Data Audit",
                     icon = Icons.Default.FactCheck,
                     isSelected = selectedSection == "INTEGRITY",
-                    onClick = { selectedSection = "INTEGRITY" },
-                    modifier = Modifier.weight(1f)
+                    onClick = { selectedSection = "INTEGRITY" }
+                )
+                AdminNavChip(
+                    title = "Učení Labs",
+                    icon = Icons.Default.Psychology,
+                    isSelected = selectedSection == "LEARNING",
+                    onClick = { selectedSection = "LEARNING" }
                 )
             }
         }
@@ -180,6 +188,13 @@ fun AdminHubView(
                     )
                 }
             }
+            "LEARNING" -> {
+                item {
+                    AdminLearningLabsCard(
+                        onNavigateToChat = onNavigateToChat
+                    )
+                }
+            }
         }
     }
 }
@@ -199,7 +214,7 @@ fun AdminNavChip(
         modifier = modifier.clickable { onClick() }
     ) {
         Row(
-            modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -272,11 +287,11 @@ fun PostgresDbHealthCard(
             // Diagnostic Metrics Grid
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                DbMetricBox(title = "Konektivita", value = "TLS 1.3 GCM", subtitle = "CN=omnis.db.internal", color = OmnisCyan)
-                DbMetricBox(title = "Connection Pool", value = "10 / 10 Active", subtitle = "Latency: 8.4 ms", color = OmnisEmerald)
-                DbMetricBox(title = "SQL Engine", value = "PostgreSQL 16", subtitle = "Index Sync: 100%", color = OmnisAmber)
+                DbMetricBox(title = "Konektivita", value = "TLS 1.3 GCM", subtitle = "CN=omnis.db.internal", color = OmnisCyan, modifier = Modifier.weight(1f))
+                DbMetricBox(title = "Connection Pool", value = "10 / 10 Active", subtitle = "Latency: 8.4 ms", color = OmnisEmerald, modifier = Modifier.weight(1f))
+                DbMetricBox(title = "SQL Engine", value = "PostgreSQL 16", subtitle = "Index Sync: 100%", color = OmnisAmber, modifier = Modifier.weight(1f))
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -318,22 +333,22 @@ fun PostgresDbHealthCard(
 }
 
 @Composable
-fun DbMetricBox(title: String, value: String, subtitle: String, color: Color) {
+fun DbMetricBox(title: String, value: String, subtitle: String, color: Color, modifier: Modifier = Modifier) {
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = OmnisPanelDark,
         border = BorderStroke(1.dp, OmnisBorderDark),
-        modifier = Modifier.width(105.dp)
+        modifier = modifier
     ) {
         Column(
             modifier = Modifier.padding(8.dp),
             horizontalAlignment = Alignment.Start
         ) {
-            Text(title, color = OmnisTextMuted, fontSize = 9.sp)
+            Text(title, color = OmnisTextMuted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(modifier = Modifier.height(2.dp))
-            Text(value, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            Text(value, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(modifier = Modifier.height(2.dp))
-            Text(subtitle, color = OmnisTextMuted, fontSize = 8.sp)
+            Text(subtitle, color = OmnisTextMuted, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -557,3 +572,72 @@ fun AdminDataIntegrityCard(
         }
     }
 }
+
+@Composable
+fun AdminLearningLabsCard(
+    onNavigateToChat: (String) -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = OmnisBgDark,
+        border = BorderStroke(1.dp, OmnisViolet),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(Icons.Default.Psychology, contentDescription = null, tint = OmnisViolet, modifier = Modifier.size(18.dp))
+                Text(
+                    text = "SIMULÁTOR KOGNITIVNÍHO UČENÍ & INVARIANTŮ",
+                    color = OmnisViolet,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Tvorba a testování učících sekvencí. Generované učící proměnné se automaticky zapisují do vektorové paměti O.M.N.I.S.",
+                color = OmnisTextMuted,
+                fontSize = 11.sp
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Quick Preset Learning Injection Buttons
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        onNavigateToChat("🧠 **[UČÍCÍ PROTOKOL - INVARIANT S1]** Injektuj novou systémovou poučku:\n\n'Při přetížení jakékoliv domény nad 85% automaticky aktivuj tlumící protokol a navrhni izolaci procesů.'")
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = OmnisViolet),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.fillMaxWidth().height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) {
+                    Icon(Icons.Default.School, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Naučit: Pravidlo Tlumícího Protokolu (85% Limit)", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        onNavigateToChat("🔬 **[UČÍCÍ PROTOKOL - PRÁVNÍ INVARIANT L2]** Injektuj bezpečnostní poučku:\n\n'Všechny automatizované operace s externí databází PostgreSQL vyžadují auditní zápis s časovou značkou UTC.'")
+                    },
+                    border = BorderStroke(1.dp, OmnisCyan),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.fillMaxWidth().height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) {
+                    Icon(Icons.Default.Gavel, contentDescription = null, tint = OmnisCyan, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Naučit: Právní a Auditní Invariant UTC Zápisu", color = OmnisCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+

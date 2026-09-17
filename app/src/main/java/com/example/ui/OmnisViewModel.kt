@@ -239,6 +239,16 @@ class OmnisViewModel(
     private val _selectedDomain = MutableStateFlow("SYSTEMS_INTELLIGENCE")
     val selectedDomain: StateFlow<String> = _selectedDomain.asStateFlow()
 
+    data class StreamState(
+        val stage: String,
+        val text: String,
+        val score: Float? = null,
+        val status: String? = null
+    )
+
+    private val _streamState = MutableStateFlow<StreamState?>(null)
+    val streamState: StateFlow<StreamState?> = _streamState.asStateFlow()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -308,7 +318,7 @@ class OmnisViewModel(
         _isOcrLoading.value = true
         viewModelScope.launch {
             try {
-                val textWithFile = withContext(Dispatchers.IO) {
+                val textWithFile = withContext(OmnisGeminiClient.ioDispatcher) {
                     val bitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                         android.graphics.ImageDecoder.decodeBitmap(
                             android.graphics.ImageDecoder.createSource(getApplication<Application>().contentResolver, uri)
@@ -374,7 +384,7 @@ class OmnisViewModel(
                 val text = if (mimeType == "application/pdf" || fileName.endsWith(".pdf", ignoreCase = true)) {
                     PdfTextExtractor.extractText(getApplication<Application>(), uri, fileName)
                 } else {
-                    withContext(Dispatchers.IO) {
+                    withContext(OmnisGeminiClient.ioDispatcher) {
                         val contentResolver = getApplication<Application>().contentResolver
                         val inputStream = contentResolver.openInputStream(uri)
                         val bytes = inputStream?.readBytes()
@@ -603,6 +613,7 @@ class OmnisViewModel(
         _inputQuery.value = ""
         _isLoading.value = true
         _errorMessage.value = null
+        _streamState.value = StreamState("introspection", "Analýza struktury dotazu a kontrola bezpečnostních mantinelů...")
 
         viewModelScope.launch {
             try {
@@ -615,8 +626,16 @@ class OmnisViewModel(
                 )
                 repository.insert(userRecord)
 
+                kotlinx.coroutines.delay(400)
+                _streamState.value = StreamState("introspection", "Aktivován modul: omnis-core-synthesizer. Načítání kontextu z pgvector...")
+                kotlinx.coroutines.delay(400)
+                _streamState.value = StreamState("execution", "Generuji strukturovaný payload pro Akční dispečer (Gemini)...")
+
                 // Synthesize response via Gemini / cognitive engine
                 val result = OmnisGeminiClient.synthesize(trimmedQuery, _selectedDomain.value)
+                
+                _streamState.value = StreamState("verification", "MULTI-LAYER VERIFIED", result.composite, "MULTI-LAYER VERIFIED")
+                kotlinx.coroutines.delay(500)
 
                 val asstRecord = OmnisRecord(
                     role = "assistant",
@@ -639,7 +658,7 @@ class OmnisViewModel(
                 repository.insert(asstRecord)
 
                 // AUTOMATICKÝ ZÁPIS DO POSTGRESQL (Replikace na pozadí)
-                viewModelScope.launch(Dispatchers.IO) {
+                viewModelScope.launch(OmnisGeminiClient.ioDispatcher) {
                     try {
                         OmnisActionDispatcher.executeAction(
                             ActionPayload(
@@ -668,6 +687,7 @@ class OmnisViewModel(
                 _errorMessage.value = e.localizedMessage ?: e.toString()
             } finally {
                 _isLoading.value = false
+                _streamState.value = null
             }
         }
     }

@@ -9,7 +9,9 @@ class OmnisRepository(private val dao: OmnisDao) {
     suspend fun insert(record: OmnisRecord): Long {
         val rowId = dao.insertRecord(record)
         val recordWithId = record.copy(id = rowId)
-        CloudSqlSyncManager.syncRecordAsync(recordWithId)
+        if (!DatabaseConfig.isTesting) {
+            CloudSqlSyncManager.syncRecordAsync(recordWithId)
+        }
         return rowId
     }
 

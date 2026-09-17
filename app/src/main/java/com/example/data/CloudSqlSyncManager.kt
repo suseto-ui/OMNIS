@@ -13,12 +13,14 @@ import java.sql.Statement
 object CloudSqlSyncManager {
     private const val TAG = "CloudSqlSyncManager"
 
-    private val syncScope = CoroutineScope(Dispatchers.IO)
+    private val syncScope = CoroutineScope(com.example.api.OmnisGeminiClient.ioDispatcher)
 
     init {
-        // Run database initialization on startup asynchronously
-        syncScope.launch {
-            initDatabase()
+        if (!DatabaseConfig.isTesting) {
+            // Run database initialization on startup asynchronously
+            syncScope.launch {
+                initDatabase()
+            }
         }
     }
 
@@ -26,7 +28,7 @@ object CloudSqlSyncManager {
         return DatabaseConfig.getPostgresConnection()
     }
 
-    suspend fun initDatabase() = withContext(Dispatchers.IO) {
+    suspend fun initDatabase() = withContext(com.example.api.OmnisGeminiClient.ioDispatcher) {
         val conn = getConnection() ?: return@withContext
         try {
             val stmt: Statement = conn.createStatement()

@@ -52,7 +52,7 @@ object OmnisActionDispatcher {
     /**
      * Spustí deterministickou nativní akci podle ID a parametrů
      */
-    suspend fun executeAction(payload: ActionPayload): ActionExecutionResult = withContext(Dispatchers.IO) {
+    suspend fun executeAction(payload: ActionPayload): ActionExecutionResult = withContext(com.example.api.OmnisGeminiClient.ioDispatcher) {
         val logs = mutableListOf<String>()
         val timeStamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())
         logs.add("[$timeStamp] DISPATCHER: Odchycen intent '${payload.intent}' -> action_id: '${payload.actionId}'")

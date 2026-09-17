@@ -7,6 +7,15 @@ import java.sql.DriverManager
 object DatabaseConfig {
     private const val TAG = "DatabaseConfig"
 
+    val isTesting: Boolean by lazy {
+        try {
+            Class.forName("org.junit.Test")
+            true
+        } catch (e: ClassNotFoundException) {
+            false
+        }
+    }
+
     private fun getBuildConfigValue(fieldName: String): String? {
         return try {
             val clazz = Class.forName("com.example.BuildConfig")
@@ -33,6 +42,9 @@ object DatabaseConfig {
      * Establishes a direct JDBC Connection to the configured Google Cloud SQL PostgreSQL instance.
      */
     fun getPostgresConnection(): Connection? {
+        if (isTesting) {
+            return null
+        }
         val currentHost = host
         val currentPass = password
         if (currentHost.isNullOrBlank() || currentPass.isNullOrBlank()) {

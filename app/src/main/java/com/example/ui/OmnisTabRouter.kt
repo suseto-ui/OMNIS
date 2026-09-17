@@ -40,12 +40,14 @@ fun OmnisTabRouter(
                 val focusedDomain by viewModel.focusedDomain.collectAsStateWithLifecycle()
                 val selectedRecord by viewModel.selectedRecordForDetail.collectAsStateWithLifecycle()
                 val isOcrLoading by viewModel.isOcrLoading.collectAsStateWithLifecycle()
+                val streamState by viewModel.streamState.collectAsStateWithLifecycle()
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     ChatView(
                         records = records,
                         isLoading = isLoading,
                         isOcrLoading = isOcrLoading,
+                        streamState = streamState,
                         inputQuery = inputQuery,
                         onQueryChange = viewModel::onQueryChange,
                         onSend = { viewModel.sendQuery() },

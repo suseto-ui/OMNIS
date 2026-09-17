@@ -62,11 +62,7 @@ class OmnisViewModelTest {
         viewModel.setTab(OmnisTab.MATRIX)
         assertEquals(OmnisTab.MATRIX, viewModel.activeTab.value)
 
-        // Test MATRIX to DEV
-        viewModel.setTab(OmnisTab.DEV)
-        assertEquals(OmnisTab.DEV, viewModel.activeTab.value)
-        
-        // Test DEV to TEST_SEMANTIC
+        // Test MATRIX to TEST_SEMANTIC
         viewModel.setTab(OmnisTab.TEST_SEMANTIC)
         assertEquals(OmnisTab.TEST_SEMANTIC, viewModel.activeTab.value)
 

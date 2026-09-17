@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import com.example.action.ActionPayload
 import com.example.action.ActionExecutionResult
 import com.example.ui.theme.*
@@ -69,6 +70,7 @@ fun ActionDrivenInteractivePanel(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -91,7 +93,10 @@ fun ActionDrivenInteractivePanel(
                         color = OmnisCyan,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     Surface(
                         shape = RoundedCornerShape(4.dp),
@@ -102,7 +107,8 @@ fun ActionDrivenInteractivePanel(
                             color = OmnisCyan,
                             fontSize = 9.sp,
                             fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                 }
@@ -245,13 +251,18 @@ fun ActionDrivenInteractivePanel(
                                     color = OmnisCyan,
                                     fontSize = 10.sp,
                                     fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
                                 )
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "Endpoint: /api/v1/dispatch",
                                     color = OmnisTextMuted,
                                     fontSize = 9.sp,
-                                    fontFamily = FontFamily.Monospace
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 1
                                 )
                             }
                             Spacer(modifier = Modifier.height(4.dp))
