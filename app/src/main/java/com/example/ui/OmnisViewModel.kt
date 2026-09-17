@@ -91,8 +91,16 @@ class OmnisViewModel(
                 )
                 repository.insert(userActionRecord)
 
-                // 2. Nativní backend dispatcher (exekuce bez LLM)
-                val result = OmnisActionDispatcher.executeAction(payload)
+                // 2. Nativní backend dispatcher s ochranou timeoutu (10 sekund)
+                val result = kotlinx.coroutines.withTimeoutOrNull(10000L) {
+                    OmnisActionDispatcher.executeAction(payload)
+                } ?: ActionExecutionResult(
+                    actionId = payload.actionId,
+                    isSuccess = false,
+                    statusCode = 504,
+                    logs = listOf("ERROR: Exekuce akce překročila maximální časový limit (10s Timeout Guard)"),
+                    summaryReport = "TIMEOUT: Systémová akce nebylo dokončena v limitu 10.000 ms."
+                )
                 _lastActionResult.value = result
 
                 // 3. Kontextová zpětná smyčka (Tool Response): Vložení výsledků do kontextu a generování souhrnu pro operátora

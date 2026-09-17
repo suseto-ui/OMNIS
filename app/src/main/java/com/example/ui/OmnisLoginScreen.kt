@@ -20,7 +20,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.auth.OmnisAuthService
@@ -38,6 +41,7 @@ fun OmnisLoginScreen(
     val context = LocalContext.current
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
     var selectedRole by remember { mutableStateOf(UserRole.ADMIN_OPERATOR) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -227,7 +231,16 @@ fun OmnisLoginScreen(
                         onValueChange = { password = it; errorMessage = null },
                         label = { Text("Přístupový klíč operátora (např. omnis2026)") },
                         leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = OmnisAmber) },
-                        visualTransformation = PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (isPasswordVisible) "Skrýt heslo" else "Zobrazit heslo",
+                                    tint = OmnisTextMuted
+                                )
+                            }
+                        },
+                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = OmnisAmber,

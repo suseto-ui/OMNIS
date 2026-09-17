@@ -482,7 +482,8 @@ fun OmnisMainScreen(
                             onMultiDomainSynthesis = { mode -> viewModel.runMultiDomainSynthesis(mode) },
                             onExecuteActionPayload = { payload -> viewModel.executeActionPayload(payload) },
                             lastActionResult = lastActionResult,
-                            isActionExecuting = isActionExecuting
+                            isActionExecuting = isActionExecuting,
+                            userRole = currentRole
                         )
 
                         // Domain Detail Modal / Sheet
@@ -631,7 +632,8 @@ fun ChatView(
     onMultiDomainSynthesis: (String) -> Unit = {},
     onExecuteActionPayload: (com.example.action.ActionPayload) -> Unit = {},
     lastActionResult: com.example.action.ActionExecutionResult? = null,
-    isActionExecuting: Boolean = false
+    isActionExecuting: Boolean = false,
+    userRole: com.example.auth.UserRole = com.example.auth.UserRole.ADMIN_OPERATOR
 ) {
     val listState = rememberLazyListState()
     val context = LocalContext.current
@@ -860,12 +862,14 @@ fun ChatView(
             }
         }
 
-        // Action-Driven Reactive Operational Panel
-        ActionDrivenInteractivePanel(
-            onExecuteActionPayload = onExecuteActionPayload,
-            lastActionResult = lastActionResult,
-            isActionExecuting = isActionExecuting
-        )
+        // Action-Driven Reactive Operational Panel (Jen pro roli Admin / Operátor)
+        if (userRole.canAccessSystemActions()) {
+            ActionDrivenInteractivePanel(
+                onExecuteActionPayload = onExecuteActionPayload,
+                lastActionResult = lastActionResult,
+                isActionExecuting = isActionExecuting
+            )
+        }
 
         // Input Bar
         Surface(
