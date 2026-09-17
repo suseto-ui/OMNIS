@@ -12,6 +12,11 @@ import com.example.data.OmnisRecord
 import com.example.data.OmnisRepository
 import com.example.defense.OmnisPromptGateway
 import com.example.defense.PromptGatewayResult
+import com.example.action.ActionPayload
+import com.example.action.ActionExecutionResult
+import com.example.action.OmnisActionDispatcher
+import com.example.auth.OmnisAuthService
+import com.example.auth.UserRole
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +32,6 @@ enum class OmnisTab {
     NODES,
     DASHBOARD,
     MATRIX,
-    DEV,
     TEST_SEMANTIC
 }
 
@@ -38,6 +42,17 @@ class OmnisViewModel(
 
     constructor(application: Application) : this(application, null)
 
+    init {
+        OmnisAuthService.init(application)
+    }
+
+    val isAuthenticated: StateFlow<Boolean> = OmnisAuthService.isAuthenticated
+    val currentRole: StateFlow<UserRole> = OmnisAuthService.currentUserRole
+
+    fun logout() {
+        OmnisAuthService.logout(getApplication())
+    }
+
     private val repository: OmnisRepository = customRepository ?: run {
         val db = OmnisDatabase.getDatabase(application)
         OmnisRepository(db.omnisDao())
@@ -46,6 +61,85 @@ class OmnisViewModel(
 
     private val _activeTab = MutableStateFlow(OmnisTab.CHAT)
     val activeTab: StateFlow<OmnisTab> = _activeTab.asStateFlow()
+
+    // Action-Driven Dispatcher State
+    private val _lastActionResult = MutableStateFlow<ActionExecutionResult?>(null)
+    val lastActionResult: StateFlow<ActionExecutionResult?> = _lastActionResult.asStateFlow()
+
+    private val _isActionExecuting = MutableStateFlow(false)
+    val isActionExecuting: StateFlow<Boolean> = _isActionExecuting.asStateFlow()
+
+    fun executeActionPayload(payload: ActionPayload) {
+        if (_isActionExecuting.value) return
+        _isActionExecuting.value = true
+
+        viewModelScope.launch {
+            try {
+                // RBAC Kontrola: Pouze operátor může spouštět systémové akce
+                val currentRole = OmnisAuthService.currentUserRole.value
+                if (!currentRole.canAccessSystemActions()) {
+                    _errorMessage.value = "Přístup odepřen: Akční dispečer vyžaduje roli Admin / Operátor."
+                    _isActionExecuting.value = false
+                    return@launch
+                }
+
+                // 1. Záznam volání do chatu jako uživatelský/systémový JSON příkaz
+                val userActionRecord = OmnisRecord(
+                    role = "user",
+                    content = "⚡ [ACTION DISPATCH] Volání intentu: `${payload.intent}` | Akce: `${payload.actionId}`\n\n```json\n${payload.toJsonString()}\n```",
+                    domain = _selectedDomain.value
+                )
+                repository.insert(userActionRecord)
+
+                // 2. Nativní backend dispatcher (exekuce bez LLM)
+                val result = OmnisActionDispatcher.executeAction(payload)
+                _lastActionResult.value = result
+
+                // 3. Kontextová zpětná smyčka (Tool Response): Vložení výsledků do kontextu a generování souhrnu pro operátora
+                val logsFormatted = result.logs.joinToString("\n")
+                val responseContent = buildString {
+                    appendLine("### 🛠️ VÝSLEDEK NATIVNÍHO DISPEČINKU [Kód ${result.statusCode}]")
+                    appendLine(result.summaryReport)
+                    appendLine()
+                    appendLine("#### 📋 Systémové logy:")
+                    appendLine("```text")
+                    appendLine(logsFormatted)
+                    appendLine("```")
+                    if (result.outputData.isNotEmpty()) {
+                        appendLine("#### 📊 Výstupní data:")
+                        result.outputData.forEach { (k, v) ->
+                            appendLine("- **$k**: `$v`")
+                        }
+                    }
+                }
+
+                val toolResponseRecord = OmnisRecord(
+                    role = "assistant",
+                    content = responseContent,
+                    cognitiveProcess = "1. Odchycení intentu ${payload.intent} dispečerem.\n2. Nativní spuštění bez LLM.\n3. Zpětné vložení Tool Response do kontextu paměti.",
+                    followUpQuestions = "Jak interpretovat zjištěnou latenci?|Spustit doplňkový audit eBPF?",
+                    valSys = 0.99f,
+                    valEcon = 0.95f,
+                    valPsych = 0.90f,
+                    valEco = 0.92f,
+                    valLaw = 0.99f,
+                    valSec = 1.00f,
+                    valPhys = 0.95f,
+                    valSoc = 0.90f,
+                    compositeScore = 0.95f,
+                    domain = "SYSTEMS_INTELLIGENCE",
+                    defenseTier = "DISPATCH_EXECUTED"
+                )
+                repository.insert(toolResponseRecord)
+
+            } catch (e: Exception) {
+                Log.e("OmnisViewModel", "executeActionPayload failed", e)
+                _errorMessage.value = "Chyba při exekuci akce: ${e.localizedMessage}"
+            } finally {
+                _isActionExecuting.value = false
+            }
+        }
+    }
 
     // 8D State Management
     private val _selectedDomains = MutableStateFlow<Set<String>>(emptySet())
@@ -255,34 +349,38 @@ class OmnisViewModel(
         _isOcrLoading.value = true
         viewModelScope.launch {
             try {
-                val text = withContext(Dispatchers.IO) {
-                    val contentResolver = getApplication<Application>().contentResolver
-                    val inputStream = contentResolver.openInputStream(uri)
-                    val bytes = inputStream?.readBytes()
-                    inputStream?.close()
+                val text = if (mimeType == "application/pdf" || fileName.endsWith(".pdf", ignoreCase = true)) {
+                    PdfTextExtractor.extractText(getApplication<Application>(), uri, fileName)
+                } else {
+                    withContext(Dispatchers.IO) {
+                        val contentResolver = getApplication<Application>().contentResolver
+                        val inputStream = contentResolver.openInputStream(uri)
+                        val bytes = inputStream?.readBytes()
+                        inputStream?.close()
 
-                    if (bytes != null) {
-                        val base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                        OmnisGeminiClient.extractTextFromDocument(base64Data, mimeType)
-                    } else {
-                        null
+                        if (bytes != null) {
+                            val base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                            OmnisGeminiClient.extractTextFromDocument(base64Data, mimeType)
+                        } else {
+                            null
+                        }
                     }
                 }
 
-                if (text != null && text.isNotBlank()) {
+                if (!text.isNullOrBlank()) {
                     val currentText = _inputQuery.value
                     val newText = if (currentText.isNotBlank()) {
-                        "$currentText\n\n--- Obsah PDF ($fileName) ---\n$text\n--- Konec PDF ---"
+                        "$currentText\n\n--- Obsah dokumentu ($fileName) ---\n$text\n--- Konec dokumentu ---"
                     } else {
-                        "--- Obsah PDF ($fileName) ---\n$text\n--- Konec PDF ---"
+                        "--- Obsah dokumentu ($fileName) ---\n$text\n--- Konec dokumentu ---"
                     }
                     _inputQuery.value = newText
                 } else {
-                    _errorMessage.value = "Z dokumentu se nepodařilo přečíst žádný text."
+                    _errorMessage.value = "Z dokumentu $fileName se nepodařilo přečíst text."
                 }
             } catch (e: Exception) {
                 Log.e("OmnisViewModel", "Document extraction Failed", e)
-                _errorMessage.value = "Chyba při zpracování dokumentu."
+                _errorMessage.value = "Chyba při zpracování dokumentu: ${e.localizedMessage ?: "Neznámá chyba"}"
             } finally {
                 _isOcrLoading.value = false
             }

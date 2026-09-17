@@ -71,6 +71,18 @@ fun OmnisMainScreen(
     onSpeak: (String) -> Unit,
     onExportPdf: (OmnisRecord) -> Unit
 ) {
+    val isAuthenticated by viewModel.isAuthenticated.collectAsStateWithLifecycle()
+    val currentRole by viewModel.currentRole.collectAsStateWithLifecycle()
+
+    if (!isAuthenticated) {
+        OmnisLoginScreen(
+            onLoginSuccess = {
+                // Auth stav je automaticky aktualizován v OmnisAuthService a OmnisViewModel
+            }
+        )
+        return
+    }
+
     val activeTab by viewModel.activeTab.collectAsStateWithLifecycle()
     val records by viewModel.records.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
@@ -80,12 +92,19 @@ fun OmnisMainScreen(
     
     val navState = remember { com.example.ui.OmnisNavigationState() }
     val showDeleteConfirm by navState.showDeleteConfirm.collectAsStateWithLifecycle()
-    val showDevLockDialog by navState.showDevLockDialog.collectAsStateWithLifecycle()
-    val devPassword by navState.devPassword.collectAsStateWithLifecycle()
-    val devUnlocked by navState.devUnlocked.collectAsStateWithLifecycle()
+    val isActionExecuting by viewModel.isActionExecuting.collectAsStateWithLifecycle()
+    val lastActionResult by viewModel.lastActionResult.collectAsStateWithLifecycle()
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        }
+    }
 
     ocrValidationState?.let { state ->
         com.example.ui.OcrValidationDialog(
@@ -127,40 +146,6 @@ fun OmnisMainScreen(
             },
             dismissButton = {
                 TextButton(onClick = { navState.setShowDeleteConfirm(false) }) { Text("Zrušit") }
-            }
-        )
-    }
-
-    if (showDevLockDialog) {
-        AlertDialog(
-            onDismissRequest = { navState.setShowDevLockDialog(false) },
-            title = { Text("Kognitivní autorizace") },
-            text = {
-                Column {
-                    Text("Zadejte přístupové heslo pro DEV rozhraní:")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = devPassword,
-                        onValueChange = { navState.setDevPassword(it) },
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (navState.unlockDev(devPassword)) {
-                            viewModel.setTab(OmnisTab.DEV)
-                        }
-                        navState.setShowDevLockDialog(false)
-                        navState.setDevPassword("")
-                    }
-                ) { Text("Ověřit") }
-            },
-            dismissButton = {
-                TextButton(onClick = { navState.setShowDevLockDialog(false) }) { Text("Zrušit") }
             }
         )
     }
@@ -321,49 +306,51 @@ fun OmnisMainScreen(
                         .height(52.dp)
                 )
 
-                if (devUnlocked) {
-                    NavigationDrawerItem(
-                        label = { Text("Sémantický Test", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                        selected = activeTab == OmnisTab.TEST_SEMANTIC,
-                        onClick = {
-                            viewModel.setTab(OmnisTab.TEST_SEMANTIC)
-                            scope.launch { drawerState.close() }
-                        },
-                        icon = { Icon(Icons.Default.Science, contentDescription = null) },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = OmnisAmber.copy(alpha = 0.15f),
-                            selectedIconColor = OmnisAmber,
-                            selectedTextColor = OmnisAmber,
-                            unselectedContainerColor = Color.Transparent,
-                            unselectedIconColor = OmnisTextMuted,
-                            unselectedTextColor = OmnisTextMuted
-                        ),
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                            .height(52.dp)
-                    )
+                Spacer(modifier = Modifier.weight(1f))
+                HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 8.dp))
 
-                    NavigationDrawerItem(
-                        label = { Text("Vývojová Laboratoř", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                        selected = activeTab == OmnisTab.DEV,
-                        onClick = {
-                            viewModel.setTab(OmnisTab.DEV)
-                            scope.launch { drawerState.close() }
-                        },
-                        icon = { Icon(Icons.Default.Build, contentDescription = null) },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = OmnisAmber.copy(alpha = 0.15f),
-                            selectedIconColor = OmnisAmber,
-                            selectedTextColor = OmnisAmber,
-                            unselectedContainerColor = Color.Transparent,
-                            unselectedIconColor = OmnisTextMuted,
-                            unselectedTextColor = OmnisTextMuted
-                        ),
+                // Role badge and Logout
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    color = OmnisCardDark,
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark)
+                ) {
+                    Row(
                         modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                            .height(52.dp)
-                    )
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("Role:", color = OmnisTextMuted, fontSize = 10.sp)
+                            Text(
+                                text = if (currentRole == com.example.auth.UserRole.ADMIN_OPERATOR) "Admin / Operátor" else "Běžný Uživatel",
+                                color = if (currentRole == com.example.auth.UserRole.ADMIN_OPERATOR) OmnisAmber else OmnisCyan,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                viewModel.logout()
+                                scope.launch { drawerState.close() }
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ExitToApp,
+                                contentDescription = "Odhlásit se",
+                                tint = Color.Red.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
                 }
+                Spacer(modifier = Modifier.height(12.dp))
             }
         }
     ) {
@@ -395,14 +382,7 @@ fun OmnisMainScreen(
                     title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.combinedClickable(
-                            onClick = { },
-                            onLongClick = { 
-                                if (!devUnlocked) navState.setShowDevLockDialog(true) 
-                                else viewModel.setTab(OmnisTab.DEV)
-                            }
-                        )
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Box(
                             modifier = Modifier
@@ -499,7 +479,10 @@ fun OmnisMainScreen(
                             onDomainLongClick = viewModel::focusDomain,
                             onAuthorizeRecord = viewModel::authorizeBlockedRecord,
                             onClearDomainSelection = viewModel::clearSelection,
-                            onMultiDomainSynthesis = { mode -> viewModel.runMultiDomainSynthesis(mode) }
+                            onMultiDomainSynthesis = { mode -> viewModel.runMultiDomainSynthesis(mode) },
+                            onExecuteActionPayload = { payload -> viewModel.executeActionPayload(payload) },
+                            lastActionResult = lastActionResult,
+                            isActionExecuting = isActionExecuting
                         )
 
                         // Domain Detail Modal / Sheet
@@ -606,7 +589,6 @@ fun OmnisMainScreen(
                     records = records,
                     onItemClick = { record -> viewModel.jumpToContext(record) }
                 )
-                OmnisTab.DEV -> DevView()
                 OmnisTab.TEST_SEMANTIC -> {
                     val testRecords by viewModel.testSemanticRecords.collectAsStateWithLifecycle()
                     val testQuery by viewModel.inputQuery.collectAsStateWithLifecycle()
@@ -646,7 +628,10 @@ fun ChatView(
     onDomainLongClick: (String, OmnisRecord) -> Unit = { _, _ -> },
     onAuthorizeRecord: (OmnisRecord) -> Unit = {},
     onClearDomainSelection: () -> Unit = {},
-    onMultiDomainSynthesis: (String) -> Unit = {}
+    onMultiDomainSynthesis: (String) -> Unit = {},
+    onExecuteActionPayload: (com.example.action.ActionPayload) -> Unit = {},
+    lastActionResult: com.example.action.ActionExecutionResult? = null,
+    isActionExecuting: Boolean = false
 ) {
     val listState = rememberLazyListState()
     val context = LocalContext.current
@@ -874,6 +859,13 @@ fun ChatView(
                 }
             }
         }
+
+        // Action-Driven Reactive Operational Panel
+        ActionDrivenInteractivePanel(
+            onExecuteActionPayload = onExecuteActionPayload,
+            lastActionResult = lastActionResult,
+            isActionExecuting = isActionExecuting
+        )
 
         // Input Bar
         Surface(
@@ -1611,72 +1603,6 @@ fun DimensionSliderCard(
                 modifier = Modifier.fillMaxWidth()
             )
         }
-    }
-}
-
-@Composable
-fun DevInfoRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(text = label, color = OmnisTextMuted, fontSize = 12.sp)
-        Text(text = value, color = OmnisCyan, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-    }
-}
-
-@Composable
-fun DevView() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = OmnisPanelDark,
-            border = androidx.compose.foundation.BorderStroke(1.dp, OmnisAmber),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "DEV ROZHRANÍ (LABORATOŘ)",
-                    color = OmnisAmber,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace
-                )
-                Text(
-                    text = "Přístup k diagnostice systému a nízkoúrovňovým parametrům.",
-                    color = OmnisTextMuted,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-        }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = OmnisPanelDark),
-            border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Systémové informace", color = Color.White, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
-                DevInfoRow("Verze jádra", "2.6.0-stable")
-                DevInfoRow("Model", "Gemini 1.5 Pro (via Vertex)")
-                DevInfoRow("Latence", "1.2s avg")
-                DevInfoRow("Databáze", "Room/SQLite (omnis_local_db)")
-            }
-        }
-        
-        Text(
-            text = "Diagnostika historie: Databáze se nachází v interním úložišti aplikace: /data/data/com.example/databases/omnis_local_db. Přístup je možný přes App Inspection v IDE nebo exportem zálohy.",
-            color = OmnisTextMuted,
-            fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace
-        )
     }
 }
 
