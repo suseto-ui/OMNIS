@@ -24,5 +24,6 @@ data class OmnisRecord(
     val attachedImagePath: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
     val defenseTier: String = "APPROVED",
-    val defenseNotes: String = ""
+    val defenseNotes: String = "",
+    val isSyncedToPostgres: Boolean = false
 )

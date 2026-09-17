@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [OmnisRecord::class], version = 4, exportSchema = false)
+@Database(entities = [OmnisRecord::class], version = 5, exportSchema = false)
 abstract class OmnisDatabase : RoomDatabase() {
     abstract fun omnisDao(): OmnisDao
 
@@ -19,7 +19,9 @@ abstract class OmnisDatabase : RoomDatabase() {
                     context.applicationContext,
                     OmnisDatabase::class.java,
                     "omnis_local_db"
-                ).fallbackToDestructiveMigration(true).build()
+                )
+                    .fallbackToDestructiveMigration(true)
+                    .build()
                 INSTANCE = instance
                 instance
             }

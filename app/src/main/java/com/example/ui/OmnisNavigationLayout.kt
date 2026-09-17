@@ -268,191 +268,22 @@ fun OmnisMainScreen(
                 )
             }
     ) { innerPadding ->
-        Box(
+        OmnisTabRouter(
+            activeTab = activeTab,
+            records = records,
+            isLoading = isLoading,
+            inputQuery = inputQuery,
+            lastActionResult = lastActionResult,
+            isActionExecuting = isActionExecuting,
+            currentRole = currentRole,
+            onSpeak = onSpeak,
+            onExportPdf = onExportPdf,
+            viewModel = viewModel,
             modifier = Modifier
-                .fillMaxSize()
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding)
                 .imePadding()
-                .background(OmnisBgDark)
-        ) {
-            when (activeTab) {
-                OmnisTab.CHAT -> {
-                    val selectedDomains by viewModel.selectedDomains.collectAsStateWithLifecycle()
-                    val focusedDomain by viewModel.focusedDomain.collectAsStateWithLifecycle()
-                    val selectedRecord by viewModel.selectedRecordForDetail.collectAsStateWithLifecycle()
-                    val isOcrLoading by viewModel.isOcrLoading.collectAsStateWithLifecycle()
-
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        ChatView(
-                            records = records,
-                            isLoading = isLoading,
-                            isOcrLoading = isOcrLoading,
-                            inputQuery = inputQuery,
-                            onQueryChange = viewModel::onQueryChange,
-                            onSend = { viewModel.sendQuery() },
-                            onQuickQuery = { viewModel.sendQuery(it) },
-                            onSpeak = onSpeak,
-                            onExportPdf = onExportPdf,
-                            onImageSelected = { uri -> viewModel.extractTextFromImage(uri) },
-                            onDocumentSelected = { uri, name, mimeType -> viewModel.extractTextFromDocument(uri, name, mimeType) },
-                            scrollToId = viewModel.scrollToId.collectAsStateWithLifecycle().value,
-                            onScrollComplete = { viewModel.clearScrollJump() },
-                            selectedDomains = selectedDomains,
-                            onDomainClick = viewModel::toggleDomainSelection,
-                            onDomainLongClick = viewModel::focusDomain,
-                            onAuthorizeRecord = viewModel::authorizeBlockedRecord,
-                            onClearDomainSelection = viewModel::clearSelection,
-                            onMultiDomainSynthesis = { mode -> viewModel.runMultiDomainSynthesis(mode) },
-                            onExecuteActionPayload = { payload -> viewModel.executeActionPayload(payload) },
-                            lastActionResult = lastActionResult,
-                            isActionExecuting = isActionExecuting,
-                            userRole = currentRole
-                        )
-
-                        // Domain Detail Modal / Sheet
-                        if (focusedDomain != null && selectedRecord != null) {
-                            ModalBottomSheet(
-                                onDismissRequest = { viewModel.clearFocus() },
-                                containerColor = OmnisBgDark,
-                                dragHandle = { BottomSheetDefaults.DragHandle(color = OmnisBorderDark) }
-                            ) {
-                                DomainDetailContent(
-                                    domain = focusedDomain!!,
-                                    record = selectedRecord!!,
-                                    onOptimize = { viewModel.optimizeForDomain(focusedDomain!!, selectedRecord!!) }
-                                )
-                            }
-                        }
-                    }
-                }
-                OmnisTab.MATRIX -> {
-                    val fixedDomains by viewModel.fixedDomains.collectAsStateWithLifecycle()
-                    val isComparing by viewModel.isComparing.collectAsStateWithLifecycle()
-                    val comparisonResult by viewModel.comparisonResult.collectAsStateWithLifecycle()
-
-                    OctagonDashboard(
-                        records = records,
-                        latestRecord = records.lastOrNull { it.role == "assistant" },
-                        simSys = viewModel.simSys.collectAsStateWithLifecycle().value,
-                        simEcon = viewModel.simEcon.collectAsStateWithLifecycle().value,
-                        simPsych = viewModel.simPsych.collectAsStateWithLifecycle().value,
-                        simEco = viewModel.simEco.collectAsStateWithLifecycle().value,
-                        simLaw = viewModel.simLaw.collectAsStateWithLifecycle().value,
-                        simSec = viewModel.simSec.collectAsStateWithLifecycle().value,
-                        simPhys = viewModel.simPhys.collectAsStateWithLifecycle().value,
-                        simSoc = viewModel.simSoc.collectAsStateWithLifecycle().value,
-                        fixedDomains = fixedDomains,
-                        onToggleFix = viewModel::toggleDomainFixation,
-                        onSimChange = { sys, econ, psych, eco, law, sec, phys, soc ->
-                            viewModel.setSimSys(sys)
-                            viewModel.setSimEcon(econ)
-                            viewModel.setSimPsych(psych)
-                            viewModel.setSimEco(eco)
-                            viewModel.setSimLaw(law)
-                            viewModel.setSimSec(sec)
-                            viewModel.setSimPhys(phys)
-                            viewModel.setSimSoc(soc)
-                        },
-                        isComparing = isComparing,
-                        comparisonResult = comparisonResult,
-                        onSynthesize = { selectedIds ->
-                            viewModel.synthesizeSelectedRecords(selectedIds)
-                        },
-                        onClearComparison = {
-                            viewModel.clearComparison()
-                        },
-                        onDirectMitigate = { prompt ->
-                            viewModel.setTab(OmnisTab.CHAT)
-                            viewModel.sendQuery(prompt)
-                        }
-                    )
-                }
-                OmnisTab.MEMORY -> MemoryView(
-                    records = records,
-                    onItemClick = { record ->
-                        viewModel.jumpToContext(record)
-                    }
-                )
-                OmnisTab.ANALYTICS -> OctagonDashboard(
-                    records = records,
-                    latestRecord = records.lastOrNull { it.role == "assistant" },
-                    simSys = viewModel.simSys.collectAsStateWithLifecycle().value,
-                    simEcon = viewModel.simEcon.collectAsStateWithLifecycle().value,
-                    simPsych = viewModel.simPsych.collectAsStateWithLifecycle().value,
-                    simEco = viewModel.simEco.collectAsStateWithLifecycle().value,
-                    simLaw = viewModel.simLaw.collectAsStateWithLifecycle().value,
-                    simSec = viewModel.simSec.collectAsStateWithLifecycle().value,
-                    simPhys = viewModel.simPhys.collectAsStateWithLifecycle().value,
-                    simSoc = viewModel.simSoc.collectAsStateWithLifecycle().value,
-                    fixedDomains = viewModel.fixedDomains.collectAsStateWithLifecycle().value,
-                    onToggleFix = viewModel::toggleDomainFixation,
-                    onSimChange = { sys, econ, psych, eco, law, sec, phys, soc ->
-                        viewModel.setSimSys(sys)
-                        viewModel.setSimEcon(econ)
-                        viewModel.setSimPsych(psych)
-                        viewModel.setSimEco(eco)
-                        viewModel.setSimLaw(law)
-                        viewModel.setSimSec(sec)
-                        viewModel.setSimPhys(phys)
-                        viewModel.setSimSoc(soc)
-                    },
-                    isComparing = viewModel.isComparing.collectAsStateWithLifecycle().value,
-                    comparisonResult = viewModel.comparisonResult.collectAsStateWithLifecycle().value,
-                    onSynthesize = { selectedIds -> viewModel.synthesizeSelectedRecords(selectedIds) },
-                    onClearComparison = { viewModel.clearComparison() },
-                    onDirectMitigate = { prompt ->
-                        viewModel.setTab(OmnisTab.CHAT)
-                        viewModel.sendQuery(prompt)
-                    }
-                )
-                OmnisTab.ADMIN -> AdminHubView(
-                    records = records,
-                    onExecuteAction = { payload ->
-                        viewModel.setTab(OmnisTab.CHAT)
-                        viewModel.executeActionPayload(payload)
-                    },
-                    onNavigateToChat = { prompt ->
-                        viewModel.setTab(OmnisTab.CHAT)
-                        viewModel.sendQuery(prompt)
-                    },
-                    onPurgeSyncedRecords = { syncedCount ->
-                        viewModel.purgeSyncedLocalRecords(syncedCount)
-                    }
-                )
-                OmnisTab.NODES -> CognitiveNodesView(
-                    records = records,
-                    onExecuteAction = { payload ->
-                        viewModel.setTab(OmnisTab.CHAT)
-                        viewModel.executeActionPayload(payload)
-                    },
-                    onNavigateToChat = { prompt ->
-                        viewModel.setTab(OmnisTab.CHAT)
-                        viewModel.sendQuery(prompt)
-                    },
-                    onPurgeSyncedRecords = { syncedCount ->
-                        viewModel.purgeSyncedLocalRecords(syncedCount)
-                    }
-                )
-                OmnisTab.DASHBOARD -> MemoryView(
-                    records = records,
-                    onItemClick = { record -> viewModel.jumpToContext(record) }
-                )
-                OmnisTab.TEST_SEMANTIC -> {
-                    val testRecords by viewModel.testSemanticRecords.collectAsStateWithLifecycle()
-                    val testQuery by viewModel.inputQuery.collectAsStateWithLifecycle()
-                    TestSemanticChatView(
-                        records = testRecords,
-                        isLoading = isLoading,
-                        inputQuery = testQuery,
-                        onQueryChange = viewModel::onQueryChange,
-                        onSend = { viewModel.sendTestSemanticQuery(testQuery) },
-                        onWeightChange = viewModel::updateSemanticAnchorWeight,
-                        onReSynthesize = viewModel::reSynthesizeTestRecord
-                    )
-                }
-            }
-        }
+        )
     }
 }
 }

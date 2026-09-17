@@ -406,6 +406,80 @@ fun AdminDataIntegrityCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // Unsynced Entities Table Overview
+            val unsyncedList = records.filter { !it.isSyncedToPostgres }
+            Text(
+                text = "TABULKA NESYNCHRONIZOVANÝCH ENTIT (${unsyncedList.size}):",
+                color = OmnisAmber,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+
+            if (unsyncedList.isEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = OmnisPanelDark,
+                    border = BorderStroke(1.dp, OmnisBorderDark),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "✓ Všechny lokální entity jsou plně synchronizovány s PostgreSQL.",
+                        color = OmnisEmerald,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = OmnisPanelDark,
+                    border = BorderStroke(1.dp, OmnisBorderDark),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        // Table Header
+                        Row(
+                            modifier = Modifier.fillMaxWidth().background(OmnisBgDark).padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("ID", color = OmnisTextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, modifier = Modifier.width(36.dp))
+                            Text("ROLE", color = OmnisTextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, modifier = Modifier.width(60.dp))
+                            Text("DOMÉNA", color = OmnisTextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, modifier = Modifier.width(70.dp))
+                            Text("OBSAH (OBSERVER)", color = OmnisTextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                        }
+                        HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 4.dp))
+
+                        // Table Rows (max 5 rows visible with scroll/summary)
+                        unsyncedList.take(5).forEach { rec ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("#${rec.id}", color = Color.White, fontSize = 9.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(36.dp))
+                                Text(rec.role.uppercase(), color = if (rec.role == "user") OmnisCyan else OmnisViolet, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, modifier = Modifier.width(60.dp))
+                                Text(rec.domain, color = OmnisAmber, fontSize = 9.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(70.dp))
+                                Text(rec.content.take(45) + if (rec.content.length > 45) "..." else "", color = OmnisTextMuted, fontSize = 9.sp, modifier = Modifier.weight(1f))
+                            }
+                        }
+                        if (unsyncedList.size > 5) {
+                            Text(
+                                text = "+ dalších ${unsyncedList.size - 5} nesynchronizovaných entit...",
+                                color = OmnisTextMuted,
+                                fontSize = 9.sp,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(start = 6.dp, top = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             // Admin Actions Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
