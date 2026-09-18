@@ -1,8 +1,13 @@
 package com.example.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
@@ -13,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,267 +27,337 @@ import com.example.auth.UserRole
 import com.example.ui.theme.*
 
 /**
- * Extrahovaná komponenta postranního menu (Navigation Drawer) pro O.M.N.I.S.
+ * Modální vysouvací navigační panel O.M.N.I.S.
+ * Plně responzivní s dynamickým scrollováním, ochranou proti ořezu textu a podporou role operátora.
  */
 @Composable
 fun OmnisDrawerContent(
     activeTab: OmnisTab,
-    currentRole: UserRole,
     isCircuitBreakerTripped: Boolean,
+    currentRole: UserRole,
     onTabSelected: (OmnisTab) -> Unit,
     onToggleCircuitBreaker: () -> Unit,
     onSwitchToAdminClick: () -> Unit,
     onLogoutClick: () -> Unit
 ) {
+    val scrollState = rememberScrollState()
+
     ModalDrawerSheet(
         drawerContainerColor = OmnisBgDark,
         drawerShape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
-        modifier = Modifier.width(280.dp)
+        modifier = Modifier
+            .widthIn(min = 320.dp, max = 340.dp)
+            .fillMaxWidth(0.85f)
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
-        Row(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .navigationBarsPadding()
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Brush.linearGradient(listOf(OmnisCyan, OmnisViolet))),
-                contentAlignment = Alignment.Center
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Header
+            Row(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Ω", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Brush.linearGradient(listOf(OmnisCyan, OmnisViolet))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Ω", color = Color.Black, fontWeight = FontWeight.Black, fontSize = 22.sp)
+                }
+                Column {
+                    Text("O.M.N.I.S.", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                    Text("Kognitivní Řízení v2.7", color = OmnisCyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                }
             }
-            Column {
-                Text("O.M.N.I.S.", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("Kognitivní Řízení v2.7", color = OmnisCyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+
+            HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+
+            // Sekce: Hlavní velení
+            DrawerSectionHeader("HLAVNÍ VELENÍ")
+
+            DrawerItem(
+                title = "Operační Kokpit",
+                icon = Icons.Default.Speed,
+                selected = activeTab == OmnisTab.DASHBOARD,
+                tint = OmnisCyan,
+                onClick = { onTabSelected(OmnisTab.DASHBOARD) }
+            )
+
+            DrawerItem(
+                title = "Kognitivní Chat",
+                icon = Icons.AutoMirrored.Filled.Send,
+                selected = activeTab == OmnisTab.CHAT,
+                tint = OmnisCyan,
+                onClick = { onTabSelected(OmnisTab.CHAT) }
+            )
+
+            HorizontalDivider(color = OmnisBorderDark.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+
+            // Sekce: Kognitivní Moduly
+            DrawerSectionHeader("KOGNITIVNÍ MODULY")
+
+            DrawerItem(
+                title = "Neural Nexus",
+                icon = Icons.Default.Hub,
+                selected = activeTab == OmnisTab.NEXUS,
+                tint = OmnisEmerald,
+                onClick = { onTabSelected(OmnisTab.NEXUS) }
+            )
+
+            DrawerItem(
+                title = "Scenario Architect",
+                icon = Icons.Default.Timeline,
+                selected = activeTab == OmnisTab.SCENARIOS,
+                tint = OmnisCyan,
+                onClick = { onTabSelected(OmnisTab.SCENARIOS) }
+            )
+
+            DrawerItem(
+                title = "Autonomní Cíle",
+                icon = Icons.Default.Flag,
+                selected = activeTab == OmnisTab.GOALS,
+                tint = OmnisEmerald,
+                onClick = { onTabSelected(OmnisTab.GOALS) }
+            )
+
+            DrawerItem(
+                title = "Artefakty & Výstupy",
+                icon = Icons.Default.Inventory2,
+                selected = activeTab == OmnisTab.ARTIFACTS,
+                tint = OmnisViolet,
+                onClick = { onTabSelected(OmnisTab.ARTIFACTS) }
+            )
+
+            DrawerItem(
+                title = "Historická Paměť",
+                icon = Icons.Default.Star,
+                selected = activeTab == OmnisTab.MEMORY,
+                tint = OmnisCyan,
+                onClick = { onTabSelected(OmnisTab.MEMORY) }
+            )
+
+            DrawerItem(
+                title = "Analytický Přehled (8D)",
+                icon = Icons.Default.Analytics,
+                selected = activeTab == OmnisTab.ANALYTICS,
+                tint = OmnisCyan,
+                onClick = { onTabSelected(OmnisTab.ANALYTICS) }
+            )
+
+            HorizontalDivider(color = OmnisBorderDark.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+
+            // Sekce: Observabilita
+            DrawerSectionHeader("OBSERVABILITA & TELEMETRIE")
+
+            DrawerItem(
+                title = "Systémová Telemetrie",
+                icon = Icons.Default.Dns,
+                selected = activeTab == OmnisTab.TELEMETRY,
+                tint = OmnisCyan,
+                onClick = { onTabSelected(OmnisTab.TELEMETRY) }
+            )
+
+            // Sekce: Administrace
+            if (currentRole.canAccessSystemActions()) {
+                HorizontalDivider(color = OmnisBorderDark.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                DrawerSectionHeader("ADMINISTRACE & SYSTÉM")
+
+                DrawerItem(
+                    title = "Administrátorské Centrum",
+                    icon = Icons.Default.AdminPanelSettings,
+                    selected = activeTab == OmnisTab.ADMIN,
+                    tint = OmnisAmber,
+                    onClick = { onTabSelected(OmnisTab.ADMIN) }
+                )
+
+                DrawerItem(
+                    title = "Kognitivní Uzly & Invarianty",
+                    icon = Icons.Default.AccountTree,
+                    selected = activeTab == OmnisTab.NODES,
+                    tint = OmnisCyan,
+                    onClick = { onTabSelected(OmnisTab.NODES) }
+                )
+
+                DrawerItem(
+                    title = "Octagon 8D Matice",
+                    icon = Icons.Default.Grid4x4,
+                    selected = activeTab == OmnisTab.MATRIX,
+                    tint = OmnisViolet,
+                    onClick = { onTabSelected(OmnisTab.MATRIX) }
+                )
+
+                DrawerItem(
+                    title = "Sémantický Testovací Chat",
+                    icon = Icons.Default.Science,
+                    selected = activeTab == OmnisTab.TEST_SEMANTIC,
+                    tint = OmnisCyan,
+                    onClick = { onTabSelected(OmnisTab.TEST_SEMANTIC) }
+                )
             }
-        }
-        HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 12.dp))
-        
-        NavigationDrawerItem(
-            label = { Text("Kognitivní Chat", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-            selected = activeTab == OmnisTab.CHAT,
-            onClick = { onTabSelected(OmnisTab.CHAT) },
-            icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
-            colors = NavigationDrawerItemDefaults.colors(
-                selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                selectedIconColor = OmnisCyan,
-                selectedTextColor = OmnisCyan,
-                unselectedContainerColor = Color.Transparent,
-                unselectedIconColor = OmnisTextMuted,
-                unselectedTextColor = OmnisTextMuted
-            ),
-            modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-                .height(52.dp)
-        )
 
-        NavigationDrawerItem(
-            label = { Text("Analytický Přehled", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-            selected = activeTab == OmnisTab.ANALYTICS,
-            onClick = { onTabSelected(OmnisTab.ANALYTICS) },
-            icon = { Icon(Icons.Default.Analytics, contentDescription = null) },
-            colors = NavigationDrawerItemDefaults.colors(
-                selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                selectedIconColor = OmnisCyan,
-                selectedTextColor = OmnisCyan,
-                unselectedContainerColor = Color.Transparent,
-                unselectedIconColor = OmnisTextMuted,
-                unselectedTextColor = OmnisTextMuted
-            ),
-            modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-                .height(52.dp)
-        )
-        
-        NavigationDrawerItem(
-            label = { Text("Historická Paměť & Archiv", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-            selected = activeTab == OmnisTab.MEMORY,
-            onClick = { onTabSelected(OmnisTab.MEMORY) },
-            icon = { Icon(Icons.Default.Star, contentDescription = null) },
-            colors = NavigationDrawerItemDefaults.colors(
-                selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                selectedIconColor = OmnisCyan,
-                selectedTextColor = OmnisCyan,
-                unselectedContainerColor = Color.Transparent,
-                unselectedIconColor = OmnisTextMuted,
-                unselectedTextColor = OmnisTextMuted
-            ),
-            modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-                .height(52.dp)
-        )
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
 
-        if (currentRole.canAccessSystemActions()) {
-            NavigationDrawerItem(
-                label = { Text("Administrátorské Centrum", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                selected = activeTab == OmnisTab.ADMIN,
-                onClick = { onTabSelected(OmnisTab.ADMIN) },
-                icon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = OmnisAmber) },
-                colors = NavigationDrawerItemDefaults.colors(
-                    selectedContainerColor = OmnisAmber.copy(alpha = 0.15f),
-                    selectedIconColor = OmnisAmber,
-                    selectedTextColor = OmnisAmber,
-                    unselectedContainerColor = Color.Transparent,
-                    unselectedIconColor = OmnisAmber,
-                    unselectedTextColor = OmnisAmber
-                ),
-                modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                    .height(52.dp)
-            )
+            // Admin Circuit Breaker Switch (Hlavní Jistič)
+            if (currentRole.canAccessSystemActions()) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    color = OmnisPanelDark,
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isCircuitBreakerTripped) Color.Red else OmnisAmber)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PowerSettingsNew,
+                                contentDescription = null,
+                                tint = if (isCircuitBreakerTripped) Color.Red else OmnisAmber,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column {
+                                Text("HLAVNÍ JISTIČ", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                                Text(
+                                    text = if (isCircuitBreakerTripped) "VYPNUTO (Blokáda)" else "ZAPNUTO (Aktivní)",
+                                    color = if (isCircuitBreakerTripped) Color.Red else OmnisEmerald,
+                                    fontSize = 9.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = !isCircuitBreakerTripped,
+                            onCheckedChange = { onToggleCircuitBreaker() },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = OmnisEmerald,
+                                uncheckedThumbColor = Color.Red,
+                                checkedTrackColor = OmnisEmerald.copy(alpha = 0.3f),
+                                uncheckedTrackColor = Color.Red.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
 
-            NavigationDrawerItem(
-                label = { Text("Kognitivní Uzly & Invarianty", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                selected = activeTab == OmnisTab.NODES,
-                onClick = { onTabSelected(OmnisTab.NODES) },
-                icon = { Icon(Icons.Default.AccountTree, contentDescription = null) },
-                colors = NavigationDrawerItemDefaults.colors(
-                    selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                    selectedIconColor = OmnisCyan,
-                    selectedTextColor = OmnisCyan,
-                    unselectedContainerColor = Color.Transparent,
-                    unselectedIconColor = OmnisTextMuted,
-                    unselectedTextColor = OmnisTextMuted
-                ),
-                modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                    .height(52.dp)
-            )
+            // Switch to Admin Mode Button (pokud je přihlášen běžný uživatel)
+            if (currentRole == UserRole.STANDARD_USER) {
+                DrawerItem(
+                    title = "Přepnout do Admin Režimu",
+                    icon = Icons.Default.AdminPanelSettings,
+                    selected = false,
+                    tint = OmnisAmber,
+                    onClick = onSwitchToAdminClick
+                )
+            }
 
-            NavigationDrawerItem(
-                label = { Text("Octagon 8D Matice", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                selected = activeTab == OmnisTab.MATRIX,
-                onClick = { onTabSelected(OmnisTab.MATRIX) },
-                icon = { Icon(Icons.Default.Info, contentDescription = null) },
-                colors = NavigationDrawerItemDefaults.colors(
-                    selectedContainerColor = OmnisCyan.copy(alpha = 0.15f),
-                    selectedIconColor = OmnisCyan,
-                    selectedTextColor = OmnisCyan,
-                    unselectedContainerColor = Color.Transparent,
-                    unselectedIconColor = OmnisTextMuted,
-                    unselectedTextColor = OmnisTextMuted
-                ),
-                modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                    .height(52.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-        HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 8.dp))
-
-        // Admin Circuit Breaker Switch (Hlavní Jistič)
-        if (currentRole.canAccessSystemActions()) {
+            // Role badge and Logout
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                color = OmnisPanelDark,
-                shape = RoundedCornerShape(10.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (isCircuitBreakerTripped) Color.Red else OmnisAmber)
+                color = OmnisCardDark,
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Column {
+                        Text("Aktuální role:", color = OmnisTextMuted, fontSize = 10.sp)
+                        Text(
+                            text = if (currentRole == UserRole.ADMIN_OPERATOR) "Admin / Operátor" else "Běžný Uživatel",
+                            color = if (currentRole == UserRole.ADMIN_OPERATOR) OmnisAmber else OmnisCyan,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    IconButton(
+                        onClick = onLogoutClick,
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PowerSettingsNew,
-                            contentDescription = null,
-                            tint = if (isCircuitBreakerTripped) Color.Red else OmnisAmber,
-                            modifier = Modifier.size(18.dp)
+                            imageVector = Icons.Default.ExitToApp,
+                            contentDescription = "Odhlásit se",
+                            tint = Color.Red.copy(alpha = 0.8f)
                         )
-                        Column {
-                            Text("HLAVNÍ JISTIČ", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                            Text(
-                                text = if (isCircuitBreakerTripped) "VYPNUTO (Blokáda)" else "ZAPNUTO (Aktivní)",
-                                color = if (isCircuitBreakerTripped) Color.Red else OmnisEmerald,
-                                fontSize = 9.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
                     }
-                    Switch(
-                        checked = !isCircuitBreakerTripped,
-                        onCheckedChange = { onToggleCircuitBreaker() },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = OmnisEmerald,
-                            uncheckedThumbColor = Color.Red,
-                            checkedTrackColor = OmnisEmerald.copy(alpha = 0.3f),
-                            uncheckedTrackColor = Color.Red.copy(alpha = 0.3f)
-                        )
-                    )
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
+            
+            // Extra padding at bottom for navigation / gesture bars
+            Spacer(modifier = Modifier.height(48.dp))
         }
-        HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(vertical = 8.dp))
-
-        // Switch to Admin Mode Button (pokud je přihlášen běžný uživatel)
-        if (currentRole == UserRole.STANDARD_USER) {
-            NavigationDrawerItem(
-                label = { Text("Přepnout do Admin Režimu", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
-                selected = false,
-                onClick = onSwitchToAdminClick,
-                icon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = OmnisAmber) },
-                colors = NavigationDrawerItemDefaults.colors(
-                    unselectedContainerColor = OmnisAmber.copy(alpha = 0.1f),
-                    unselectedIconColor = OmnisAmber,
-                    unselectedTextColor = OmnisAmber
-                ),
-                modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                    .height(48.dp)
-            )
-        }
-
-        // Role badge and Logout
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            color = OmnisCardDark,
-            shape = RoundedCornerShape(8.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("Role:", color = OmnisTextMuted, fontSize = 10.sp)
-                    Text(
-                        text = if (currentRole == UserRole.ADMIN_OPERATOR) "Admin / Operátor" else "Běžný Uživatel",
-                        color = if (currentRole == UserRole.ADMIN_OPERATOR) OmnisAmber else OmnisCyan,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-                IconButton(
-                    onClick = onLogoutClick,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ExitToApp,
-                        contentDescription = "Odhlásit se",
-                        tint = Color.Red.copy(alpha = 0.8f)
-                    )
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
     }
+}
+
+@Composable
+private fun DrawerItem(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    selected: Boolean,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    NavigationDrawerItem(
+        label = {
+            Text(
+                text = title,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                maxLines = 2,
+                lineHeight = 16.sp
+            )
+        },
+        selected = selected,
+        onClick = onClick,
+        icon = { Icon(icon, contentDescription = null) },
+        colors = NavigationDrawerItemDefaults.colors(
+            selectedContainerColor = tint.copy(alpha = 0.15f),
+            selectedIconColor = tint,
+            selectedTextColor = tint,
+            unselectedContainerColor = Color.Transparent,
+            unselectedIconColor = OmnisTextMuted,
+            unselectedTextColor = OmnisTextMuted
+        ),
+        modifier = Modifier
+            .padding(horizontal = 12.dp, vertical = 1.dp)
+            .defaultMinSize(minHeight = 44.dp)
+    )
+}
+
+@Composable
+private fun DrawerSectionHeader(title: String) {
+    Text(
+        text = title,
+        color = OmnisCyan.copy(alpha = 0.7f),
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
+        fontFamily = FontFamily.Monospace,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+    )
 }

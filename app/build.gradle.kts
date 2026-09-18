@@ -7,6 +7,7 @@ plugins {
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
   alias(libs.plugins.google.services)
+  alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -20,7 +21,7 @@ android {
         ?: System.getenv("GITHUB_RUN_NUMBER")
     )?.toIntOrNull() ?: 2
 
-    applicationId = "com.aistudio.omnis.aiarch"
+    applicationId = "com.aistudio.omnis.quantum.v2026"
     minSdk = 26
     targetSdk = 36
     versionCode = autoVersionCode
@@ -119,6 +120,7 @@ dependencies {
   // implementation(libs.googleid)
   implementation(libs.firebase.appcheck.recaptcha)
   implementation(libs.firebase.appcheck.debug)
+  implementation(libs.kotlinx.serialization.json)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)

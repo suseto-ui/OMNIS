@@ -1,19 +1,23 @@
 package com.example.ui
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.BottomSheetDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.action.ActionExecutionResult
 import com.example.auth.UserRole
 import com.example.data.OmnisRecord
 import com.example.ui.theme.OmnisBgDark
 import com.example.ui.theme.OmnisBorderDark
+import com.example.ui.theme.OmnisCyan
+import com.example.ui.theme.OmnisPanelDark
 
 /**
  * Extrahovaný router pro záložky hlavního obsahu v O.M.N.I.S.
@@ -27,20 +31,91 @@ fun OmnisTabRouter(
     inputQuery: String,
     lastActionResult: ActionExecutionResult?,
     isActionExecuting: Boolean,
+    actionLogs: List<String>,
+    fragments: List<com.example.data.MemoryFragment>,
+    isConsolidating: Boolean,
+    onConsolidateMemory: () -> Unit,
+    onDeleteMemoryFragment: (Long) -> Unit,
     currentRole: UserRole,
     onSpeak: (String) -> Unit,
     onExportPdf: (OmnisRecord) -> Unit,
+    onRunNexusCollaboration: (String, List<String>) -> Unit,
     viewModel: OmnisViewModel,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         when (activeTab) {
+            OmnisTab.ARTIFACTS -> {
+                val artifacts by viewModel.artifacts.collectAsStateWithLifecycle()
+                com.example.ui.artifacts.ArtifactGalleryView(
+                    artifacts = artifacts,
+                    onDeleteArtifact = viewModel::onDeleteArtifact,
+                    onExportArtifact = viewModel::onExportArtifact
+                )
+            }
+            OmnisTab.SCENARIOS -> {
+                val records by viewModel.records.collectAsStateWithLifecycle()
+                com.example.ui.scenarios.ScenarioPlannerView(
+                    currentRecord = records.firstOrNull()
+                )
+            }
+            OmnisTab.GOALS -> {
+                val goals by viewModel.goals.collectAsStateWithLifecycle()
+                com.example.ui.goals.GoalTrackerView(
+                    goals = goals,
+                    onCreateGoal = viewModel::onCreateGoal,
+                    onDeleteGoal = viewModel::onDeleteGoal
+                )
+            }
+            OmnisTab.TELEMETRY -> {
+                val telemetryLogs by viewModel.telemetry.collectAsStateWithLifecycle()
+                com.example.ui.telemetry.TelemetryDashboardView(
+                    logs = telemetryLogs,
+                    onClearLogs = viewModel::onClearTelemetry
+                )
+            }
+            OmnisTab.NEXUS -> {
+                val activeAgentIds by viewModel.activeNexusAgents.collectAsStateWithLifecycle()
+                var nexusMode by remember { mutableIntStateOf(0) }
+
+                Column(modifier = Modifier.fillMaxSize()) {
+                    TabRow(
+                        selectedTabIndex = nexusMode,
+                        containerColor = OmnisPanelDark,
+                        contentColor = OmnisCyan
+                    ) {
+                        Tab(
+                            selected = nexusMode == 0,
+                            onClick = { nexusMode = 0 },
+                            text = { Text("Topologie Sítě", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+                            icon = { Icon(Icons.Default.Hub, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        )
+                        Tab(
+                            selected = nexusMode == 1,
+                            onClick = { nexusMode = 1 },
+                            text = { Text("Agentní Dialog", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+                            icon = { Icon(Icons.Default.Group, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        )
+                    }
+
+                    if (nexusMode == 0) {
+                        com.example.ui.nexus.NexusVisualizerView(activeAgentIds = activeAgentIds)
+                    } else {
+                        com.example.ui.nexus.NexusView(
+                            query = inputQuery,
+                            onQueryChange = viewModel::onQueryChange,
+                            onRunNexus = { agents -> onRunNexusCollaboration(inputQuery, agents) }
+                        )
+                    }
+                }
+            }
             OmnisTab.CHAT -> {
                 val selectedDomains by viewModel.selectedDomains.collectAsStateWithLifecycle()
                 val focusedDomain by viewModel.focusedDomain.collectAsStateWithLifecycle()
                 val selectedRecord by viewModel.selectedRecordForDetail.collectAsStateWithLifecycle()
                 val isOcrLoading by viewModel.isOcrLoading.collectAsStateWithLifecycle()
                 val streamState by viewModel.streamState.collectAsStateWithLifecycle()
+                val activeMemoryFragments by viewModel.activeMemoryFragments.collectAsStateWithLifecycle()
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     ChatView(
@@ -67,7 +142,8 @@ fun OmnisTabRouter(
                         onExecuteActionPayload = { payload -> viewModel.executeActionPayload(payload) },
                         lastActionResult = lastActionResult,
                         isActionExecuting = isActionExecuting,
-                        userRole = currentRole
+                        userRole = currentRole,
+                        activeMemoryFragments = activeMemoryFragments
                     )
 
                     // Domain Detail Modal / Sheet
@@ -171,9 +247,14 @@ fun OmnisTabRouter(
                     AdminHubView(
                         records = records,
                         onExecuteAction = { payload ->
-                            viewModel.setTab(OmnisTab.CHAT)
                             viewModel.executeActionPayload(payload)
                         },
+                        isRunningAction = isActionExecuting,
+                        actionLogs = actionLogs,
+                        fragments = fragments,
+                        isConsolidating = isConsolidating,
+                        onConsolidateMemory = onConsolidateMemory,
+                        onDeleteMemoryFragment = onDeleteMemoryFragment,
                         onNavigateToChat = { prompt ->
                             viewModel.setTab(OmnisTab.CHAT)
                             viewModel.sendQuery(prompt)
@@ -203,38 +284,16 @@ fun OmnisTabRouter(
                     OmnisUnauthorizedView(onSwitchRoleClick = { viewModel.setTab(OmnisTab.CHAT) })
                 }
             }
-            OmnisTab.DASHBOARD -> OctagonDashboard(
-                records = records,
-                latestRecord = records.lastOrNull { it.role == "assistant" },
-                simSys = viewModel.simSys.collectAsStateWithLifecycle().value,
-                simEcon = viewModel.simEcon.collectAsStateWithLifecycle().value,
-                simPsych = viewModel.simPsych.collectAsStateWithLifecycle().value,
-                simEco = viewModel.simEco.collectAsStateWithLifecycle().value,
-                simLaw = viewModel.simLaw.collectAsStateWithLifecycle().value,
-                simSec = viewModel.simSec.collectAsStateWithLifecycle().value,
-                simPhys = viewModel.simPhys.collectAsStateWithLifecycle().value,
-                simSoc = viewModel.simSoc.collectAsStateWithLifecycle().value,
-                fixedDomains = viewModel.fixedDomains.collectAsStateWithLifecycle().value,
-                onToggleFix = viewModel::toggleDomainFixation,
-                onSimChange = { sys, econ, psych, eco, law, sec, phys, soc ->
-                    viewModel.setSimSys(sys)
-                    viewModel.setSimEcon(econ)
-                    viewModel.setSimPsych(psych)
-                    viewModel.setSimEco(eco)
-                    viewModel.setSimLaw(law)
-                    viewModel.setSimSec(sec)
-                    viewModel.setSimPhys(phys)
-                    viewModel.setSimSoc(soc)
-                },
-                isComparing = viewModel.isComparing.collectAsStateWithLifecycle().value,
-                comparisonResult = viewModel.comparisonResult.collectAsStateWithLifecycle().value,
-                onSynthesize = { selectedIds -> viewModel.synthesizeSelectedRecords(selectedIds) },
-                onClearComparison = { viewModel.clearComparison() },
-                onDirectMitigate = { prompt ->
-                    viewModel.setTab(OmnisTab.CHAT)
-                    viewModel.sendQuery(prompt)
-                }
-            )
+            OmnisTab.DASHBOARD -> {
+                val goals by viewModel.goals.collectAsStateWithLifecycle()
+                val artifacts by viewModel.artifacts.collectAsStateWithLifecycle()
+                com.example.ui.cockpit.OmnisCockpitView(
+                    latestRecord = records.firstOrNull { it.role == "assistant" },
+                    activeGoals = goals.filter { it.status == "ACTIVE" },
+                    recentArtifacts = artifacts,
+                    onTabSwitch = viewModel::setTab
+                )
+            }
             OmnisTab.TEST_SEMANTIC -> {
                 // Test Semantic tab fallthrough
             }
