@@ -35,7 +35,9 @@ data class SynthesisResult(
     val composite: Float,
     val defenseTier: String = "APPROVED",
     val defenseNotes: String = "",
-    val opponentCritique: String? = null
+    val opponentCritique: String? = null,
+    val recommendedActionId: String? = null,
+    val recommendedActionParams: Map<String, Any>? = null
 )
 
 data class ToolCallSpec(
@@ -104,9 +106,14 @@ Odpověz VÝHRADNĚ ve validním JSON formátu s pevnou strukturou (Pydantic / S
     "val_sec": 0.98,
     "val_phys": 0.85,
     "val_soc": 0.88,
-    "composite_score": 0.92
+    "composite_score": 0.92,
+    "recommended_action": {
+      "action_id": "ID akce k provedení (např. db_connectivity_test, ebpf_xdp_offload, resilience_circuit_breaker_audit, ai_governance_export)",
+      "parameters": {"param1": "value1"}
+    }
   }
 }
+Pokud není akce potřeba, "recommended_action" může být null nebo vynecháno.
 Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovou čárkou v rozsahu 0.0 až 1.0.
 """
 
@@ -260,6 +267,17 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
                 val status = resJson.optString("status", "SUCCESS")
                 val resultData = resJson.optJSONObject("result_data") ?: JSONObject()
 
+                val recActionObj = resultData.optJSONObject("recommended_action")
+                val recActionId = recActionObj?.optString("action_id")
+                val recActionParams = mutableMapOf<String, Any>()
+                recActionObj?.optJSONObject("parameters")?.let { paramsObj ->
+                    val keys = paramsObj.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        recActionParams[key] = paramsObj.get(key)
+                    }
+                }
+
                 val answer = resultData.optString("answer")
                 val hasAllKeys = resultData.has("answer") && resultData.has("val_sys") && resultData.has("composite_score")
 
@@ -322,7 +340,9 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
                     composite = defenseEval.finalConfidence,
                     defenseTier = defenseEval.tier.name,
                     defenseNotes = defenseEval.defenseNotes,
-                    opponentCritique = opponentAudit.critique
+                    opponentCritique = opponentAudit.critique,
+                    recommendedActionId = recActionId,
+                    recommendedActionParams = recActionParams.ifEmpty { null }
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "Gemini API call attempt $attempt failed", e)

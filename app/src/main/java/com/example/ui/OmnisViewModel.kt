@@ -657,18 +657,28 @@ class OmnisViewModel(
                 )
                 repository.insert(asstRecord)
 
-                // AUTOMATICKÝ ZÁPIS DO POSTGRESQL (Replikace na pozadí)
-                viewModelScope.launch(OmnisGeminiClient.ioDispatcher) {
-                    try {
-                        OmnisActionDispatcher.executeAction(
-                            ActionPayload(
-                                intent = "auto_postgres_replication",
-                                actionId = "postgres_auto_sync",
-                                parameters = mapOf("unsynced_count" to 2, "engine" to "PostgreSQL Cloud SQL")
+                // AUTOMATICKÁ ORCHESTRACE NATIVNÍCH AKCÍ
+                if (result.recommendedActionId != null) {
+                    val payload = ActionPayload(
+                        intent = "AI_RECOMMENDED_ORCHESTRATION",
+                        actionId = result.recommendedActionId,
+                        parameters = result.recommendedActionParams ?: emptyMap()
+                    )
+                    executeActionPayload(payload)
+                } else {
+                    // AUTOMATICKÝ ZÁPIS DO POSTGRESQL (Replikace na pozadí)
+                    viewModelScope.launch(OmnisGeminiClient.ioDispatcher) {
+                        try {
+                            OmnisActionDispatcher.executeAction(
+                                ActionPayload(
+                                    intent = "auto_postgres_replication",
+                                    actionId = "postgres_auto_sync",
+                                    parameters = mapOf("unsynced_count" to 2, "engine" to "PostgreSQL Cloud SQL")
+                                )
                             )
-                        )
-                    } catch (e: Exception) {
-                        Log.e("OmnisViewModel", "PostgreSQL auto-replication failed", e)
+                        } catch (e: Exception) {
+                            Log.e("OmnisViewModel", "PostgreSQL auto-replication failed", e)
+                        }
                     }
                 }
 
