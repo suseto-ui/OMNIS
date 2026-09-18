@@ -35,7 +35,10 @@ data class SynthesisResult(
     val composite: Float,
     val defenseTier: String = "APPROVED",
     val defenseNotes: String = "",
-    val opponentCritique: String? = null
+    val opponentCritique: String? = null,
+    val recommendedActionId: String? = null,
+    val recommendedActionParams: Map<String, Any>? = null,
+    val artifact: com.example.data.OmnisArtifact? = null
 )
 
 data class ToolCallSpec(
@@ -61,6 +64,8 @@ interface OmnisApiService {
     @POST("api/v1/omnis/process")
     suspend fun processHybridIntent(@Query("user_input") userInput: String): HybridOmnisResponse
 }
+
+data class BatchItem(val id: String, val query: String, val domain: String)
 
 object OmnisGeminiClient {
 
@@ -104,9 +109,14 @@ Odpověz VÝHRADNĚ ve validním JSON formátu s pevnou strukturou (Pydantic / S
     "val_sec": 0.98,
     "val_phys": 0.85,
     "val_soc": 0.88,
-    "composite_score": 0.92
+    "composite_score": 0.92,
+    "recommended_action": {
+      "action_id": "ID akce k provedení (např. db_connectivity_test, ebpf_xdp_offload, resilience_circuit_breaker_audit, ai_governance_export)",
+      "parameters": {"param1": "value1"}
+    }
   }
 }
+Pokud není akce potřeba, "recommended_action" může být null nebo vynecháno.
 Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovou čárkou v rozsahu 0.0 až 1.0.
 """
 
@@ -169,7 +179,12 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
         }
     }
 
-    private fun callGeminiApi(query: String, domain: String, injectionDetected: Boolean = false): SynthesisResult? {
+    private fun callGeminiApi(
+        query: String, 
+        domain: String, 
+        injectionDetected: Boolean = false,
+        memoryFragments: List<com.example.data.MemoryFragment> = emptyList()
+    ): SynthesisResult? {
         if (com.example.data.DatabaseConfig.isTesting) {
             Log.i(TAG, "Bypassing online Gemini API call during testing, falling back to deterministic synthesis")
             return null
@@ -190,6 +205,7 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
 
         var attempt = 0
         var currentPromptText = "Doména: $domain\n$isolatedInput"
+        val startTime = System.currentTimeMillis()
 
         while (attempt < 2) {
             attempt++
@@ -210,9 +226,13 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
                     put("contents", contentsArr)
 
                     val sysInstruction = JSONObject().apply {
+                        val memoryContext = if (memoryFragments.isNotEmpty()) {
+                            com.example.memory.MemoryRetrievalEngine.formatForContext(memoryFragments) + "\n\n"
+                        } else ""
+                        
                         val partsArr = JSONArray().apply {
                             put(JSONObject().apply {
-                                put("text", GEMINI_SYSTEM_INSTRUCTION.trimIndent())
+                                put("text", (memoryContext + GEMINI_SYSTEM_INSTRUCTION).trimIndent())
                             })
                         }
                         put("parts", partsArr)
@@ -234,13 +254,19 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
                     .build()
 
                 val response = okHttpClient.newCall(request).execute()
+                val latency = System.currentTimeMillis() - startTime
+                
                 if (!response.isSuccessful) {
                     Log.w(TAG, "Gemini API HTTP status: ${response.code}")
                     circuitBreaker.recordFailure()
+                    com.example.monitoring.PerformanceMonitor.recordRequest(latency)
                     return null
                 }
 
                 val bodyString = response.body?.string() ?: return null
+                
+                // Record success metrics
+                com.example.monitoring.PerformanceMonitor.recordRequest(latency)
                 val root = JSONObject(bodyString)
                 val candidates = root.optJSONArray("candidates") ?: return null
                 if (candidates.length() == 0) return null
@@ -259,6 +285,17 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
                 val thoughtProcess = resJson.optString("thought_process", "")
                 val status = resJson.optString("status", "SUCCESS")
                 val resultData = resJson.optJSONObject("result_data") ?: JSONObject()
+
+                val recActionObj = resultData.optJSONObject("recommended_action")
+                val recActionId = recActionObj?.optString("action_id")
+                val recActionParams = mutableMapOf<String, Any>()
+                recActionObj?.optJSONObject("parameters")?.let { paramsObj ->
+                    val keys = paramsObj.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        recActionParams[key] = paramsObj.get(key)
+                    }
+                }
 
                 val answer = resultData.optString("answer")
                 val hasAllKeys = resultData.has("answer") && resultData.has("val_sys") && resultData.has("composite_score")
@@ -306,6 +343,30 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
                 )
 
                 circuitBreaker.recordSuccess()
+                
+                // Extrakce Artefaktu (pokud existuje v JSON odpovědi nebo heuristikou)
+                val artifactJson = resultData.optJSONObject("artifact")
+                val artifact = if (artifactJson != null) {
+                    com.example.data.OmnisArtifact(
+                        title = artifactJson.optString("title", "Bez názvu"),
+                        type = artifactJson.optString("type", "CODE"),
+                        language = artifactJson.optString("language", "kotlin"),
+                        content = artifactJson.optString("content", "")
+                    )
+                } else {
+                    if (answer.contains("```")) {
+                        val lang = answer.substringAfter("```").substringBefore("\n").trim()
+                        val content = answer.substringAfter("```$lang").substringBefore("```").trim()
+                        if (content.isNotBlank()) {
+                            com.example.data.OmnisArtifact(
+                                title = "Auto-extracted Artifact",
+                                type = "CODE",
+                                language = lang.ifBlank { "text" },
+                                content = content
+                            )
+                        } else null
+                    } else null
+                }
 
                 return SynthesisResult(
                     answer = answer,
@@ -322,7 +383,10 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
                     composite = defenseEval.finalConfidence,
                     defenseTier = defenseEval.tier.name,
                     defenseNotes = defenseEval.defenseNotes,
-                    opponentCritique = opponentAudit.critique
+                    opponentCritique = opponentAudit.critique,
+                    recommendedActionId = recActionId,
+                    recommendedActionParams = recActionParams.ifEmpty { null },
+                    artifact = artifact
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "Gemini API call attempt $attempt failed", e)
@@ -340,6 +404,13 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
     ): SynthesisResult {
         val qClean = query.trim()
         val isBreakerTripped = !circuitBreaker.canExecute()
+        
+        com.example.telemetry.TelemetryEngine.log(
+            type = if (isBreakerTripped) "WARNING" else "INFO",
+            component = "GeminiCore",
+            message = "Zahájena syntéza dotazu: ${qClean.take(50)}...",
+            metadata = "{\"domain\":\"$domain\", \"breakerTripped\":$isBreakerTripped}"
+        )
 
         val defenseEval = OmnisConfidenceGate.evaluate(
             generatorScore = if (isBreakerTripped) 0.35f else 0.89f,
@@ -387,6 +458,13 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
         val basePhys = 0.87f
         val baseSoc = 0.89f
 
+        com.example.telemetry.TelemetryEngine.log(
+            type = "COGNITIVE_DRIFT",
+            component = "GeminiCore",
+            message = "Syntéza dokončena. Spolehlivost: ${(defenseEval.finalConfidence * 100).toInt()}%",
+            metadata = "{\"tier\":\"${defenseEval.tier.name}\"}"
+        )
+
         return SynthesisResult(
             answer = answer,
             cognitiveProcess = cognitiveProcess,
@@ -406,7 +484,95 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
         )
     }
 
-    suspend fun synthesize(query: String, domain: String): SynthesisResult = withContext(ioDispatcher) {
+    suspend fun callGeminiBatchApi(items: List<BatchItem>): Map<String, SynthesisResult> = withContext(ioDispatcher) {
+        val apiKey = com.example.BuildConfig.GEMINI_API_KEY
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY" || items.isEmpty()) return@withContext emptyMap()
+
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey"
+        
+        val batchPrompt = StringBuilder("Jsi O.M.N.I.S. Batch Orchestrator. Zpracuj následující nezávislé dotazy do jednoho JSON objektu.\n\n")
+        items.forEach { item ->
+            batchPrompt.append("ID: ${item.id}\nDOMÉNA: ${item.domain}\nDOTAZ: ${item.query}\n---\n")
+        }
+        batchPrompt.append("\nOdpověz ve formátu JSON: { \"responses\": { \"ID\": { <standardní_omnis_result_data> } } }")
+        val startTime = System.currentTimeMillis()
+
+        try {
+            val requestJson = JSONObject().apply {
+                put("contents", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().apply { put("text", batchPrompt.toString()) })
+                        })
+                    })
+                })
+                put("systemInstruction", JSONObject().apply {
+                    put("parts", JSONArray().apply {
+                        put(JSONObject().apply { put("text", GEMINI_SYSTEM_INSTRUCTION.trimIndent()) })
+                    })
+                })
+                put("generationConfig", JSONObject().apply {
+                    put("responseMimeType", "application/json")
+                    put("temperature", 0.1)
+                })
+            }
+
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val request = Request.Builder().url(url).post(requestJson.toString().toRequestBody(mediaType)).build()
+            val response = okHttpClient.newCall(request).execute()
+            val latency = System.currentTimeMillis() - startTime
+            
+            if (!response.isSuccessful) {
+                com.example.monitoring.PerformanceMonitor.recordRequest(latency)
+                return@withContext emptyMap()
+            }
+
+            val bodyString = response.body?.string() ?: return@withContext emptyMap()
+            
+            // Record batch metrics with savings estimate (approx 400 tokens per system/schema overhead saved per additional item)
+            val tokensSaved = (items.size - 1) * 400L
+            com.example.monitoring.PerformanceMonitor.recordRequest(latency, tokensSaved = tokensSaved, isBatch = true)
+            val root = JSONObject(bodyString)
+            val text = root.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")?.optJSONObject(0)?.optString("text")
+                ?: return@withContext emptyMap()
+
+            val resJson = JSONObject(text)
+            val responsesObj = resJson.optJSONObject("responses") ?: return@withContext emptyMap()
+            
+            val resultMap = mutableMapOf<String, SynthesisResult>()
+            items.forEach { item ->
+                responsesObj.optJSONObject(item.id)?.let { resultData ->
+                    // Transformovat JSON na SynthesisResult (zjednodušeně pro účely batchingu)
+                    resultMap[item.id] = SynthesisResult(
+                        answer = resultData.optString("answer", "Žádná odpověď v batchi."),
+                        cognitiveProcess = resultData.optString("thought_process", "Batch processing."),
+                        followUpQuestions = emptyList(),
+                        valSys = resultData.optDouble("val_sys", 0.9).toFloat(),
+                        valEcon = resultData.optDouble("val_econ", 0.8).toFloat(),
+                        valPsych = resultData.optDouble("val_psych", 0.8).toFloat(),
+                        valEco = resultData.optDouble("val_eco", 0.8).toFloat(),
+                        valLaw = resultData.optDouble("val_law", 0.8).toFloat(),
+                        valSec = resultData.optDouble("val_sec", 0.8).toFloat(),
+                        valPhys = resultData.optDouble("val_phys", 0.8).toFloat(),
+                        valSoc = resultData.optDouble("val_soc", 0.8).toFloat(),
+                        composite = resultData.optDouble("composite_score", 0.85).toFloat(),
+                        defenseTier = "APPROVED"
+                    )
+                }
+            }
+            return@withContext resultMap
+        } catch (e: Exception) {
+            Log.e(TAG, "Batch API failed", e)
+            return@withContext emptyMap()
+        }
+    }
+
+    suspend fun synthesize(
+        query: String, 
+        domain: String,
+        memoryFragments: List<com.example.data.MemoryFragment> = emptyList()
+    ): SynthesisResult = withContext(ioDispatcher) {
         // Step 4: Zero-Trust Sandbox & Injektorové filtry
         val sanitization = OmnisPromptSanitizer.sanitize(query)
         val cleanQuery = sanitization.cleanText
@@ -446,7 +612,7 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
         }
 
         // Standard runtime: First try online Gemini API with Schema Enforcement & Adversarial Opponent
-        val geminiResult = callGeminiApi(cleanQuery, domain, injectionDetected)
+        val geminiResult = callGeminiApi(cleanQuery, domain, injectionDetected, memoryFragments)
         if (geminiResult != null) {
             return@withContext geminiResult
         }

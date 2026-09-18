@@ -20,6 +20,7 @@ import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -94,7 +95,10 @@ fun OmnisMainScreen(
     val navState = remember { com.example.ui.OmnisNavigationState() }
     val showDeleteConfirm by navState.showDeleteConfirm.collectAsStateWithLifecycle()
     val isActionExecuting by viewModel.isActionExecuting.collectAsStateWithLifecycle()
+    val actionLogs by viewModel.actionLogs.collectAsStateWithLifecycle()
     val lastActionResult by viewModel.lastActionResult.collectAsStateWithLifecycle()
+    val memoryFragments by viewModel.memoryFragments.collectAsStateWithLifecycle()
+    val isConsolidating by viewModel.isConsolidating.collectAsStateWithLifecycle()
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -251,6 +255,38 @@ fun OmnisMainScreen(
                 )
             }
 
+        val canHandleBack = showAdminPasswordDialog ||
+                navState.showDeleteConfirm.value ||
+                ocrValidationState != null ||
+                pendingGatewayReview != null ||
+                drawerState.isOpen ||
+                viewModel.canNavigateBack
+
+        BackHandler(enabled = canHandleBack) {
+            when {
+                showAdminPasswordDialog -> {
+                    showAdminPasswordDialog = false
+                    adminPasswordInput = ""
+                    isAdminPasswordError = false
+                }
+                navState.showDeleteConfirm.value -> {
+                    navState.setShowDeleteConfirm(false)
+                }
+                ocrValidationState != null -> {
+                    viewModel.cancelOcrValidation()
+                }
+                pendingGatewayReview != null -> {
+                    viewModel.dismissGatewayReview()
+                }
+                drawerState.isOpen -> {
+                    scope.launch { drawerState.close() }
+                }
+                else -> {
+                    viewModel.popTab()
+                }
+            }
+        }
+
         Scaffold(
             modifier = Modifier
                 .fillMaxSize()
@@ -259,6 +295,9 @@ fun OmnisMainScreen(
             topBar = {
                 OmnisTopAppBar(
                     records = records,
+                    activeTab = activeTab,
+                    canNavigateBack = viewModel.canNavigateBack,
+                    onBackClick = { viewModel.popTab() },
                     onOpenMenu = {
                         scope.launch {
                             if (drawerState.isClosed) drawerState.open() else drawerState.close()
@@ -275,6 +314,12 @@ fun OmnisMainScreen(
             inputQuery = inputQuery,
             lastActionResult = lastActionResult,
             isActionExecuting = isActionExecuting,
+            actionLogs = actionLogs,
+            fragments = memoryFragments,
+            isConsolidating = isConsolidating,
+            onConsolidateMemory = { viewModel.triggerMemoryConsolidation() },
+            onDeleteMemoryFragment = { viewModel.deleteMemoryFragment(it) },
+            onRunNexusCollaboration = { query, agents -> viewModel.runNexusCollaboration(query, agents) },
             currentRole = currentRole,
             onSpeak = onSpeak,
             onExportPdf = onExportPdf,
@@ -313,7 +358,8 @@ fun ChatView(
     onExecuteActionPayload: (com.example.action.ActionPayload) -> Unit = {},
     lastActionResult: com.example.action.ActionExecutionResult? = null,
     isActionExecuting: Boolean = false,
-    userRole: com.example.auth.UserRole = com.example.auth.UserRole.ADMIN_OPERATOR
+    userRole: com.example.auth.UserRole = com.example.auth.UserRole.ADMIN_OPERATOR,
+    activeMemoryFragments: List<com.example.data.MemoryFragment> = emptyList()
 ) {
     val listState = rememberLazyListState()
     val context = LocalContext.current
@@ -544,6 +590,59 @@ fun ChatView(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
+                    }
+                }
+            }
+        }
+
+        // PREDIKTIVNÍ KONTEXT: Sémantické kotvy (Aktivní fragmenty paměti)
+        androidx.compose.animation.AnimatedVisibility(visible = activeMemoryFragments.isNotEmpty()) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 2.dp),
+                color = OmnisBgDark,
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoGraph,
+                        contentDescription = null,
+                        tint = OmnisCyan,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "AKTIVNÍ KOTVY:",
+                        color = OmnisCyan,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(activeMemoryFragments) { fragment ->
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = OmnisCyan.copy(alpha = 0.1f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan.copy(alpha = 0.2f))
+                            ) {
+                                Text(
+                                    text = fragment.title.uppercase(),
+                                    color = OmnisCyan,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1303,6 +1402,7 @@ fun MemoryView(records: List<OmnisRecord>, onItemClick: (OmnisRecord) -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .padding(12.dp),
+        contentPadding = PaddingValues(bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {

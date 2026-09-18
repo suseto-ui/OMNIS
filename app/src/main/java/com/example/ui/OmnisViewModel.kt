@@ -15,6 +15,7 @@ import com.example.defense.PromptGatewayResult
 import com.example.action.ActionPayload
 import com.example.action.ActionExecutionResult
 import com.example.action.OmnisActionDispatcher
+import com.example.action.ResilienceManager
 import com.example.auth.OmnisAuthService
 import com.example.auth.UserRole
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 
 enum class OmnisTab {
     CHAT,
@@ -33,7 +36,12 @@ enum class OmnisTab {
     ADMIN,
     DASHBOARD,
     MATRIX,
-    TEST_SEMANTIC
+    TEST_SEMANTIC,
+    NEXUS,
+    ARTIFACTS,
+    SCENARIOS,
+    GOALS,
+    TELEMETRY
 }
 
 class OmnisViewModel(
@@ -45,6 +53,8 @@ class OmnisViewModel(
 
     init {
         OmnisAuthService.init(application)
+        val db = OmnisDatabase.getDatabase(application)
+        com.example.telemetry.TelemetryEngine.initialize(db.omnisDao())
     }
 
     val isAuthenticated: StateFlow<Boolean> = OmnisAuthService.isAuthenticated
@@ -59,8 +69,27 @@ class OmnisViewModel(
         OmnisRepository(db.omnisDao())
     }
     val records: StateFlow<List<OmnisRecord>>
+    val memoryFragments: StateFlow<List<com.example.data.MemoryFragment>>
 
-    private val _activeTab = MutableStateFlow(OmnisTab.CHAT)
+    val telemetry: StateFlow<List<com.example.data.OmnisTelemetry>> = repository.omnisDao.getRecentTelemetry()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _isConsolidating = MutableStateFlow(false)
+    val isConsolidating: StateFlow<Boolean> = _isConsolidating.asStateFlow()
+
+    private val _activeMemoryFragments = MutableStateFlow<List<com.example.data.MemoryFragment>>(emptyList())
+    val activeMemoryFragments: StateFlow<List<com.example.data.MemoryFragment>> = _activeMemoryFragments.asStateFlow()
+    
+    val artifacts: StateFlow<List<com.example.data.OmnisArtifact>> = repository.omnisDao.getAllArtifacts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val goals: StateFlow<List<com.example.data.OmnisGoal>> = repository.omnisDao.getAllGoals()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _activeNexusAgents = MutableStateFlow<List<String>>(emptyList())
+    val activeNexusAgents: StateFlow<List<String>> = _activeNexusAgents.asStateFlow()
+
+    private val _activeTab = MutableStateFlow(OmnisTab.DASHBOARD)
     val activeTab: StateFlow<OmnisTab> = _activeTab.asStateFlow()
 
     // System Circuit Breaker (Hlavní Jistič)
@@ -83,9 +112,13 @@ class OmnisViewModel(
     private val _isActionExecuting = MutableStateFlow(false)
     val isActionExecuting: StateFlow<Boolean> = _isActionExecuting.asStateFlow()
 
+    private val _actionLogs = MutableStateFlow<List<String>>(emptyList())
+    val actionLogs: StateFlow<List<String>> = _actionLogs.asStateFlow()
+
     fun executeActionPayload(payload: ActionPayload) {
         if (_isActionExecuting.value) return
         _isActionExecuting.value = true
+        _actionLogs.value = emptyList() // Clear previous logs
 
         viewModelScope.launch {
             try {
@@ -107,7 +140,7 @@ class OmnisViewModel(
 
                 // 2. Nativní backend dispatcher s ochranou timeoutu (10 sekund)
                 val result = kotlinx.coroutines.withTimeoutOrNull(10000L) {
-                    OmnisActionDispatcher.executeAction(payload)
+                    OmnisActionDispatcher.executeAction(payload, repository.omnisDao)
                 } ?: ActionExecutionResult(
                     actionId = payload.actionId,
                     isSuccess = false,
@@ -116,6 +149,7 @@ class OmnisViewModel(
                     summaryReport = "TIMEOUT: Systémová akce nebylo dokončena v limitu 10.000 ms."
                 )
                 _lastActionResult.value = result
+                _actionLogs.value = result.logs
 
                 // 3. Kontextová zpětná smyčka (Tool Response): Vložení výsledků do kontextu a generování souhrnu pro operátora
                 val logsFormatted = result.logs.joinToString("\n")
@@ -511,7 +545,20 @@ class OmnisViewModel(
     val scrollToId: StateFlow<Long?> = _scrollToId.asStateFlow()
 
     init {
+        // Synchronizace s globálním ResilienceManagerem
+        viewModelScope.launch {
+            ResilienceManager.circuitState.collect { state ->
+                _isCircuitBreakerTripped.value = (state == ResilienceManager.CircuitState.OPEN)
+            }
+        }
+
         records = repository.allRecords.stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            emptyList()
+        )
+
+        memoryFragments = repository.allFragments.stateIn(
             viewModelScope,
             SharingStarted.Eagerly,
             emptyList()
@@ -542,8 +589,31 @@ class OmnisViewModel(
         }
     }
 
+    private val _tabBackStack = mutableListOf<OmnisTab>()
+    val canNavigateBack: Boolean
+        get() = _activeTab.value != OmnisTab.DASHBOARD
+
     fun setTab(tab: OmnisTab) {
-        _activeTab.value = tab
+        if (_activeTab.value != tab) {
+            if (tab == OmnisTab.DASHBOARD) {
+                _tabBackStack.clear()
+            } else {
+                _tabBackStack.add(_activeTab.value)
+            }
+            _activeTab.value = tab
+        }
+    }
+
+    fun popTab(): Boolean {
+        if (_tabBackStack.isNotEmpty()) {
+            val prev = _tabBackStack.removeAt(_tabBackStack.lastIndex)
+            _activeTab.value = prev
+            return true
+        } else if (_activeTab.value != OmnisTab.DASHBOARD) {
+            _activeTab.value = OmnisTab.DASHBOARD
+            return true
+        }
+        return false
     }
 
     fun onQueryChange(newQuery: String) {
@@ -583,9 +653,89 @@ class OmnisViewModel(
         _comparisonResult.value = null
     }
 
+    // Smart Batching Logic
+    private data class BatchTask(val query: String, val imagePath: String?, val domain: String)
+    private val batchQueue = mutableListOf<BatchTask>()
+    private var batchJob: kotlinx.coroutines.Job? = null
+
+    private fun startBatchingJob() {
+        if (batchJob != null) return
+        batchJob = viewModelScope.launch {
+            val window = com.example.action.OrchestrationManager.batchingWindowMs.value
+            kotlinx.coroutines.delay(window)
+            
+            val itemsToProcess = synchronized(batchQueue) {
+                val items = batchQueue.toList()
+                batchQueue.clear()
+                items
+            }
+            batchJob = null
+
+            if (itemsToProcess.isNotEmpty()) {
+                if (itemsToProcess.size == 1) {
+                    executeDirectQuery(itemsToProcess[0].query, itemsToProcess[0].imagePath)
+                } else {
+                    processBatch(itemsToProcess)
+                }
+            }
+        }
+    }
+
+    private fun processBatch(tasks: List<BatchTask>) {
+        _isLoading.value = true
+        _streamState.value = StreamState("execution", "SMART BATCHING: Sdružuji ${tasks.size} kognitivních úloh do jednoho payloadu...")
+        
+        viewModelScope.launch {
+            try {
+                val batchItems = tasks.mapIndexed { index, task ->
+                    com.example.api.BatchItem(id = "task_$index", query = task.query, domain = task.domain)
+                }
+                
+                val results = com.example.api.OmnisGeminiClient.callGeminiBatchApi(batchItems)
+                
+                tasks.forEachIndexed { index, task ->
+                    val result = results["task_$index"]
+                    
+                    // Uložit uživatelský záznam
+                    repository.insert(OmnisRecord(role = "user", content = task.query, domain = task.domain, attachedImagePath = task.imagePath))
+                    
+                    if (result != null) {
+                        repository.insert(OmnisRecord(
+                            role = "assistant",
+                            content = result.answer,
+                            cognitiveProcess = result.cognitiveProcess,
+                            followUpQuestions = result.followUpQuestions.joinToString("|"),
+                            valSys = result.valSys, valEcon = result.valEcon, valPsych = result.valPsych,
+                            valEco = result.valEco, valLaw = result.valLaw, valSec = result.valSec,
+                            valPhys = result.valPhys, valSoc = result.valSoc,
+                            compositeScore = result.composite, domain = task.domain,
+                            defenseTier = result.defenseTier, defenseNotes = result.defenseNotes
+                        ))
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("OmnisViewModel", "Batch processing failed", e)
+                _errorMessage.value = "Chyba při dávkovém zpracování: ${e.localizedMessage}"
+            } finally {
+                _isLoading.value = false
+                _streamState.value = null
+            }
+        }
+    }
+
     fun sendQuery(customQuery: String? = null, imagePath: String? = null) {
         val query = (customQuery ?: _inputQuery.value).trim()
         if (query.isBlank() || _isLoading.value) return
+
+        // Check for Smart Batching
+        if (com.example.action.OrchestrationManager.isSmartBatchingEnabled.value && imagePath == null) {
+            synchronized(batchQueue) {
+                batchQueue.add(BatchTask(query, imagePath, _selectedDomain.value))
+            }
+            _inputQuery.value = ""
+            startBatchingJob()
+            return
+        }
 
         // 1. & 2. FÁZE: Evaluátor & Sémantická brána (Quality Gate)
         val gatewayResult = OmnisPromptGateway.processPromptGateway(query, _selectedDomain.value)
@@ -628,12 +778,23 @@ class OmnisViewModel(
 
                 kotlinx.coroutines.delay(400)
                 _streamState.value = StreamState("introspection", "Aktivován modul: omnis-core-synthesizer. Načítání kontextu z pgvector...")
+                
+                // PREDIKTIVNÍ RETRIEVAL: Vyhledání relevantních fragmentů dlouhodobé paměti
+                val relevantFragments = com.example.memory.MemoryRetrievalEngine.findRelevantFragments(trimmedQuery, repository.omnisDao)
+                _activeMemoryFragments.value = relevantFragments
+                
                 kotlinx.coroutines.delay(400)
                 _streamState.value = StreamState("execution", "Generuji strukturovaný payload pro Akční dispečer (Gemini)...")
 
-                // Synthesize response via Gemini / cognitive engine
-                val result = OmnisGeminiClient.synthesize(trimmedQuery, _selectedDomain.value)
+                // Synthesize response via Gemini / cognitive engine with memory injection
+                val result = OmnisGeminiClient.synthesize(trimmedQuery, _selectedDomain.value, relevantFragments)
                 
+                // ULOŽENÍ ARTEFAKTU (pokud byl vygenerován)
+                result.artifact?.let { artifact ->
+                    val artifactId = repository.omnisDao.insertArtifact(artifact.copy(sourceRecordId = System.currentTimeMillis()))
+                    Log.i("OmnisViewModel", "Autonomně uložen artefakt ID: $artifactId")
+                }
+
                 _streamState.value = StreamState("verification", "MULTI-LAYER VERIFIED", result.composite, "MULTI-LAYER VERIFIED")
                 kotlinx.coroutines.delay(500)
 
@@ -657,18 +818,29 @@ class OmnisViewModel(
                 )
                 repository.insert(asstRecord)
 
-                // AUTOMATICKÝ ZÁPIS DO POSTGRESQL (Replikace na pozadí)
-                viewModelScope.launch(OmnisGeminiClient.ioDispatcher) {
-                    try {
-                        OmnisActionDispatcher.executeAction(
-                            ActionPayload(
-                                intent = "auto_postgres_replication",
-                                actionId = "postgres_auto_sync",
-                                parameters = mapOf("unsynced_count" to 2, "engine" to "PostgreSQL Cloud SQL")
+                // AUTOMATICKÁ ORCHESTRACE NATIVNÍCH AKCÍ
+                if (result.recommendedActionId != null) {
+                    val payload = ActionPayload(
+                        intent = "AI_RECOMMENDED_ORCHESTRATION",
+                        actionId = result.recommendedActionId,
+                        parameters = result.recommendedActionParams ?: emptyMap()
+                    )
+                    executeActionPayload(payload)
+                } else {
+                    // AUTOMATICKÝ ZÁPIS DO POSTGRESQL (Replikace na pozadí)
+                    viewModelScope.launch(OmnisGeminiClient.ioDispatcher) {
+                        try {
+                            OmnisActionDispatcher.executeAction(
+                                ActionPayload(
+                                    intent = "auto_postgres_replication",
+                                    actionId = "postgres_auto_sync",
+                                    parameters = mapOf("unsynced_count" to 2, "engine" to "PostgreSQL Cloud SQL")
+                                ),
+                                repository.omnisDao
                             )
-                        )
-                    } catch (e: Exception) {
-                        Log.e("OmnisViewModel", "PostgreSQL auto-replication failed", e)
+                        } catch (e: Exception) {
+                            Log.e("OmnisViewModel", "PostgreSQL auto-replication failed", e)
+                        }
                     }
                 }
 
@@ -734,6 +906,123 @@ class OmnisViewModel(
                 defenseNotes = "Manuálně autorizováno operátorem (Human-in-the-Loop Override)."
             )
             repository.insert(updated)
+        }
+    }
+
+    fun triggerMemoryConsolidation() {
+        if (_isConsolidating.value) return
+        _isConsolidating.value = true
+        viewModelScope.launch {
+            try {
+                val currentRecords = records.value
+                val success = com.example.memory.MemoryConsolidator.consolidate(currentRecords, repository.omnisDao)
+                if (success) {
+                    _errorMessage.value = "✓ Konsolidace paměti dokončena."
+                } else {
+                    _errorMessage.value = "Konsolidace nebyla provedena (nedostatek dat nebo chyba)."
+                }
+            } catch (e: Exception) {
+                Log.e("OmnisViewModel", "Memory consolidation failed", e)
+                _errorMessage.value = "Chyba při konsolidaci: ${e.localizedMessage}"
+            } finally {
+                _isConsolidating.value = false
+            }
+        }
+    }
+
+    fun deleteMemoryFragment(id: Long) {
+        viewModelScope.launch {
+            repository.omnisDao.deleteFragment(id)
+        }
+    }
+
+    fun onDeleteArtifact(id: Long) {
+        viewModelScope.launch {
+            repository.omnisDao.deleteArtifact(id)
+        }
+    }
+
+    fun onExportArtifact(artifact: com.example.data.OmnisArtifact) {
+        // Export logic stub
+    }
+
+    fun onCreateGoal(title: String, description: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            com.example.telemetry.TelemetryEngine.log("INFO", "AGTO", "Zahájena dekonstrukce vize: $title")
+            val tasks = com.example.agent.GoalDeconstructor.deconstruct(title, description)
+            val tasksJson = kotlinx.serialization.json.Json.encodeToString(tasks)
+            
+            val goal = com.example.data.OmnisGoal(
+                title = title,
+                description = description,
+                status = "ACTIVE",
+                priority = 3,
+                progress = 0f,
+                tasksJson = tasksJson
+            )
+            repository.omnisDao.insertGoal(goal)
+            com.example.telemetry.TelemetryEngine.log("INFO", "AGTO", "Vize dekonstruována na ${tasks.size} úkolů.", "{\"goal\":\"$title\"}")
+            _isLoading.value = false
+        }
+    }
+
+    fun onDeleteGoal(id: Long) {
+        viewModelScope.launch {
+            repository.omnisDao.deleteGoal(id)
+        }
+    }
+
+    fun onClearTelemetry() {
+        viewModelScope.launch {
+            repository.omnisDao.clearTelemetry()
+            com.example.telemetry.TelemetryEngine.log("INFO", "Admin", "Telemetrická data byla smazána.")
+        }
+    }
+
+    fun runNexusCollaboration(query: String, agentIds: List<String>) {
+        if (query.isBlank() || agentIds.isEmpty()) return
+        
+        _isLoading.value = true
+        _activeNexusAgents.value = agentIds
+        viewModelScope.launch {
+            try {
+                val finalResult = com.example.agent.NexusOrchestrator.runCollaborativeSession(query, agentIds)
+                if (finalResult != null) {
+                    // Uložit finální syntézu do historie
+                    val userRecord = OmnisRecord(
+                        role = "user",
+                        content = "🤝 [NEXUS COLLABORATION] Téma: $query | Agenti: ${agentIds.joinToString(", ")}",
+                        domain = "NEXUS_ORCHESTRATION"
+                    )
+                    repository.insert(userRecord)
+
+                    val asstRecord = OmnisRecord(
+                        role = "assistant",
+                        content = finalResult.answer,
+                        cognitiveProcess = "Multi-agentní kolaborace NEXUS:\n" + 
+                            com.example.agent.NexusOrchestrator.nexusHistory.value.joinToString("\n") { 
+                                "- ${it.agentId}: ${it.text.take(60)}..." 
+                            },
+                        followUpQuestions = finalResult.followUpQuestions.joinToString("|"),
+                        valSys = finalResult.valSys, valEcon = finalResult.valEcon, valPsych = finalResult.valPsych,
+                        valEco = finalResult.valEco, valLaw = finalResult.valLaw, valSec = finalResult.valSec,
+                        valPhys = finalResult.valPhys, valSoc = finalResult.valSoc,
+                        compositeScore = finalResult.composite, domain = "NEXUS_SYNTHESIS",
+                        defenseTier = finalResult.defenseTier, defenseNotes = finalResult.defenseNotes
+                    )
+                    repository.insert(asstRecord)
+                    
+                    // Přepnout na chat pro zobrazení výsledku
+                    _activeTab.value = OmnisTab.CHAT
+                }
+            } catch (e: Exception) {
+                Log.e("OmnisViewModel", "Nexus collaboration failed", e)
+                _errorMessage.value = "Chyba při NEXUS kolaboraci: ${e.localizedMessage}"
+            } finally {
+                _isLoading.value = false
+                _activeNexusAgents.value = emptyList()
+            }
         }
     }
 }
