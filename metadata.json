@@ -1,6 +1,6 @@
 {
   "name": "O.M.N.I.S.",
-  "description": "O.M.N.I.S. - Kognitivní architektura a dashboard s Maticí dopadů",
+  "description": "Systém pro kognitivní řízení a 8D analýzu v reálném čase.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

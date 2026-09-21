@@ -10,6 +10,10 @@ import com.example.api.ToolCallSpec
 import com.example.data.OmnisDao
 import com.example.data.OmnisRecord
 import com.example.data.OmnisRepository
+import com.example.data.MemoryFragment
+import com.example.data.OmnisArtifact
+import com.example.data.OmnisGoal
+import com.example.data.OmnisTelemetry
 import com.example.ui.OmnisViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -36,6 +40,10 @@ import java.io.IOException
 
 class FakeOmnisDao : OmnisDao {
     private val recordsFlow = MutableStateFlow<List<OmnisRecord>>(emptyList())
+    private val fragmentsFlow = MutableStateFlow<List<MemoryFragment>>(emptyList())
+    private val artifactsFlow = MutableStateFlow<List<OmnisArtifact>>(emptyList())
+    private val goalsFlow = MutableStateFlow<List<OmnisGoal>>(emptyList())
+    private val telemetryFlow = MutableStateFlow<List<OmnisTelemetry>>(emptyList())
 
     override fun getAllRecords(): Flow<List<OmnisRecord>> = recordsFlow
 
@@ -52,6 +60,63 @@ class FakeOmnisDao : OmnisDao {
 
     override suspend fun clearAll() {
         recordsFlow.value = emptyList()
+    }
+
+    override suspend fun getUnsyncedCount(): Int = recordsFlow.value.count { !it.isSyncedToPostgres }
+
+    override suspend fun markAllAsSynced() {
+        recordsFlow.value = recordsFlow.value.map { it.copy(isSyncedToPostgres = true) }
+    }
+
+    override suspend fun getRecordCount(): Int = recordsFlow.value.size
+
+    override suspend fun insertFragment(fragment: MemoryFragment): Long {
+        fragmentsFlow.value = listOf(fragment) + fragmentsFlow.value
+        return fragmentsFlow.value.size.toLong()
+    }
+
+    override fun getAllFragments(): Flow<List<MemoryFragment>> = fragmentsFlow
+
+    override suspend fun deleteFragment(id: Long) {
+        fragmentsFlow.value = fragmentsFlow.value.filter { it.id != id }
+    }
+
+    override suspend fun insertArtifact(artifact: OmnisArtifact): Long {
+        artifactsFlow.value = listOf(artifact) + artifactsFlow.value
+        return artifactsFlow.value.size.toLong()
+    }
+
+    override fun getAllArtifacts(): Flow<List<OmnisArtifact>> = artifactsFlow
+
+    override suspend fun deleteArtifact(id: Long) {
+        artifactsFlow.value = artifactsFlow.value.filter { it.id != id }
+    }
+
+    override suspend fun insertGoal(goal: OmnisGoal): Long {
+        goalsFlow.value = listOf(goal) + goalsFlow.value
+        return goalsFlow.value.size.toLong()
+    }
+
+    override fun getAllGoals(): Flow<List<OmnisGoal>> = goalsFlow
+
+    override suspend fun deleteGoal(id: Long) {
+        goalsFlow.value = goalsFlow.value.filter { it.id != id }
+    }
+
+    override suspend fun updateGoalProgress(id: Long, status: String, progress: Float, tasksJson: String) {
+        goalsFlow.value = goalsFlow.value.map {
+            if (it.id == id) it.copy(status = status, progress = progress, tasksJson = tasksJson) else it
+        }
+    }
+
+    override suspend fun insertTelemetry(telemetry: OmnisTelemetry) {
+        telemetryFlow.value = listOf(telemetry) + telemetryFlow.value
+    }
+
+    override fun getRecentTelemetry(): Flow<List<OmnisTelemetry>> = telemetryFlow
+
+    override suspend fun clearTelemetry() {
+        telemetryFlow.value = emptyList()
     }
 }
 

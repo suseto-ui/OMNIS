@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
         speechController.initialize()
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
+            OmnisTheme {
                 OmnisMainScreen(
                     viewModel = viewModel,
                     onSpeak = { text ->

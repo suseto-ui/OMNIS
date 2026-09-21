@@ -61,6 +61,24 @@ object ScenarioLibrary {
             "Změna paradigmatu v lidsko-AI interakci.",
             0.1f, 0.1f, 0.4f, 0.1f, 0.3f, 0.1f, 0.0f, 0.5f,
             OmnisViolet
+        ),
+        ScenarioEvent(
+            "regulatory_compliance", "Regulace & AI Governance", 
+            "Zpřísnění etických norem a auditních požadavků (EU AI Act).",
+            -0.1f, -0.2f, 0.1f, 0.0f, 0.5f, 0.4f, 0.0f, 0.3f,
+            OmnisCyan
+        ),
+        ScenarioEvent(
+            "green_transition", "Energetická & ESG Tranzice", 
+            "Přechod na zero-emission výpočetní clustery a ESG standardy.",
+            0.1f, -0.2f, 0.2f, 0.6f, 0.2f, 0.1f, 0.1f, 0.3f,
+            OmnisEmerald
+        ),
+        ScenarioEvent(
+            "quantum_supremacy", "Kvantový Kryptoanalytický Skok", 
+            "Prolomení asymetrických šifer a nutnost post-kvantové migrace.",
+            0.3f, -0.1f, -0.2f, 0.0f, 0.1f, -0.5f, 0.3f, -0.1f,
+            OmnisAmber
         )
     )
 }

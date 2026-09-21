@@ -1,4 +1,4 @@
-package com.example.ui
+package com.example.ui.admin
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*

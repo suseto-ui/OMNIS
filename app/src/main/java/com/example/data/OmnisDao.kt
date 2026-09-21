@@ -11,6 +11,27 @@ interface OmnisDao {
     @Query("SELECT * FROM omnis_messages ORDER BY timestamp ASC")
     fun getAllRecords(): Flow<List<OmnisRecord>>
 
+    @Query("SELECT * FROM omnis_messages WHERE threadId = :threadId ORDER BY timestamp ASC")
+    fun getRecordsByThread(threadId: String): Flow<List<OmnisRecord>>
+
+    @Query("SELECT * FROM omnis_messages WHERE userName = :userName ORDER BY timestamp ASC")
+    fun getRecordsByUser(userName: String): Flow<List<OmnisRecord>>
+
+    @Query("SELECT DISTINCT userName FROM omnis_messages WHERE userName IS NOT NULL AND userName != '' ORDER BY userName ASC")
+    fun getAllUserNames(): Flow<List<String>>
+
+    @Query("SELECT threadId, threadTitle, userName, MAX(timestamp) as lastTimestamp, COUNT(id) as messageCount, (SELECT content FROM omnis_messages m2 WHERE m2.threadId = m1.threadId ORDER BY timestamp DESC LIMIT 1) as lastContent FROM omnis_messages m1 WHERE userName = :userName GROUP BY threadId ORDER BY lastTimestamp DESC")
+    fun getThreadsByUser(userName: String): Flow<List<ThreadSummary>>
+
+    @Query("SELECT threadId, threadTitle, userName, MAX(timestamp) as lastTimestamp, COUNT(id) as messageCount, (SELECT content FROM omnis_messages m2 WHERE m2.threadId = m1.threadId ORDER BY timestamp DESC LIMIT 1) as lastContent FROM omnis_messages m1 GROUP BY threadId ORDER BY lastTimestamp DESC")
+    fun getAllThreads(): Flow<List<ThreadSummary>>
+
+    @Query("DELETE FROM omnis_messages WHERE threadId = :threadId")
+    suspend fun deleteThread(threadId: String)
+
+    @Query("UPDATE omnis_messages SET threadTitle = :newTitle WHERE threadId = :threadId")
+    suspend fun updateThreadTitle(threadId: String, newTitle: String)
+
     @Query("SELECT * FROM omnis_messages ORDER BY timestamp DESC LIMIT 1")
     fun getLatestRecord(): Flow<OmnisRecord?>
 

@@ -53,6 +53,15 @@ object AgentRegistry {
             color = Color(0xFF2196F3),
             domainFocus = "PHYSICS",
             systemPrompt = "Jsi PHYS-ARCHITECT. Zvažuješ fyzikální limity, energetickou náročnost a termodynamickou stabilitu systému. Edge-computing a HW optimalizace jsou tvou doménou."
+        ),
+        OmnisAgent(
+            id = "omnis_core",
+            name = "O.M.N.I.S.-CORE",
+            role = "Central Cognitive Synthesizer",
+            description = "Finální harmonizace multi-agentní deliberace.",
+            color = OmnisCyan,
+            domainFocus = "SYSTEM_INTEGRATION",
+            systemPrompt = "Jsi centrální jádro O.M.N.I.S. syntetizující pohledy specializovaných agentů do exaktního konsensu."
         )
     )
 

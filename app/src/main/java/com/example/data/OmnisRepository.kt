@@ -7,6 +7,20 @@ class OmnisRepository(private val dao: OmnisDao) {
     val allRecords: Flow<List<OmnisRecord>> = dao.getAllRecords()
     val latestRecord: Flow<OmnisRecord?> = dao.getLatestRecord()
     val allFragments: Flow<List<MemoryFragment>> = dao.getAllFragments()
+    val allUserNames: Flow<List<String>> = dao.getAllUserNames()
+    val allThreads: Flow<List<ThreadSummary>> = dao.getAllThreads()
+
+    fun getThreadsByUser(userName: String): Flow<List<ThreadSummary>> = dao.getThreadsByUser(userName)
+    fun getRecordsByThread(threadId: String): Flow<List<OmnisRecord>> = dao.getRecordsByThread(threadId)
+    fun getRecordsByUser(userName: String): Flow<List<OmnisRecord>> = dao.getRecordsByUser(userName)
+
+    suspend fun deleteThread(threadId: String) {
+        dao.deleteThread(threadId)
+    }
+
+    suspend fun updateThreadTitle(threadId: String, newTitle: String) {
+        dao.updateThreadTitle(threadId, newTitle)
+    }
 
     suspend fun insert(record: OmnisRecord): Long {
         val rowId = dao.insertRecord(record)

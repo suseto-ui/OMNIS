@@ -80,8 +80,29 @@ fun OmnisDrawerContent(
 
             HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
 
-            // Sekce: Hlavní velení
-            DrawerSectionHeader("HLAVNÍ VELENÍ")
+            // Sekce: Konverzační Prvky
+            DrawerSectionHeader("KONVERZAČNÍ PRVKY")
+
+            DrawerItem(
+                title = "Kognitivní Chat",
+                icon = Icons.AutoMirrored.Filled.Send,
+                selected = activeTab == OmnisTab.CHAT,
+                tint = OmnisCyan,
+                onClick = { onTabSelected(OmnisTab.CHAT) }
+            )
+
+            DrawerItem(
+                title = "Neural Nexus",
+                icon = Icons.Default.Hub,
+                selected = activeTab == OmnisTab.NEXUS,
+                tint = OmnisEmerald,
+                onClick = { onTabSelected(OmnisTab.NEXUS) }
+            )
+
+            HorizontalDivider(color = OmnisBorderDark.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+
+            // Sekce: Informační Moduly & Přehledy
+            DrawerSectionHeader("INFORMAČNÍ MODULY & PŘEHLEDY")
 
             DrawerItem(
                 title = "Operační Kokpit",
@@ -92,32 +113,11 @@ fun OmnisDrawerContent(
             )
 
             DrawerItem(
-                title = "Kognitivní Chat",
-                icon = Icons.AutoMirrored.Filled.Send,
-                selected = activeTab == OmnisTab.CHAT,
+                title = "Metodika & Průvodce",
+                icon = Icons.Default.MenuBook,
+                selected = activeTab == OmnisTab.GUIDE,
                 tint = OmnisCyan,
-                onClick = { onTabSelected(OmnisTab.CHAT) }
-            )
-
-            HorizontalDivider(color = OmnisBorderDark.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-
-            // Sekce: Kognitivní Moduly
-            DrawerSectionHeader("KOGNITIVNÍ MODULY")
-
-            DrawerItem(
-                title = "Neural Nexus",
-                icon = Icons.Default.Hub,
-                selected = activeTab == OmnisTab.NEXUS,
-                tint = OmnisEmerald,
-                onClick = { onTabSelected(OmnisTab.NEXUS) }
-            )
-
-            DrawerItem(
-                title = "Scenario Architect",
-                icon = Icons.Default.Timeline,
-                selected = activeTab == OmnisTab.SCENARIOS,
-                tint = OmnisCyan,
-                onClick = { onTabSelected(OmnisTab.SCENARIOS) }
+                onClick = { onTabSelected(OmnisTab.GUIDE) }
             )
 
             DrawerItem(
@@ -126,6 +126,14 @@ fun OmnisDrawerContent(
                 selected = activeTab == OmnisTab.GOALS,
                 tint = OmnisEmerald,
                 onClick = { onTabSelected(OmnisTab.GOALS) }
+            )
+
+            DrawerItem(
+                title = "Scenario Architect",
+                icon = Icons.Default.Timeline,
+                selected = activeTab == OmnisTab.SCENARIOS,
+                tint = OmnisCyan,
+                onClick = { onTabSelected(OmnisTab.SCENARIOS) }
             )
 
             DrawerItem(
@@ -152,130 +160,17 @@ fun OmnisDrawerContent(
                 onClick = { onTabSelected(OmnisTab.ANALYTICS) }
             )
 
-            HorizontalDivider(color = OmnisBorderDark.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-
-            // Sekce: Observabilita
-            DrawerSectionHeader("OBSERVABILITA & TELEMETRIE")
-
-            DrawerItem(
-                title = "Systémová Telemetrie",
-                icon = Icons.Default.Dns,
-                selected = activeTab == OmnisTab.TELEMETRY,
-                tint = OmnisCyan,
-                onClick = { onTabSelected(OmnisTab.TELEMETRY) }
-            )
-
-            // Sekce: Administrace
-            if (currentRole.canAccessSystemActions()) {
-                HorizontalDivider(color = OmnisBorderDark.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-                DrawerSectionHeader("ADMINISTRACE & SYSTÉM")
-
-                DrawerItem(
-                    title = "Administrátorské Centrum",
-                    icon = Icons.Default.AdminPanelSettings,
-                    selected = activeTab == OmnisTab.ADMIN,
-                    tint = OmnisAmber,
-                    onClick = { onTabSelected(OmnisTab.ADMIN) }
-                )
-
-                DrawerItem(
-                    title = "Kognitivní Uzly & Invarianty",
-                    icon = Icons.Default.AccountTree,
-                    selected = activeTab == OmnisTab.NODES,
-                    tint = OmnisCyan,
-                    onClick = { onTabSelected(OmnisTab.NODES) }
-                )
-
-                DrawerItem(
-                    title = "Octagon 8D Matice",
-                    icon = Icons.Default.Grid4x4,
-                    selected = activeTab == OmnisTab.MATRIX,
-                    tint = OmnisViolet,
-                    onClick = { onTabSelected(OmnisTab.MATRIX) }
-                )
-
-                DrawerItem(
-                    title = "Sémantický Testovací Chat",
-                    icon = Icons.Default.Science,
-                    selected = activeTab == OmnisTab.TEST_SEMANTIC,
-                    tint = OmnisCyan,
-                    onClick = { onTabSelected(OmnisTab.TEST_SEMANTIC) }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.weight(1f, fill = false))
+            Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider(color = OmnisBorderDark, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
 
-            // Admin Circuit Breaker Switch (Hlavní Jistič)
-            if (currentRole.canAccessSystemActions()) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    color = OmnisPanelDark,
-                    shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isCircuitBreakerTripped) Color.Red else OmnisAmber)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PowerSettingsNew,
-                                contentDescription = null,
-                                tint = if (isCircuitBreakerTripped) Color.Red else OmnisAmber,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Column {
-                                Text("HLAVNÍ JISTIČ", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                                Text(
-                                    text = if (isCircuitBreakerTripped) "VYPNUTO (Blokáda)" else "ZAPNUTO (Aktivní)",
-                                    color = if (isCircuitBreakerTripped) Color.Red else OmnisEmerald,
-                                    fontSize = 9.sp,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            }
-                        }
-                        Switch(
-                            checked = !isCircuitBreakerTripped,
-                            onCheckedChange = { onToggleCircuitBreaker() },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = OmnisEmerald,
-                                uncheckedThumbColor = Color.Red,
-                                checkedTrackColor = OmnisEmerald.copy(alpha = 0.3f),
-                                uncheckedTrackColor = Color.Red.copy(alpha = 0.3f)
-                            )
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-
-            // Switch to Admin Mode Button (pokud je přihlášen běžný uživatel)
-            if (currentRole == UserRole.STANDARD_USER) {
-                DrawerItem(
-                    title = "Přepnout do Admin Režimu",
-                    icon = Icons.Default.AdminPanelSettings,
-                    selected = false,
-                    tint = OmnisAmber,
-                    onClick = onSwitchToAdminClick
-                )
-            }
-
-            // Role badge and Logout
+            // Odhlášení / Čisté ukončení relace
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
                 color = OmnisCardDark,
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(10.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark)
             ) {
                 Row(
@@ -285,12 +180,19 @@ fun OmnisDrawerContent(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
-                        Text("Aktuální role:", color = OmnisTextMuted, fontSize = 10.sp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(OmnisEmerald)
+                        )
                         Text(
-                            text = if (currentRole == UserRole.ADMIN_OPERATOR) "Admin / Operátor" else "Běžný Uživatel",
-                            color = if (currentRole == UserRole.ADMIN_OPERATOR) OmnisAmber else OmnisCyan,
-                            fontWeight = FontWeight.Bold,
+                            text = "Aktivní Relace",
+                            color = OmnisTextMuted,
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace
                         )
@@ -308,8 +210,7 @@ fun OmnisDrawerContent(
                 }
             }
             
-            // Extra padding at bottom for navigation / gesture bars
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

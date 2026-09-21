@@ -1,5 +1,6 @@
 package com.example.ui
 
+import com.example.auth.UserRole
 import com.example.ui.theme.*
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -27,6 +28,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -67,7 +69,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun OmnisMainScreen(
-                    
     viewModel: OmnisViewModel,
     onSpeak: (String) -> Unit,
     onExportPdf: (OmnisRecord) -> Unit
@@ -77,260 +78,24 @@ fun OmnisMainScreen(
 
     if (!isAuthenticated) {
         OmnisLoginScreen(
-            onLoginSuccess = {
-                // Auth stav je automaticky aktualizován v OmnisAuthService a OmnisViewModel
-            }
+            onLoginSuccess = { }
         )
         return
     }
 
-    val isCircuitBreakerTripped by viewModel.isCircuitBreakerTripped.collectAsStateWithLifecycle()
-    val activeTab by viewModel.activeTab.collectAsStateWithLifecycle()
-    val records by viewModel.records.collectAsStateWithLifecycle()
-    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    val inputQuery by viewModel.inputQuery.collectAsStateWithLifecycle()
-    val ocrValidationState by viewModel.ocrValidationState.collectAsStateWithLifecycle()
-    val pendingGatewayReview by viewModel.pendingGatewayReview.collectAsStateWithLifecycle()
-    
-    val navState = remember { com.example.ui.OmnisNavigationState() }
-    val showDeleteConfirm by navState.showDeleteConfirm.collectAsStateWithLifecycle()
-    val isActionExecuting by viewModel.isActionExecuting.collectAsStateWithLifecycle()
-    val actionLogs by viewModel.actionLogs.collectAsStateWithLifecycle()
-    val lastActionResult by viewModel.lastActionResult.collectAsStateWithLifecycle()
-    val memoryFragments by viewModel.memoryFragments.collectAsStateWithLifecycle()
-    val isConsolidating by viewModel.isConsolidating.collectAsStateWithLifecycle()
-
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-
-    // Password-Protected Admin Switch State
-    var showAdminPasswordDialog by remember { mutableStateOf(false) }
-    var adminPasswordInput by remember { mutableStateOf("") }
-    var isAdminPasswordError by remember { mutableStateOf(false) }
-
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let { msg ->
-            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-        }
-    }
-
-    ocrValidationState?.let { state ->
-        com.example.ui.OcrValidationDialog(
-            state = state,
-            onTextChanged = viewModel::updateOcrValidationText,
-            onConfirm = viewModel::confirmOcrValidation,
-            onCancel = viewModel::cancelOcrValidation
-        )
-    }
-
-    pendingGatewayReview?.let { reviewState ->
-        com.example.ui.PromptGatewayReviewModal(
-            reviewState = reviewState,
-            onConfirmed = { optimizedPrompt ->
-                viewModel.confirmGatewayReview(optimizedPrompt)
-            },
-            onBypassWithOriginal = {
-                viewModel.bypassGatewayReview()
-            },
-            onDismiss = {
-                viewModel.dismissGatewayReview()
-            }
-        )
-    }
-
-    if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { navState.setShowDeleteConfirm(false) },
-            title = { Text("Potvrdit smazání") },
-            text = { Text("Opravdu chcete vymazat celou historii paměti O.M.N.I.S.? Tato akce je nevratná.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.clearAllHistory()
-                        navState.setShowDeleteConfirm(false)
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                ) { Text("Smazat", color = Color.White) }
-            },
-            dismissButton = {
-                TextButton(onClick = { navState.setShowDeleteConfirm(false) }) { Text("Zrušit") }
-            }
-        )
-    }
-
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            OmnisDrawerContent(
-                activeTab = activeTab,
-                currentRole = currentRole,
-                isCircuitBreakerTripped = isCircuitBreakerTripped,
-                onTabSelected = { tab ->
-                    viewModel.setTab(tab)
-                    scope.launch { drawerState.close() }
-                },
-                onToggleCircuitBreaker = { viewModel.toggleCircuitBreaker() },
-                onSwitchToAdminClick = { showAdminPasswordDialog = true },
-                onLogoutClick = {
-                    viewModel.logout()
-                    scope.launch { drawerState.close() }
-                }
-            )
-        }
-    ) {
-        // Admin Password Dialog
-        if (showAdminPasswordDialog) {
-            AlertDialog(
-                onDismissRequest = {
-                        showAdminPasswordDialog = false
-                        adminPasswordInput = ""
-                        isAdminPasswordError = false
-                    },
-                    containerColor = OmnisPanelDark,
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Default.Lock, contentDescription = null, tint = OmnisAmber)
-                            Text("Administrátorský Režim", color = OmnisAmber, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    text = {
-                        Column {
-                            Text("Zadejte přístupový klíč pro povýšení oprávnění na Admin / Operátor:", color = OmnisTextMuted, fontSize = 12.sp)
-                            Spacer(modifier = Modifier.height(12.dp))
-                            OutlinedTextField(
-                                value = adminPasswordInput,
-                                onValueChange = {
-                                    adminPasswordInput = it
-                                    isAdminPasswordError = false
-                                },
-                                label = { Text("Heslo admina") },
-                                singleLine = true,
-                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                                isError = isAdminPasswordError,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = OmnisAmber,
-                                    unfocusedBorderColor = OmnisBorderDark,
-                                    errorBorderColor = Color.Red
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            if (isAdminPasswordError) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("Neplatný přístupový klíč operátora.", color = Color.Red, fontSize = 10.sp)
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                val success = com.example.auth.OmnisAuthService.login(context, "admin", adminPasswordInput, com.example.auth.UserRole.ADMIN_OPERATOR)
-                                if (success) {
-                                    showAdminPasswordDialog = false
-                                    adminPasswordInput = ""
-                                    isAdminPasswordError = false
-                                    scope.launch { drawerState.close() }
-                                    Toast.makeText(context, "Oprávnění úspěšně povýšena na Admin / Operátor", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    isAdminPasswordError = true
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = OmnisAmber)
-                        ) {
-                            Text("Aktivovat Admin", color = Color.Black, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(
-                            onClick = {
-                                showAdminPasswordDialog = false
-                                adminPasswordInput = ""
-                                isAdminPasswordError = false
-                            }
-                        ) {
-                            Text("Zrušit", color = OmnisTextMuted)
-                        }
-                    }
-                )
-            }
-
-        val canHandleBack = showAdminPasswordDialog ||
-                navState.showDeleteConfirm.value ||
-                ocrValidationState != null ||
-                pendingGatewayReview != null ||
-                drawerState.isOpen ||
-                viewModel.canNavigateBack
-
-        BackHandler(enabled = canHandleBack) {
-            when {
-                showAdminPasswordDialog -> {
-                    showAdminPasswordDialog = false
-                    adminPasswordInput = ""
-                    isAdminPasswordError = false
-                }
-                navState.showDeleteConfirm.value -> {
-                    navState.setShowDeleteConfirm(false)
-                }
-                ocrValidationState != null -> {
-                    viewModel.cancelOcrValidation()
-                }
-                pendingGatewayReview != null -> {
-                    viewModel.dismissGatewayReview()
-                }
-                drawerState.isOpen -> {
-                    scope.launch { drawerState.close() }
-                }
-                else -> {
-                    viewModel.popTab()
-                }
-            }
-        }
-
-        Scaffold(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(OmnisBgDark),
-            containerColor = OmnisBgDark,
-            topBar = {
-                OmnisTopAppBar(
-                    records = records,
-                    activeTab = activeTab,
-                    canNavigateBack = viewModel.canNavigateBack,
-                    onBackClick = { viewModel.popTab() },
-                    onOpenMenu = {
-                        scope.launch {
-                            if (drawerState.isClosed) drawerState.open() else drawerState.close()
-                        }
-                    },
-                    onClearSessionClick = { navState.setShowDeleteConfirm(true) }
-                )
-            }
-    ) { innerPadding ->
-        OmnisTabRouter(
-            activeTab = activeTab,
-            records = records,
-            isLoading = isLoading,
-            inputQuery = inputQuery,
-            lastActionResult = lastActionResult,
-            isActionExecuting = isActionExecuting,
-            actionLogs = actionLogs,
-            fragments = memoryFragments,
-            isConsolidating = isConsolidating,
-            onConsolidateMemory = { viewModel.triggerMemoryConsolidation() },
-            onDeleteMemoryFragment = { viewModel.deleteMemoryFragment(it) },
-            onRunNexusCollaboration = { query, agents -> viewModel.runNexusCollaboration(query, agents) },
-            currentRole = currentRole,
-            onSpeak = onSpeak,
-            onExportPdf = onExportPdf,
+    if (currentRole == UserRole.ADMIN_OPERATOR) {
+        com.example.ui.admin.AdminNavigationLayout(
             viewModel = viewModel,
-            modifier = Modifier
-                .padding(innerPadding)
-                .consumeWindowInsets(innerPadding)
-                .imePadding()
+            onSpeak = onSpeak,
+            onExportPdf = onExportPdf
+        )
+    } else {
+        com.example.ui.user.UserNavigationLayout(
+            viewModel = viewModel,
+            onSpeak = onSpeak,
+            onExportPdf = onExportPdf
         )
     }
-}
 }
 
 @Composable
@@ -359,10 +124,19 @@ fun ChatView(
     lastActionResult: com.example.action.ActionExecutionResult? = null,
     isActionExecuting: Boolean = false,
     userRole: com.example.auth.UserRole = com.example.auth.UserRole.ADMIN_OPERATOR,
-    activeMemoryFragments: List<com.example.data.MemoryFragment> = emptyList()
+    activeMemoryFragments: List<com.example.data.MemoryFragment> = emptyList(),
+    isPromptGuideEnabled: Boolean = true,
+    onDisablePromptGuide: () -> Unit = {},
+    isCircuitBreakerTripped: Boolean = false,
+    onToggleCircuitBreaker: () -> Unit = {},
+    isPromptGatewayEnabled: Boolean = true,
+    onTogglePromptGateway: () -> Unit = {},
+    currentDomain: String = "SYSTEMS_INTELLIGENCE",
+    onDomainChange: (String) -> Unit = {}
 ) {
     val listState = rememberLazyListState()
     val context = LocalContext.current
+    var isInputFocused by remember { mutableStateOf(false) }
 
     // Handle scroll jump
     LaunchedEffect(scrollToId) {
@@ -439,7 +213,7 @@ fun ChatView(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().imePadding()) {
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -461,31 +235,104 @@ fun ChatView(
                 )
             }
 
+            if (records.isEmpty() && !isLoading) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp, horizontal = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(56.dp),
+                            shape = CircleShape,
+                            color = OmnisCyan.copy(alpha = 0.12f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, OmnisCyan.copy(alpha = 0.5f))
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Hub,
+                                    contentDescription = null,
+                                    tint = OmnisCyan,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                            }
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "O.M.N.I.S. KOGNITIVNÍ KERNEL",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = "Vlákno je připraveno k analýze, syntéze a exekuci cílů.",
+                                color = OmnisTextMuted,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(
+                                "🔍 Architektonický audit a invarianty" to "Proveď dekompozici a audit architektury systému se zaměřením na striktní bezpečnostní invarianty a transdisciplinární vazby.",
+                                "📊 8D Kognitivní analýza stavu a tenzorů" to "Spusť hloubkovou 8D Octagon analýzu systému: vyhodnoť domény, metriky tření a navrhni optimalizační matici.",
+                                "⚡ Návrh REST API a datové architektury" to "Navrhni produkční specifikaci REST API (FastAPI, Pydantic v2, PostgreSQL) s důrazem na čistou architekturu a bezpečnost.",
+                                "🛡️ Forenzní verifikace a Zero-Cost Stack" to "Proveď forenzní verifikaci lokálního prostředí (Zero-Cost Stack, Docker, Gemini API, MCP) a doporuč optimalizační kroky."
+                            ).forEach { (label, prompt) ->
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onQuickQuery(prompt) },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = OmnisPanelDark.copy(alpha = 0.8f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = OmnisTextLight,
+                                            fontSize = 12.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Default.ChevronRight,
+                                            contentDescription = null,
+                                            tint = OmnisCyan,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             if (isLoading && streamState != null) {
                 item {
                     StreamingCognitiveMessage(streamState)
                 }
             } else if (isLoading) {
                 item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            color = OmnisCyan,
-                            strokeWidth = 2.dp
-                        )
-                        Text(
-                            text = "Probíhá kognitivní syntéza & výpočet tenzorů...",
-                            color = OmnisCyan,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
+                    OmnisSkeletonLoader(
+                        statusText = "Probíhá kognitivní syntéza & výpočet tenzorů..."
+                    )
                 }
             }
         }
@@ -657,6 +504,24 @@ fun ChatView(
             )
         }
 
+        // Quick-Action HUD Bar (Jistič, Sémantická brána, Volič kognitivní domény)
+        OmnisQuickActionHud(
+            isCircuitBreakerTripped = isCircuitBreakerTripped,
+            onToggleCircuitBreaker = onToggleCircuitBreaker,
+            isPromptGatewayEnabled = isPromptGatewayEnabled,
+            onTogglePromptGateway = onTogglePromptGateway,
+            currentDomain = currentDomain,
+            onDomainChange = onDomainChange,
+            userRole = userRole
+        )
+
+        // Prompt Guide Tooltip (Nápověda pro sémantickou strukturaci promptu)
+        PromptGuideTooltip(
+            inputText = inputQuery,
+            isEnabledInSettings = isPromptGuideEnabled,
+            onDisableInSettings = onDisablePromptGuide
+        )
+
         // Input Bar
         Surface(
             color = OmnisPanelDark,
@@ -732,14 +597,23 @@ fun ChatView(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 22.dp, max = 120.dp)
+                            .onFocusChanged { focusState ->
+                                isInputFocused = focusState.isFocused
+                            }
                             .testTag("chat_input_field"),
                         maxLines = 4,
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(OmnisCyan),
                         decorationBox = { innerTextField ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.weight(1f)) {
-                                    if (inputQuery.isEmpty()) {
-                                        Text("Zpráva pro O.M.N.I.S...", color = OmnisTextMuted, fontSize = 13.sp)
+                                    if (inputQuery.isEmpty() && !isInputFocused) {
+                                        Text(
+                                            text = "Zadejte prompt: [Kognitivní doména] + [Akce] + [Kritérium]...",
+                                            color = OmnisTextMuted,
+                                            fontSize = 12.sp,
+                                            maxLines = 2,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
                                     }
                                     innerTextField()
                                 }
@@ -778,8 +652,12 @@ fun ChatView(
                     }
                 }
 
+                val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
                 IconButton(
-                    onClick = onSend,
+                    onClick = {
+                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        onSend()
+                    },
                     enabled = inputQuery.isNotBlank() && !isLoading && !isOcrLoading,
                     modifier = Modifier
                         .size(42.dp)
@@ -872,15 +750,46 @@ fun ChatMessageItem(
                             fontFamily = FontFamily.Monospace
                         )
                     }
-                    if (!isUser && record.compositeScore > 0f) {
+                    if (!isUser) {
+                        val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+                        val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+                        val context = LocalContext.current
+                        val timeStr = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(record.timestamp))
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            IconButton(onClick = { onSpeak(record.content) }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "Přehrát", tint = OmnisCyan, modifier = Modifier.size(16.dp))
+                            Text(
+                                text = timeStr,
+                                color = OmnisTextMuted,
+                                fontSize = 9.sp,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(end = 4.dp)
+                            )
+                            IconButton(
+                                onClick = {
+                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                    clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(record.content))
+                                    Toast.makeText(context, "Výstup zkopírován do schránky", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.size(24.dp).testTag("copy_message_${record.id}")
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Kopírovat text", tint = OmnisCyan, modifier = Modifier.size(14.dp))
                             }
-                            IconButton(onClick = { onExportPdf(record) }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Download, contentDescription = "Exportovat PDF", tint = OmnisCyan, modifier = Modifier.size(16.dp))
+                            if (record.compositeScore > 0f) {
+                                IconButton(onClick = { onSpeak(record.content) }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "Přehrát", tint = OmnisCyan, modifier = Modifier.size(15.dp))
+                                }
+                                IconButton(onClick = { onExportPdf(record) }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Download, contentDescription = "Exportovat PDF", tint = OmnisCyan, modifier = Modifier.size(15.dp))
+                                }
                             }
                         }
+                    } else {
+                        val timeStr = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(record.timestamp))
+                        Text(
+                            text = timeStr,
+                            color = OmnisTextMuted,
+                            fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
                     }
                 }
 
@@ -888,6 +797,9 @@ fun ChatMessageItem(
 
                 // Multi-Layer Defense Status Banner
                 if (!isUser) {
+                    val currentRole by com.example.auth.OmnisAuthService.currentUserRole.collectAsStateWithLifecycle()
+                    val isAdmin = currentRole.canAccessSystemActions()
+
                     when {
                         isBlocked -> {
                             Surface(
@@ -906,7 +818,7 @@ fun ChatMessageItem(
                                     ) {
                                         Icon(Icons.Default.Security, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
                                         Text(
-                                            text = "VÝSTUP ZABLOKOVÁN: HUMAN-IN-THE-LOOP",
+                                            text = if (isAdmin) "VÝSTUP ZABLOKOVÁN: HUMAN-IN-THE-LOOP" else "VÝSTUP ZABLOKOVÁN: VYŽADUJE AUTORIZACI ADMINA",
                                             color = Color(0xFFEF4444),
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
@@ -921,17 +833,27 @@ fun ChatMessageItem(
                                             modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
                                         )
                                     }
-                                    Button(
-                                        onClick = onAuthorize,
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                                        shape = RoundedCornerShape(6.dp),
-                                        modifier = Modifier
-                                            .height(38.dp)
-                                            .testTag("btn_authorize_human_loop")
-                                    ) {
-                                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Autorizovat operátorem", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                    if (isAdmin) {
+                                        Button(
+                                            onClick = onAuthorize,
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                                            shape = RoundedCornerShape(6.dp),
+                                            modifier = Modifier
+                                                .height(38.dp)
+                                                .testTag("btn_authorize_human_loop")
+                                        ) {
+                                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Autorizovat adminem", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+                                    } else {
+                                        Text(
+                                            text = "Tento výstup je zablokován bezpečnostní vrstvou. Pro odblokování přepněte na účet ADMIN.",
+                                            color = Color(0xFFFCA5A5),
+                                            fontSize = 10.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
                                     }
                                 }
                             }
@@ -1101,13 +1023,21 @@ fun ChatMessageItem(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // Main Content
-                Text(
-                    text = record.content,
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp
-                )
+                // Main Content with Markdown & Syntax Highlighting
+                if (isUser) {
+                    Text(
+                        text = record.content,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    )
+                } else {
+                    OmnisMarkdownText(
+                        text = record.content,
+                        textColor = Color.White,
+                        fontSize = 13
+                    )
+                }
 
                 // 8-Dimension Metric Badges
                 if (!isUser && record.compositeScore > 0f) {

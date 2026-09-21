@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
@@ -37,12 +39,23 @@ enum class OmnisTab {
     DASHBOARD,
     MATRIX,
     TEST_SEMANTIC,
+    DEV_PROMPT_LAB,
     NEXUS,
     ARTIFACTS,
     SCENARIOS,
     GOALS,
-    TELEMETRY
+    TELEMETRY,
+    GUIDE
 }
+
+data class LlmErrorAnalysis(
+    val logId: Long,
+    val component: String,
+    val message: String,
+    val analysisText: String,
+    val recommendedSteps: List<String>,
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 class OmnisViewModel(
     application: Application,
@@ -68,7 +81,42 @@ class OmnisViewModel(
         val db = OmnisDatabase.getDatabase(application)
         OmnisRepository(db.omnisDao())
     }
-    val records: StateFlow<List<OmnisRecord>>
+
+    private val _activeThreadId = MutableStateFlow("thread_main")
+    val activeThreadId: StateFlow<String> = _activeThreadId.asStateFlow()
+
+    private val _activeThreadTitle = MutableStateFlow("Hlavní vlákno")
+    val activeThreadTitle: StateFlow<String> = _activeThreadTitle.asStateFlow()
+
+    private val _adminSelectedUserFilter = MutableStateFlow<String?>(null)
+    val adminSelectedUserFilter: StateFlow<String?> = _adminSelectedUserFilter.asStateFlow()
+
+    val allUserNames: StateFlow<List<String>> = repository.allUserNames
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val availableThreads: StateFlow<List<com.example.data.ThreadSummary>> = combine(
+        OmnisAuthService.currentSession,
+        OmnisAuthService.currentUserRole,
+        _adminSelectedUserFilter,
+        repository.allThreads
+    ) { session, role, adminFilter, allThreadsList ->
+        val currentUsername = session?.username ?: "operator"
+        if (role == UserRole.ADMIN_OPERATOR) {
+            if (adminFilter != null) {
+                allThreadsList.filter { it.userName.equals(adminFilter, ignoreCase = true) }
+            } else {
+                allThreadsList
+            }
+        } else {
+            allThreadsList.filter { it.userName.equals(currentUsername, ignoreCase = true) }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val records: StateFlow<List<OmnisRecord>> = _activeThreadId
+        .flatMapLatest { threadId -> repository.getRecordsByThread(threadId) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     val memoryFragments: StateFlow<List<com.example.data.MemoryFragment>>
 
     val telemetry: StateFlow<List<com.example.data.OmnisTelemetry>> = repository.omnisDao.getRecentTelemetry()
@@ -96,13 +144,64 @@ class OmnisViewModel(
     private val _isCircuitBreakerTripped = MutableStateFlow(false)
     val isCircuitBreakerTripped: StateFlow<Boolean> = _isCircuitBreakerTripped.asStateFlow()
 
+    // Sémantická brána (Semantic Prompt Gateway)
+    private val _isPromptGatewayEnabled = MutableStateFlow(true)
+    val isPromptGatewayEnabled: StateFlow<Boolean> = _isPromptGatewayEnabled.asStateFlow()
+
+    private val _promptGatewayThreshold = MutableStateFlow(0.85f)
+    val promptGatewayThreshold: StateFlow<Float> = _promptGatewayThreshold.asStateFlow()
+
+    fun setPromptGatewayThreshold(threshold: Float) {
+        val currentRole = OmnisAuthService.currentUserRole.value
+        if (!currentRole.canAccessSystemActions()) {
+            _errorMessage.value = "Přístup odepřen: Nastavení citlivosti brány vyžaduje roli Admin."
+            return
+        }
+        val clamped = threshold.coerceIn(0.50f, 0.95f)
+        _promptGatewayThreshold.value = clamped
+        viewModelScope.launch {
+            com.example.telemetry.TelemetryEngine.log(
+                type = "INFO",
+                component = "PromptGateway",
+                message = "PRÁH CITLIVOSTI SÉMANTICKÉ BRÁNY ZMĚNĚN NA ${(clamped * 100).toInt()}%",
+                metadata = "{\"threshold\": $clamped, \"operator\": \"${currentRole.name}\"}"
+            )
+        }
+    }
+
+    fun togglePromptGateway() {
+        val currentRole = OmnisAuthService.currentUserRole.value
+        if (!currentRole.canAccessSystemActions()) {
+            _errorMessage.value = "Přístup odepřen: Ovládání sémantické brány vyžaduje roli Admin."
+            return
+        }
+        val newState = !_isPromptGatewayEnabled.value
+        _isPromptGatewayEnabled.value = newState
+        viewModelScope.launch {
+            com.example.telemetry.TelemetryEngine.log(
+                type = "INFO",
+                component = "PromptGateway",
+                message = if (newState) "SÉMANTICKÁ BRÁNA AKTIVOVÁNA (Quality & Defense Gate ON)" else "SÉMANTICKÁ BRÁNA DEAKTIVOVÁNA (Bypass Mode / Direct Pass)",
+                metadata = "{\"enabled\": $newState, \"operator\": \"${currentRole.name}\"}"
+            )
+        }
+    }
+
     fun toggleCircuitBreaker() {
         val currentRole = OmnisAuthService.currentUserRole.value
         if (!currentRole.canAccessSystemActions()) {
-            _errorMessage.value = "Přístup odepřen: Ovládání hlavního jističe vyžaduje roli Admin / Operátor."
+            _errorMessage.value = "Přístup odepřen: Ovládání hlavního jističe vyžaduje roli Admin."
             return
         }
-        _isCircuitBreakerTripped.value = !_isCircuitBreakerTripped.value
+        val newState = !_isCircuitBreakerTripped.value
+        _isCircuitBreakerTripped.value = newState
+        com.example.action.ResilienceManager.setCircuitState(
+            if (newState) com.example.action.ResilienceManager.CircuitState.OPEN 
+            else com.example.action.ResilienceManager.CircuitState.CLOSED
+        )
+        if (!newState) {
+            com.example.api.OmnisGeminiClient.circuitBreaker.reset()
+        }
     }
 
     // Action-Driven Dispatcher State
@@ -130,11 +229,18 @@ class OmnisViewModel(
                     return@launch
                 }
 
+                val currentUsername = OmnisAuthService.currentSession.value?.username ?: "operator"
+                val currentThreadId = _activeThreadId.value
+                val currentThreadTitle = _activeThreadTitle.value
+
                 // 1. Záznam volání do chatu jako uživatelský/systémový JSON příkaz
                 val userActionRecord = OmnisRecord(
                     role = "user",
                     content = "⚡ [ACTION DISPATCH] Volání intentu: `${payload.intent}` | Akce: `${payload.actionId}`\n\n```json\n${payload.toJsonString()}\n```",
-                    domain = _selectedDomain.value
+                    domain = _selectedDomain.value,
+                    threadId = currentThreadId,
+                    threadTitle = currentThreadTitle,
+                    userName = currentUsername
                 )
                 repository.insert(userActionRecord)
 
@@ -184,7 +290,10 @@ class OmnisViewModel(
                     valSoc = 0.90f,
                     compositeScore = 0.95f,
                     domain = "SYSTEMS_INTELLIGENCE",
-                    defenseTier = "DISPATCH_EXECUTED"
+                    defenseTier = "DISPATCH_EXECUTED",
+                    threadId = currentThreadId,
+                    threadTitle = currentThreadTitle,
+                    userName = currentUsername
                 )
                 repository.insert(toolResponseRecord)
 
@@ -270,6 +379,13 @@ class OmnisViewModel(
     private val _inputQuery = MutableStateFlow("")
     val inputQuery: StateFlow<String> = _inputQuery.asStateFlow()
 
+    private val _isPromptGuideEnabled = MutableStateFlow(true)
+    val isPromptGuideEnabled: StateFlow<Boolean> = _isPromptGuideEnabled.asStateFlow()
+
+    fun setPromptGuideEnabled(enabled: Boolean) {
+        _isPromptGuideEnabled.value = enabled
+    }
+
     private val _selectedDomain = MutableStateFlow("SYSTEMS_INTELLIGENCE")
     val selectedDomain: StateFlow<String> = _selectedDomain.asStateFlow()
 
@@ -285,6 +401,8 @@ class OmnisViewModel(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private var currentStreamingJob: kotlinx.coroutines.Job? = null
 
     private val _isOcrLoading = MutableStateFlow(false)
     val isOcrLoading: StateFlow<Boolean> = _isOcrLoading.asStateFlow()
@@ -304,7 +422,7 @@ class OmnisViewModel(
     fun confirmOcrValidation() {
         val state = _ocrValidationState.value ?: return
         _ocrValidationState.value = null
-        sendQuery(state.extractedText, state.imageLocalPath)
+        executeDirectQuery(state.extractedText, state.imageLocalPath)
     }
 
     fun cancelOcrValidation() {
@@ -552,61 +670,81 @@ class OmnisViewModel(
             }
         }
 
-        records = repository.allRecords.stateIn(
-            viewModelScope,
-            SharingStarted.Eagerly,
-            emptyList()
-        )
-
         memoryFragments = repository.allFragments.stateIn(
             viewModelScope,
             SharingStarted.Eagerly,
             emptyList()
         )
 
-        // Seed initial record if empty
+        // Automatické načtení a výběr vláken pro přihlášeného uživatele při startu
         viewModelScope.launch {
-            val list = repository.allRecords.first()
-            if (list.isEmpty()) {
-                val initial = OmnisRecord(
-                    role = "assistant",
-                    content = "Vítejte v O.M.N.I.S. (Omni-Modal Network for Integrated Synthesis). Systém je aktivní v režimu přímé ontologické syntézy s reálným vyhodnocováním č[...]",
-                    cognitiveProcess = "1. Inicializace subsystému O.M.N.I.S.\n2. Napojení na ontologický rámec.\n3. Výpočet bazálních tenzorů napříč 8 doménami.",
-                    followUpQuestions = "Jak provázat ekonomické pobídky s ekologickou regenerací?|Jak navrhnout distribuovanou architekturu s nulovou energetickou stopou?",
-                    valSys = 0.95f,
-                    valEcon = 0.88f,
-                    valPsych = 0.91f,
-                    valEco = 0.94f,
-                    valLaw = 0.98f,
-                    valSec = 0.99f,
-                    valPhys = 0.87f,
-                    valSoc = 0.90f,
-                    compositeScore = 0.927f,
-                    domain = "SYSTEMS_INTELLIGENCE"
-                )
-                repository.insert(initial)
+            OmnisAuthService.currentSession.collect { session ->
+                val username = session?.username ?: "operator"
+                val role = session?.role ?: UserRole.STANDARD_USER
+                
+                val userThreads = if (role == UserRole.ADMIN_OPERATOR) {
+                    repository.allThreads.first()
+                } else {
+                    repository.getThreadsByUser(username).first()
+                }
+                
+                if (userThreads.isNotEmpty()) {
+                    val latest = userThreads.first()
+                    _activeThreadId.value = latest.threadId
+                    _activeThreadTitle.value = latest.threadTitle
+                } else {
+                    val initialThreadId = "thread_${username}_${System.currentTimeMillis()}"
+                    _activeThreadId.value = initialThreadId
+                    _activeThreadTitle.value = "Hlavní vlákno"
+                    
+                    val initial = OmnisRecord(
+                        role = "assistant",
+                        content = "Vítejte v O.M.N.I.S. (Omni-Modal Network for Integrated Synthesis). Systém je aktivní v režimu přímé ontologické syntézy s reálným vyhodnocováním napříč 8 dimenzemi.",
+                        cognitiveProcess = "1. Inicializace vlákna pro uživatele $username.\n2. Napojení na ontologický rámec.\n3. Výpočet bazálních tenzorů napříč 8 doménami.",
+                        followUpQuestions = "Jak provázat ekonomické pobídky s ekologickou regenerací?|Jak navrhnout distribuovanou architekturu s nulovou energetickou stopou?",
+                        valSys = 0.95f,
+                        valEcon = 0.88f,
+                        valPsych = 0.91f,
+                        valEco = 0.94f,
+                        valLaw = 0.98f,
+                        valSec = 0.99f,
+                        valPhys = 0.87f,
+                        valSoc = 0.90f,
+                        compositeScore = 0.927f,
+                        domain = "SYSTEMS_INTELLIGENCE",
+                        threadId = initialThreadId,
+                        threadTitle = "Hlavní vlákno",
+                        userName = username
+                    )
+                    repository.insert(initial)
+                }
             }
         }
     }
 
-    private val _tabBackStack = mutableListOf<OmnisTab>()
+    private val _tabBackStack = MutableStateFlow<List<OmnisTab>>(emptyList())
     val canNavigateBack: Boolean
-        get() = _activeTab.value != OmnisTab.DASHBOARD
+        get() = _activeTab.value != OmnisTab.DASHBOARD || _tabBackStack.value.isNotEmpty()
 
     fun setTab(tab: OmnisTab) {
         if (_activeTab.value != tab) {
             if (tab == OmnisTab.DASHBOARD) {
-                _tabBackStack.clear()
+                _tabBackStack.value = emptyList()
             } else {
-                _tabBackStack.add(_activeTab.value)
+                val currentStack = _tabBackStack.value
+                if (currentStack.lastOrNull() != _activeTab.value) {
+                    _tabBackStack.value = currentStack + _activeTab.value
+                }
             }
             _activeTab.value = tab
         }
     }
 
     fun popTab(): Boolean {
-        if (_tabBackStack.isNotEmpty()) {
-            val prev = _tabBackStack.removeAt(_tabBackStack.lastIndex)
+        val currentStack = _tabBackStack.value
+        if (currentStack.isNotEmpty()) {
+            val prev = currentStack.last()
+            _tabBackStack.value = currentStack.dropLast(1)
             _activeTab.value = prev
             return true
         } else if (_activeTab.value != OmnisTab.DASHBOARD) {
@@ -696,8 +834,20 @@ class OmnisViewModel(
                 tasks.forEachIndexed { index, task ->
                     val result = results["task_$index"]
                     
+                    val currentUsername = OmnisAuthService.currentSession.value?.username ?: "operator"
+                    val currentThreadId = _activeThreadId.value
+                    val currentThreadTitle = _activeThreadTitle.value
+
                     // Uložit uživatelský záznam
-                    repository.insert(OmnisRecord(role = "user", content = task.query, domain = task.domain, attachedImagePath = task.imagePath))
+                    repository.insert(OmnisRecord(
+                        role = "user", 
+                        content = task.query, 
+                        domain = task.domain, 
+                        attachedImagePath = task.imagePath,
+                        threadId = currentThreadId,
+                        threadTitle = currentThreadTitle,
+                        userName = currentUsername
+                    ))
                     
                     if (result != null) {
                         repository.insert(OmnisRecord(
@@ -709,7 +859,10 @@ class OmnisViewModel(
                             valEco = result.valEco, valLaw = result.valLaw, valSec = result.valSec,
                             valPhys = result.valPhys, valSoc = result.valSoc,
                             compositeScore = result.composite, domain = task.domain,
-                            defenseTier = result.defenseTier, defenseNotes = result.defenseNotes
+                            defenseTier = result.defenseTier, defenseNotes = result.defenseNotes,
+                            threadId = currentThreadId,
+                            threadTitle = currentThreadTitle,
+                            userName = currentUsername
                         ))
                     }
                 }
@@ -738,16 +891,23 @@ class OmnisViewModel(
         }
 
         // 1. & 2. FÁZE: Evaluátor & Sémantická brána (Quality Gate)
-        val gatewayResult = OmnisPromptGateway.processPromptGateway(query, _selectedDomain.value)
-        if (gatewayResult.status == "needs_review") {
-            // Zadržet exekuci a předat k Human-in-the-Loop revizi
-            pendingGatewayImagePath = imagePath
-            _pendingGatewayReview.value = gatewayResult
-            _inputQuery.value = ""
-            return
+        if (_isPromptGatewayEnabled.value) {
+            val currentRole = com.example.auth.OmnisAuthService.currentUserRole.value
+            val gatewayResult = OmnisPromptGateway.processPromptGateway(
+                rawText = query, 
+                domain = _selectedDomain.value, 
+                threshold = _promptGatewayThreshold.value
+            )
+            if (gatewayResult.status == "needs_review" && currentRole.canAccessSystemActions()) {
+                // Zadržet exekuci a předat k Human-in-the-Loop revizi (POUZE PRO ADMIN)
+                pendingGatewayImagePath = imagePath
+                _pendingGatewayReview.value = gatewayResult
+                _inputQuery.value = ""
+                return
+            }
         }
 
-        // Pokud je schválen bypass (vysoká specificita), pokračovat přímo do exekuce
+        // Pokud je schválen bypass nebo je brána vypnuta, pokračovat přímo do exekuce
         executeDirectQuery(query, imagePath)
     }
 
@@ -765,29 +925,58 @@ class OmnisViewModel(
         _errorMessage.value = null
         _streamState.value = StreamState("introspection", "Analýza struktury dotazu a kontrola bezpečnostních mantinelů...")
 
-        viewModelScope.launch {
+        currentStreamingJob?.cancel()
+        currentStreamingJob = viewModelScope.launch {
             try {
+                val currentUsername = OmnisAuthService.currentSession.value?.username ?: "operator"
+                val currentThreadId = _activeThreadId.value
+                val currentThreadTitle = _activeThreadTitle.value
+
+                // Auto-titling pokud je vlákno v počátečním názvu
+                if (currentThreadTitle == "Nové vlákno" || currentThreadTitle == "Hlavní vlákno") {
+                    val autoTitle = trimmedQuery.take(30).replace("\n", " ").trim()
+                    val formattedTitle = if (autoTitle.length >= 30) "$autoTitle..." else autoTitle
+                    if (formattedTitle.isNotBlank()) {
+                        _activeThreadTitle.value = formattedTitle
+                        viewModelScope.launch {
+                            repository.updateThreadTitle(currentThreadId, formattedTitle)
+                        }
+                    }
+                }
+
                 // Save user record
                 val userRecord = OmnisRecord(
                     role = "user",
                     content = trimmedQuery,
                     domain = _selectedDomain.value,
-                    attachedImagePath = imagePath
+                    attachedImagePath = imagePath,
+                    threadId = currentThreadId,
+                    threadTitle = _activeThreadTitle.value,
+                    userName = currentUsername
                 )
                 repository.insert(userRecord)
 
                 kotlinx.coroutines.delay(400)
                 _streamState.value = StreamState("introspection", "Aktivován modul: omnis-core-synthesizer. Načítání kontextu z pgvector...")
                 
-                // PREDIKTIVNÍ RETRIEVAL: Vyhledání relevantních fragmentů dlouhodobé paměti
-                val relevantFragments = com.example.memory.MemoryRetrievalEngine.findRelevantFragments(trimmedQuery, repository.omnisDao)
+                // PREDIKTIVNÍ RETRIEVAL: Vyhledání relevantních fragmentů dlouhodobé paměti s hybridním skórováním
+                val relevantFragments = com.example.memory.MemoryRetrievalEngine.findRelevantFragments(
+                    query = trimmedQuery,
+                    dao = repository.omnisDao,
+                    domain = _selectedDomain.value
+                )
                 _activeMemoryFragments.value = relevantFragments
                 
                 kotlinx.coroutines.delay(400)
                 _streamState.value = StreamState("execution", "Generuji strukturovaný payload pro Akční dispečer (Gemini)...")
 
-                // Synthesize response via Gemini / cognitive engine with memory injection
-                val result = OmnisGeminiClient.synthesize(trimmedQuery, _selectedDomain.value, relevantFragments)
+                // Synthesize response via Gemini / cognitive engine with memory and thread history injection
+                val result = OmnisGeminiClient.synthesize(
+                    query = trimmedQuery,
+                    domain = _selectedDomain.value,
+                    memoryFragments = relevantFragments,
+                    threadHistory = records.value
+                )
                 
                 // ULOŽENÍ ARTEFAKTU (pokud byl vygenerován)
                 result.artifact?.let { artifact ->
@@ -814,7 +1003,10 @@ class OmnisViewModel(
                     compositeScore = result.composite,
                     domain = _selectedDomain.value,
                     defenseTier = result.defenseTier,
-                    defenseNotes = result.defenseNotes
+                    defenseNotes = result.defenseNotes,
+                    threadId = currentThreadId,
+                    threadTitle = _activeThreadTitle.value,
+                    userName = currentUsername
                 )
                 repository.insert(asstRecord)
 
@@ -864,9 +1056,111 @@ class OmnisViewModel(
         }
     }
 
+    fun selectThread(threadId: String, threadTitle: String) {
+        currentStreamingJob?.cancel()
+        _isLoading.value = false
+        _streamState.value = null
+        _activeThreadId.value = threadId
+        _activeThreadTitle.value = threadTitle
+        viewModelScope.launch {
+            com.example.telemetry.TelemetryEngine.log(
+                type = "INFO",
+                component = "ThreadManager",
+                message = "PŘEPNUTO NA VLÁKNO: $threadTitle ($threadId)",
+                metadata = "{\"threadId\": \"$threadId\", \"title\": \"$threadTitle\"}"
+            )
+        }
+    }
+
+    fun createNewThread(title: String? = null) {
+        currentStreamingJob?.cancel()
+        _isLoading.value = false
+        _streamState.value = null
+        val username = OmnisAuthService.currentSession.value?.username ?: "operator"
+        val newThreadId = "thread_${username}_${System.currentTimeMillis()}"
+        val threadTitle = title ?: "Nové vlákno"
+        _activeThreadId.value = newThreadId
+        _activeThreadTitle.value = threadTitle
+
+        viewModelScope.launch {
+            val welcome = OmnisRecord(
+                role = "assistant",
+                content = "Zahájeno nové kognitivní vlákno [$threadTitle] pro uživatele $username. Zadejte dotaz nebo nahrajte podklad pro 8D syntézu.",
+                cognitiveProcess = "Inicializace nového izolačního kontextu vlákna $newThreadId pro uživatele $username.",
+                valSys = 0.90f,
+                valSec = 0.95f,
+                compositeScore = 0.90f,
+                domain = _selectedDomain.value,
+                threadId = newThreadId,
+                threadTitle = threadTitle,
+                userName = username
+            )
+            repository.insert(welcome)
+            com.example.telemetry.TelemetryEngine.log(
+                type = "INFO",
+                component = "ThreadManager",
+                message = "VYTVOŘENO NOVÉ VLÁKNO: $threadTitle ($newThreadId)",
+                metadata = "{\"threadId\": \"$newThreadId\", \"user\": \"$username\"}"
+            )
+        }
+    }
+
+    fun deleteThread(threadId: String) {
+        if (_activeThreadId.value == threadId) {
+            currentStreamingJob?.cancel()
+            _isLoading.value = false
+            _streamState.value = null
+        }
+        viewModelScope.launch {
+            repository.deleteThread(threadId)
+            val username = OmnisAuthService.currentSession.value?.username ?: "operator"
+            val remaining = repository.getThreadsByUser(username).first()
+            if (_activeThreadId.value == threadId) {
+                if (remaining.isNotEmpty()) {
+                    val next = remaining.first()
+                    _activeThreadId.value = next.threadId
+                    _activeThreadTitle.value = next.threadTitle
+                } else {
+                    createNewThread()
+                }
+            }
+        }
+    }
+
+    fun renameThread(threadId: String, newTitle: String) {
+        val trimmed = newTitle.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            repository.updateThreadTitle(threadId, trimmed)
+            if (_activeThreadId.value == threadId) {
+                _activeThreadTitle.value = trimmed
+            }
+        }
+    }
+
+    fun setAdminUserFilter(userName: String?) {
+        _adminSelectedUserFilter.value = userName
+        viewModelScope.launch {
+            com.example.telemetry.TelemetryEngine.log(
+                type = "INFO",
+                component = "AdminThreadFilter",
+                message = "ADMIN FILTR VLÁKEN NASTAVEN: ${userName ?: "VŠECHNA VLÁKNA"}",
+                metadata = "{\"filterUser\": \"$userName\"}"
+            )
+        }
+    }
+
+    fun clearActiveThread() {
+        viewModelScope.launch {
+            repository.deleteThread(_activeThreadId.value)
+            createNewThread()
+        }
+    }
+
     fun clearAllHistory() {
         viewModelScope.launch {
             repository.clear()
+            createNewThread()
         }
     }
 
@@ -942,6 +1236,20 @@ class OmnisViewModel(
         }
     }
 
+    fun onCreateArtifact(title: String, type: String, language: String, content: String, metadata: String = "{}") {
+        viewModelScope.launch {
+            val artifact = com.example.data.OmnisArtifact(
+                title = title,
+                type = type,
+                language = language,
+                content = content,
+                metadata = metadata
+            )
+            repository.omnisDao.insertArtifact(artifact)
+            com.example.telemetry.TelemetryEngine.log("INFO", "ARTF", "Vytvořen nový znalostní artefakt: $title [$type]")
+        }
+    }
+
     fun onExportArtifact(artifact: com.example.data.OmnisArtifact) {
         // Export logic stub
     }
@@ -973,11 +1281,122 @@ class OmnisViewModel(
         }
     }
 
+    fun onToggleGoalTask(goalId: Long, taskId: String) {
+        viewModelScope.launch {
+            val allGoals = repository.omnisDao.getAllGoals().first()
+            val goal = allGoals.find { it.id == goalId } ?: return@launch
+            try {
+                val currentTasks = kotlinx.serialization.json.Json.decodeFromString<List<com.example.data.OmnisTask>>(goal.tasksJson)
+                val updatedTasks = currentTasks.map { task ->
+                    if (task.id == taskId) {
+                        val newStatus = if (task.status == "DONE") "PENDING" else "DONE"
+                        task.copy(status = newStatus)
+                    } else task
+                }
+                val doneCount = updatedTasks.count { it.status == "DONE" }
+                val newProgress = if (updatedTasks.isNotEmpty()) doneCount.toFloat() / updatedTasks.size.toFloat() else 0f
+                val newStatus = if (newProgress >= 1.0f) "COMPLETED" else "ACTIVE"
+                val updatedJson = kotlinx.serialization.json.Json.encodeToString(updatedTasks)
+                repository.omnisDao.updateGoalProgress(goalId, newStatus, newProgress, updatedJson)
+                com.example.telemetry.TelemetryEngine.log(
+                    "INFO", 
+                    "AGTO", 
+                    "Úkol '$taskId' v cíli '${goal.title}' aktualizován. Celková progrese: ${(newProgress * 100).toInt()}%."
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("OmnisViewModel", "Chyba při aktualizaci úkolu", e)
+            }
+        }
+    }
+
     fun onClearTelemetry() {
         viewModelScope.launch {
             repository.omnisDao.clearTelemetry()
             com.example.telemetry.TelemetryEngine.log("INFO", "Admin", "Telemetrická data byla smazána.")
         }
+    }
+
+    private val _llmAnalysisResult = MutableStateFlow<LlmErrorAnalysis?>(null)
+    val llmAnalysisResult: StateFlow<LlmErrorAnalysis?> = _llmAnalysisResult.asStateFlow()
+
+    private val _isAnalyzingError = MutableStateFlow(false)
+    val isAnalyzingError: StateFlow<Boolean> = _isAnalyzingError.asStateFlow()
+
+    fun logDiagnosticWarning(component: String, message: String, metadata: String = "{}") {
+        viewModelScope.launch {
+            com.example.telemetry.TelemetryEngine.log("WARN", component, message, metadata)
+        }
+    }
+
+    fun logDiagnosticError(component: String, message: String, metadata: String = "{}") {
+        viewModelScope.launch {
+            com.example.telemetry.TelemetryEngine.log("ERROR", component, message, metadata)
+        }
+    }
+
+    fun analyzeErrorWithLlm(log: com.example.data.OmnisTelemetry) {
+        viewModelScope.launch {
+            _isAnalyzingError.value = true
+            try {
+                val prompt = """
+                    Jsi O.M.N.I.S. AI Diagnostik & Systémový Architekt.
+                    Prožeň automatickou hloubkovou analýzu příčin (Root Cause Analysis) následující systémové chyby/varování z logu:
+                    
+                    Typ události: ${log.type}
+                    Komponenta/Doména: ${log.component}
+                    Zpráva chyby: ${log.message}
+                    Metadata/Kontext: ${log.metadata}
+                    Čas vzniku: ${java.util.Date(log.timestamp)}
+                    
+                    Strukturuj svou odpověď přesně takto v češtině:
+                    1. 🧠 DETAILNÍ INFERENČNÍ ANALÝZA KOŘENOVÉ PŘÍČINY (Root Cause Analysis):
+                       Vysvětli technickou podstatu selhání na úrovni kognitivního jádra, LLM rozhraní, sémantického perimetru nebo databáze.
+                    2. 🛠️ KONKRÉTNÍ AKČNÍ KROKY K OPRAVĚ PRO ADMINISTRÁTORA (SOP Remediation Steps):
+                       Detailně popiš 3-4 konkrétní kroky pro správce (např. 1. Povýšit prompt na trojsložkový tvar [Doména]+[Akce]+[Kritérium], 2. Resetovat jistič v horní liště, 3. Reindexovat paměťové fragmenty).
+                    3. 🛡️ PREVENTIVNÍ OPATŘENÍ:
+                       Doporučení pro zamezení opakování chyby v produkčním provozu.
+                """.trimIndent()
+
+                val result = OmnisGeminiClient.synthesize(prompt, log.component)
+
+                val rawLines = result.answer.lines()
+                val extractedSteps = rawLines
+                    .filter { line -> line.trim().startsWith("-") || line.trim().matches(Regex("^\\d+\\..*")) }
+                    .map { it.replace(Regex("^[\\d\\.\\-\\*\n\\s]+"), "").trim() }
+                    .filter { it.isNotBlank() }
+
+                _llmAnalysisResult.value = LlmErrorAnalysis(
+                    logId = log.id,
+                    component = log.component,
+                    message = log.message,
+                    analysisText = result.answer,
+                    recommendedSteps = if (extractedSteps.isNotEmpty()) extractedSteps else listOf(
+                        "Formulovat dotaz v trojsložkovém tvaru: [SYSTEMS_INTELLIGENCE] + [Akční sloveso] + [Kritérium]",
+                        "Využít Sémantickou bránu (Prompt Gateway) a kliknout na 'Převzít a odeslat'",
+                        "Pokud je jistič ve stavu OPEN, provést reset v horní liště aplikace",
+                        "Otestovat upravený prompt v Dev Prompt Labu"
+                    )
+                )
+            } catch (e: Exception) {
+                _llmAnalysisResult.value = LlmErrorAnalysis(
+                    logId = log.id,
+                    component = log.component,
+                    message = log.message,
+                    analysisText = "Selhání LLM inferenční analýzy: ${e.message ?: "Neznámá výjimka API"}. Doporučujeme manuální kontrolu logu.",
+                    recommendedSteps = listOf(
+                        "Zkontrolovat stav síťového připojení a klíče Gemini API",
+                        "Provést reset jističe v horní liště",
+                        "Vyčistit paměťové fragmenty v Admin Hubu"
+                    )
+                )
+            } finally {
+                _isAnalyzingError.value = false
+            }
+        }
+    }
+
+    fun clearLlmErrorAnalysis() {
+        _llmAnalysisResult.value = null
     }
 
     fun runNexusCollaboration(query: String, agentIds: List<String>) {
@@ -989,11 +1408,18 @@ class OmnisViewModel(
             try {
                 val finalResult = com.example.agent.NexusOrchestrator.runCollaborativeSession(query, agentIds)
                 if (finalResult != null) {
+                    val currentUsername = OmnisAuthService.currentSession.value?.username ?: "operator"
+                    val currentThreadId = _activeThreadId.value
+                    val currentThreadTitle = _activeThreadTitle.value
+
                     // Uložit finální syntézu do historie
                     val userRecord = OmnisRecord(
                         role = "user",
                         content = "🤝 [NEXUS COLLABORATION] Téma: $query | Agenti: ${agentIds.joinToString(", ")}",
-                        domain = "NEXUS_ORCHESTRATION"
+                        domain = "NEXUS_ORCHESTRATION",
+                        threadId = currentThreadId,
+                        threadTitle = currentThreadTitle,
+                        userName = currentUsername
                     )
                     repository.insert(userRecord)
 
@@ -1009,7 +1435,10 @@ class OmnisViewModel(
                         valEco = finalResult.valEco, valLaw = finalResult.valLaw, valSec = finalResult.valSec,
                         valPhys = finalResult.valPhys, valSoc = finalResult.valSoc,
                         compositeScore = finalResult.composite, domain = "NEXUS_SYNTHESIS",
-                        defenseTier = finalResult.defenseTier, defenseNotes = finalResult.defenseNotes
+                        defenseTier = finalResult.defenseTier, defenseNotes = finalResult.defenseNotes,
+                        threadId = currentThreadId,
+                        threadTitle = currentThreadTitle,
+                        userName = currentUsername
                     )
                     repository.insert(asstRecord)
                     

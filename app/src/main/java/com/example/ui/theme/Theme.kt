@@ -19,7 +19,7 @@ private val OmnisDarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun MyApplicationTheme(
+fun OmnisTheme(
     darkTheme: Boolean = true,
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit,

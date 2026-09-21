@@ -56,6 +56,10 @@ object NexusOrchestrator {
             """.trimIndent()
 
             val finalResult = OmnisGeminiClient.synthesize(synthesisPrompt, "SYSTEM_INTEGRATION")
+            val synthesisMsg = NexusMessage("omnis_core", finalResult.answer)
+            currentHistory.add(synthesisMsg)
+            _nexusHistory.value = currentHistory.toList()
+
             _isProcessing.value = false
             return finalResult
 
@@ -64,5 +68,9 @@ object NexusOrchestrator {
             _isProcessing.value = false
             return null
         }
+    }
+
+    fun clearHistory() {
+        _nexusHistory.value = emptyList()
     }
 }

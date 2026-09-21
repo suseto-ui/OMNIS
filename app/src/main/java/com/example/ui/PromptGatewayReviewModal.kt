@@ -1,5 +1,7 @@
 package com.example.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -31,7 +33,12 @@ fun PromptGatewayReviewModal(
     onBypassWithOriginal: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    var editedPrompt by remember { mutableStateOf(reviewState.suggestedPrompt) }
+    val initialPrompt = if (reviewState.suggestedPrompt.isNotBlank()) {
+        reviewState.suggestedPrompt
+    } else {
+        reviewState.originalPrompt
+    }
+    var editedPrompt by remember(reviewState) { mutableStateOf(initialPrompt) }
     val confidencePercent = (reviewState.confidenceScore * 100).toInt()
 
     Dialog(
@@ -41,7 +48,7 @@ fun PromptGatewayReviewModal(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.88f)
+                .fillMaxHeight(0.90f)
                 .testTag("prompt_gateway_modal"),
             shape = RoundedCornerShape(16.dp),
             color = OmnisPanelDark,
@@ -51,6 +58,7 @@ fun PromptGatewayReviewModal(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
                 // Header
                 Row(
@@ -172,7 +180,7 @@ fun PromptGatewayReviewModal(
                     onValueChange = { editedPrompt = it },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
+                        .heightIn(min = 200.dp, max = 380.dp)
                         .testTag("prompt_gateway_edit_field"),
                     textStyle = androidx.compose.ui.text.TextStyle(
                         color = Color.White,
@@ -189,38 +197,73 @@ fun PromptGatewayReviewModal(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Action Buttons
-                Row(
+                // Action Buttons - Stacked to prevent horizontal overflow on phone screens
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.testTag("prompt_gateway_cancel_button")
+                    Button(
+                        onClick = { onConfirmed(editedPrompt) },
+                        colors = ButtonDefaults.buttonColors(containerColor = OmnisCyan),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("prompt_gateway_confirm_button")
                     ) {
-                        Text("Zrušit", color = OmnisTextMuted, fontSize = 12.sp)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Potvrdit a Provést",
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            maxLines = 1
+                        )
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         OutlinedButton(
                             onClick = onBypassWithOriginal,
                             border = androidx.compose.foundation.BorderStroke(1.dp, OmnisBorderDark),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.testTag("prompt_gateway_bypass_button")
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                                .testTag("prompt_gateway_bypass_button")
                         ) {
-                            Text("Původní (Bypass)", color = OmnisTextMuted, fontSize = 11.sp)
+                            Text(
+                                text = "Původní (Bypass)",
+                                color = OmnisTextMuted,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
 
-                        Button(
-                            onClick = { onConfirmed(editedPrompt) },
-                            colors = ButtonDefaults.buttonColors(containerColor = OmnisCyan),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.testTag("prompt_gateway_confirm_button")
+                        TextButton(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                                .testTag("prompt_gateway_cancel_button")
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Potvrdit a Provést", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(
+                                text = "Zrušit",
+                                color = OmnisTextMuted,
+                                fontSize = 12.sp,
+                                maxLines = 1
+                            )
                         }
                     }
                 }

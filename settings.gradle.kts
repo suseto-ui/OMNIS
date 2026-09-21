@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "OMNIS"
+rootProject.name = "OMNIS Control"
 
 include(":app")

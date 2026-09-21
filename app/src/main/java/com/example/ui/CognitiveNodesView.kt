@@ -45,7 +45,8 @@ fun CognitiveNodesView(
     records: List<OmnisRecord>,
     onExecuteAction: (com.example.action.ActionPayload) -> Unit,
     onNavigateToChat: (String) -> Unit,
-    onPurgeSyncedRecords: (Int) -> Unit = {}
+    onPurgeSyncedRecords: (Int) -> Unit = {},
+    onSaveArtifact: ((title: String, type: String, language: String, content: String) -> Unit)? = null
 ) {
     val assistantRecords = remember(records) {
         records.filter { it.role == "assistant" }
@@ -54,8 +55,9 @@ fun CognitiveNodesView(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(12.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag("cognitive_nodes_view"),
+        contentPadding = PaddingValues(bottom = 64.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -90,6 +92,16 @@ fun CognitiveNodesView(
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             fontFamily = FontFamily.Monospace
+                        )
+                        com.example.ui.guide.OmnisHelpIconButton(
+                            title = "Kognitivní Uzly",
+                            description = "Modul pro automatickou detekci systémových invariantů z odpovědí agenta a ověřování datové integrity.",
+                            bulletPoints = listOf(
+                                "Invarianty: Extrakce technických pravidel a omezení z výstupů.",
+                                "Akce: Generování přímých akčních tlačítkových nabídek.",
+                                "Audit Integrity: Sledování stavu lokální databáze vs. cloudová synchronizace."
+                            ),
+                            tint = OmnisCyan
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
@@ -270,7 +282,8 @@ fun CognitiveNodesView(
                     record = record,
                     invariants = invariants,
                     onExecuteAction = onExecuteAction,
-                    onNavigateToChat = onNavigateToChat
+                    onNavigateToChat = onNavigateToChat,
+                    onSaveArtifact = onSaveArtifact
                 )
             }
         }
@@ -282,7 +295,8 @@ fun CognitiveNodeCard(
     record: OmnisRecord,
     invariants: List<SystemInvariant>,
     onExecuteAction: (com.example.action.ActionPayload) -> Unit,
-    onNavigateToChat: (String) -> Unit
+    onNavigateToChat: (String) -> Unit,
+    onSaveArtifact: ((title: String, type: String, language: String, content: String) -> Unit)? = null
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -355,7 +369,8 @@ fun CognitiveNodeCard(
                     InvariantActionTile(
                         invariant = invariant,
                         onExecuteAction = onExecuteAction,
-                        onNavigateToChat = onNavigateToChat
+                        onNavigateToChat = onNavigateToChat,
+                        onSaveArtifact = onSaveArtifact
                     )
                 }
             }
@@ -367,8 +382,11 @@ fun CognitiveNodeCard(
 fun InvariantActionTile(
     invariant: SystemInvariant,
     onExecuteAction: (com.example.action.ActionPayload) -> Unit,
-    onNavigateToChat: (String) -> Unit
+    onNavigateToChat: (String) -> Unit,
+    onSaveArtifact: ((title: String, type: String, language: String, content: String) -> Unit)? = null
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = OmnisBgDark,
@@ -385,14 +403,43 @@ fun InvariantActionTile(
                     text = "INVARIANT: ${invariant.title}",
                     color = Color.White,
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
                 )
-                Text(
-                    text = "Konfidence: ${(invariant.certaintyScore * 100).toInt()}%",
-                    color = OmnisAmber,
-                    fontSize = 9.sp,
-                    fontFamily = FontFamily.Monospace
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Jistota: ${(invariant.certaintyScore * 100).toInt()}%",
+                        color = OmnisAmber,
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    if (onSaveArtifact != null) {
+                        IconButton(
+                            onClick = {
+                                val artifactContent = buildString {
+                                    appendLine("# Systémový Invariant: ${invariant.title}")
+                                    appendLine("**Doména:** ${invariant.domain}")
+                                    appendLine("**Spolehlivost:** ${(invariant.certaintyScore * 100).toInt()}%\n")
+                                    appendLine("## Specifikace")
+                                    appendLine(invariant.description)
+                                    appendLine("\n## Doporučený Dispatch Intent")
+                                    appendLine("- Intent: `${invariant.suggestedActionIntent}`")
+                                    appendLine("- Parametry: `${invariant.suggestedActionPayload}`")
+                                }
+                                onSaveArtifact(
+                                    "Invariant: ${invariant.title}",
+                                    "CONFIG",
+                                    "yaml",
+                                    artifactContent
+                                )
+                                android.widget.Toast.makeText(context, "Invariant uložen do artefaktů", android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.BookmarkAdd, contentDescription = "Uložit invariant", tint = OmnisEmerald, modifier = Modifier.size(14.dp))
+                        }
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(2.dp))
             Text(

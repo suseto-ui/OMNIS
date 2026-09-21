@@ -37,20 +37,22 @@ object OmnisPromptGateway {
     private val ACTION_VERBS = listOf(
         "navrhni", "vytvoř", "implementuj", "analyzuj", "srovnej", "refaktoruj", 
         "optimalizuj", "zkontroluj", "napiš", "definuj", "integruj", "vyhodnoť",
-        "design", "create", "implement", "analyze", "compare", "refactor", "optimize"
+        "přidej", "uprav", "vylepši", "spusť", "ověř", "otestuj", "debuguj", "změň", "rozšiř", "přepiš", "oprav", "najdi",
+        "design", "create", "implement", "analyze", "compare", "refactor", "optimize",
+        "add", "update", "improve", "run", "verify", "test", "debug", "change", "extend", "fix", "find"
     )
 
     // Indikátory technických domén a parametrů
     private val DOMAIN_KEYWORDS = listOf(
-        "databáz", "database", "sql", "api", "rest", "grpc", "model", "tenzor",
-        "bezpečnost", "security", "architektur", "latenc", "paměť", "výkon",
-        "frontend", "backend", "docker", "cloud", "ui", "compose", "kotlin"
+        "databáz", "database", "sql", "room", "dao", "api", "rest", "grpc", "model", "tenzor",
+        "bezpečnost", "security", "architektur", "latenc", "paměť", "výkon", "jistič", "brána", "gateway", "circuit",
+        "frontend", "backend", "docker", "cloud", "ui", "compose", "kotlin", "python", "fastapi", "pydantic"
     )
 
     /**
      * 1. FÁZE: Rychlý evaluátor kvality promptu (Quality Gate).
      */
-    fun evaluatePromptQuality(rawText: String): PromptQualityEvaluation {
+    fun evaluatePromptQuality(rawText: String, threshold: Float = 0.85f): PromptQualityEvaluation {
         val text = rawText.trim()
         if (text.isBlank()) {
             return PromptQualityEvaluation(
@@ -113,7 +115,7 @@ object OmnisPromptGateway {
         }
 
         val finalScore = score.coerceIn(0.10f, 1.0f)
-        val isApproved = finalScore >= 0.85f
+        val isApproved = finalScore >= threshold
 
         return PromptQualityEvaluation(
             confidenceScore = finalScore,
@@ -130,13 +132,16 @@ object OmnisPromptGateway {
      */
     fun elevatePromptSemantics(rawText: String, domain: String = "SYSTEMS_INTELLIGENCE"): String {
         val trimmed = rawText.trim()
-        val lower = trimmed.lowercase()
+        if (trimmed.isBlank()) return rawText
+        if (trimmed.contains("### [SÉMANTICKÉ ZADÁNÍ")) {
+            return trimmed
+        }
 
         val domainContextLabel = when (domain) {
             "SYSTEMS_INTELLIGENCE" -> "Systémová architektura & integrace"
             "COGNITIVE_REASONING" -> "Kognitivní modely & logika"
             "SECURITY_AUDIT" -> "Zero-Trust bezpečnostní perimetr"
-            "DATA_ENGINEERING" -> "Datové toky & persistetní schémata"
+            "DATA_ENGINEERING" -> "Datové toky & persistentní schémata"
             else -> "O.M.N.I.S. Core Synthesis"
         }
 
@@ -168,8 +173,8 @@ object OmnisPromptGateway {
     /**
      * Zpracování přes Prompt Gateway – jednotný vstupní bod.
      */
-    fun processPromptGateway(rawText: String, domain: String = "SYSTEMS_INTELLIGENCE"): PromptGatewayResult {
-        val evaluation = evaluatePromptQuality(rawText)
+    fun processPromptGateway(rawText: String, domain: String = "SYSTEMS_INTELLIGENCE", threshold: Float = 0.85f): PromptGatewayResult {
+        val evaluation = evaluatePromptQuality(rawText, threshold)
         return if (evaluation.isBypassApproved) {
             PromptGatewayResult(
                 status = "approved_bypass",

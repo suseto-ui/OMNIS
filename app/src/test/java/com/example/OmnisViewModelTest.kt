@@ -36,8 +36,8 @@ class OmnisViewModelTest {
     }
 
     @Test
-    fun `test initial tab is CHAT`() {
-        assertEquals(OmnisTab.CHAT, viewModel.activeTab.value)
+    fun `test initial tab is DASHBOARD`() {
+        assertEquals(OmnisTab.DASHBOARD, viewModel.activeTab.value)
     }
 
     @Test

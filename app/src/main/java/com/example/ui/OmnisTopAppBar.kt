@@ -64,6 +64,8 @@ fun OmnisTopAppBar(
         OmnisTab.SCENARIOS -> "Scénáře"
         OmnisTab.GOALS -> "Cíle"
         OmnisTab.TELEMETRY -> "Telemetrie"
+        OmnisTab.GUIDE -> "Metodika"
+        OmnisTab.DEV_PROMPT_LAB -> "Dev Lab"
     }
 
     TopAppBar(

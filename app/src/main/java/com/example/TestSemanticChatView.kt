@@ -9,6 +9,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,6 +34,8 @@ fun TestSemanticChatView(
     onWeightChange: (Long, String, String, Float) -> Unit,
     onReSynthesize: (Long, String) -> Unit
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
@@ -61,8 +68,12 @@ fun TestSemanticChatView(
                 OutlinedTextField(
                     value = inputQuery,
                     onValueChange = onQueryChange,
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Zadejte sémantický test...", color = OmnisTextMuted, fontSize = 14.sp) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .onFocusChanged { isFocused = it.isFocused },
+                    placeholder = if (!isFocused) {
+                        { Text("Zadejte prompt: [Kognitivní doména] + [Akce] + [Kritérium]...", color = OmnisTextMuted, fontSize = 12.sp) }
+                    } else null,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = OmnisCyan,
                         unfocusedBorderColor = OmnisBorderDark,
@@ -108,12 +119,20 @@ fun TestSemanticRecordItem(
             modifier = Modifier.widthIn(max = 340.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = record.content,
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                )
+                if (isUser) {
+                    Text(
+                        text = record.content,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
+                    )
+                } else {
+                    com.example.ui.OmnisMarkdownText(
+                        text = record.content,
+                        textColor = Color.White,
+                        fontSize = 14
+                    )
+                }
                 
                 if (!isUser && record.anchors.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(16.dp))

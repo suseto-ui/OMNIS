@@ -1,9 +1,16 @@
 package com.example.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "omnis_messages")
+@Entity(
+    tableName = "omnis_messages",
+    indices = [
+        Index(value = ["threadId", "timestamp"]),
+        Index(value = ["userName", "timestamp"])
+    ]
+)
 data class OmnisRecord(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0L,
@@ -25,5 +32,8 @@ data class OmnisRecord(
     val timestamp: Long = System.currentTimeMillis(),
     val defenseTier: String = "APPROVED",
     val defenseNotes: String = "",
-    val isSyncedToPostgres: Boolean = false
+    val isSyncedToPostgres: Boolean = false,
+    val threadId: String = "thread_main",
+    val threadTitle: String = "Hlavní vlákno",
+    val userName: String = "operator"
 )

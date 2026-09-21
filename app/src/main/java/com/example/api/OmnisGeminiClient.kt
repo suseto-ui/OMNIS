@@ -183,7 +183,8 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
         query: String, 
         domain: String, 
         injectionDetected: Boolean = false,
-        memoryFragments: List<com.example.data.MemoryFragment> = emptyList()
+        memoryFragments: List<com.example.data.MemoryFragment> = emptyList(),
+        threadHistory: List<com.example.data.OmnisRecord> = emptyList()
     ): SynthesisResult? {
         if (com.example.data.DatabaseConfig.isTesting) {
             Log.i(TAG, "Bypassing online Gemini API call during testing, falling back to deterministic synthesis")
@@ -200,7 +201,7 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
             return null
         }
 
-        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=$apiKey"
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey"
         val isolatedInput = OmnisPromptSanitizer.wrapUntrustedContext(query, "OPERATOR_QUERY")
 
         var attempt = 0
@@ -212,6 +213,19 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
             try {
                 val requestJson = JSONObject().apply {
                     val contentsArr = JSONArray().apply {
+                        // Multi-turn Thread History Injection (předchozí kontext vlákna)
+                        val recentHistory = threadHistory.takeLast(6)
+                        for (hist in recentHistory) {
+                            val roleName = if (hist.role == "assistant") "model" else "user"
+                            val histObj = JSONObject().apply {
+                                put("role", roleName)
+                                put("parts", JSONArray().apply {
+                                    put(JSONObject().apply { put("text", hist.content.take(800)) })
+                                })
+                            }
+                            put(histObj)
+                        }
+
                         val userContent = JSONObject().apply {
                             put("role", "user")
                             val partsArr = JSONArray().apply {
@@ -571,7 +585,8 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
     suspend fun synthesize(
         query: String, 
         domain: String,
-        memoryFragments: List<com.example.data.MemoryFragment> = emptyList()
+        memoryFragments: List<com.example.data.MemoryFragment> = emptyList(),
+        threadHistory: List<com.example.data.OmnisRecord> = emptyList()
     ): SynthesisResult = withContext(ioDispatcher) {
         // Step 4: Zero-Trust Sandbox & Injektorové filtry
         val sanitization = OmnisPromptSanitizer.sanitize(query)
@@ -612,7 +627,7 @@ Všechny hodnoty val_* a composite_score musí být čísla s plovoucí řádovo
         }
 
         // Standard runtime: First try online Gemini API with Schema Enforcement & Adversarial Opponent
-        val geminiResult = callGeminiApi(cleanQuery, domain, injectionDetected, memoryFragments)
+        val geminiResult = callGeminiApi(cleanQuery, domain, injectionDetected, memoryFragments, threadHistory)
         if (geminiResult != null) {
             return@withContext geminiResult
         }

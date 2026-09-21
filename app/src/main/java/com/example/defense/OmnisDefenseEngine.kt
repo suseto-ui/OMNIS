@@ -150,6 +150,9 @@ class OmnisCircuitBreaker(
     fun recordSuccess() {
         failureCount.set(0)
         currentState = State.CLOSED
+        try {
+            com.example.action.ResilienceManager.setCircuitState(com.example.action.ResilienceManager.CircuitState.CLOSED)
+        } catch (_: Throwable) {}
     }
 
     fun recordFailure() {
@@ -158,12 +161,35 @@ class OmnisCircuitBreaker(
         if (count >= failureThreshold) {
             currentState = State.OPEN
             safeLogE("OmnisCircuitBreaker", "Circuit Breaker TRIPPED to OPEN state after $count consecutive failures.")
+            try {
+                com.example.telemetry.TelemetryEngine.log(
+                    "ERROR",
+                    "SYSTEMS_INTELLIGENCE",
+                    "Circuit Breaker TRIPPED to OPEN po $count selháních v řadě (Fail-Safe aktivován).",
+                    "{\"circuitBreakerState\":\"OPEN\",\"failures\":$count,\"threshold\":$failureThreshold}"
+                )
+            } catch (_: Throwable) {}
+            try {
+                com.example.action.ResilienceManager.setCircuitState(com.example.action.ResilienceManager.CircuitState.OPEN)
+            } catch (_: Throwable) {}
+        } else {
+            try {
+                com.example.telemetry.TelemetryEngine.log(
+                    "WARN",
+                    "SYSTEMS_INTELLIGENCE",
+                    "Zaznamenáno dílčí selhání dotazu ($count/$failureThreshold). Jistič v pohotovosti.",
+                    "{\"failures\":$count,\"threshold\":$failureThreshold}"
+                )
+            } catch (_: Throwable) {}
         }
     }
 
     fun reset() {
         failureCount.set(0)
         currentState = State.CLOSED
+        try {
+            com.example.action.ResilienceManager.setCircuitState(com.example.action.ResilienceManager.CircuitState.CLOSED)
+        } catch (_: Throwable) {}
     }
 }
 

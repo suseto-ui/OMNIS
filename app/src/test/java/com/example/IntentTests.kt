@@ -37,6 +37,17 @@ class IntentTests {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         com.example.api.OmnisGeminiClient.ioDispatcher = testDispatcher
+        com.example.api.OmnisGeminiClient.customApiService = object : com.example.api.OmnisApiService {
+            override suspend fun processHybridIntent(userInput: String): com.example.api.HybridOmnisResponse {
+                return com.example.api.HybridOmnisResponse(
+                    intent = "intent_test",
+                    confidenceScore = 0.95f,
+                    executionPlan = emptyList(),
+                    immediateResponse = "Test response for $userInput",
+                    requiredOutputFormat = "text"
+                )
+            }
+        }
         val application = ApplicationProvider.getApplicationContext<Application>()
         fakeDao = FakeOmnisDao()
         repository = OmnisRepository(fakeDao)
@@ -47,6 +58,7 @@ class IntentTests {
     fun tearDown() {
         Dispatchers.resetMain()
         com.example.api.OmnisGeminiClient.ioDispatcher = Dispatchers.IO
+        com.example.api.OmnisGeminiClient.customApiService = null
     }
 
     @Test

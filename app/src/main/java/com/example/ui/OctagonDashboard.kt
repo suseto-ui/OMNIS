@@ -150,7 +150,7 @@ fun OctagonDashboard(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(Icons.Default.Hexagon, contentDescription = null, tint = OmnisCyan, modifier = Modifier.size(16.dp))
                             Text(
@@ -160,6 +160,16 @@ fun OctagonDashboard(
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace,
                                 letterSpacing = 1.sp
+                            )
+                            com.example.ui.guide.OmnisHelpIconButton(
+                                title = "Octagon 8D Matice",
+                                description = "8D Transdisciplinární tenzor pro hodnocení systémové rovnováhy a vzájemných vazeb napříč všemi doménami.",
+                                bulletPoints = listOf(
+                                    "Domény: Systém, Ekonomie, Kognice, Ekologie, Právo, Bezpečnost, Fyzika, Společnost.",
+                                    "Integrální Index: Vážený průměr vyjadřující celkovou synergii ekosystému.",
+                                    "Delta Obrys: Porovnání současného tenzoru s minulým stavem pro odhalení anomálií."
+                                ),
+                                tint = OmnisCyan
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
