@@ -181,21 +181,30 @@ fun ChatView(
                 } ?: "Soubor"
 
                 val extension = fileName.substringAfterLast('.', "").lowercase()
-                
-                if (extension == "pdf") {
-                    onDocumentSelected(it, fileName, "application/pdf")
+                val officeMimeMap = mapOf(
+                    "pdf" to "application/pdf",
+                    "doc" to "application/msword",
+                    "docx" to "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "xls" to "application/vnd.ms-excel",
+                    "xlsx" to "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "ppt" to "application/vnd.ms-powerpoint",
+                    "pptx" to "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                )
+
+                if (extension in officeMimeMap) {
+                    onDocumentSelected(it, fileName, officeMimeMap[extension] ?: "application/octet-stream")
                 } else {
                     contentResolver.openInputStream(it)?.use { stream ->
-                        val contentText = if (extension in listOf("doc", "docx", "xls", "xlsx", "ppt", "pptx")) {
-                            "[Binární dokument Office: $fileName - Obsah není přímo čitelný jako text]"
-                        } else {
-                            try {
-                                stream.bufferedReader(Charsets.UTF_8).readText()
-                            } catch (e: Exception) {
-                                "[Soubor: $fileName - Obsah nelze interpretovat jako text]"
+                        try {
+                            val contentText = stream.bufferedReader(Charsets.UTF_8).readText()
+                            if (contentText.isNotBlank()) {
+                                onQueryChange(inputQuery + "\n\n--- Obsah souboru ($fileName) ---\n" + contentText + "\n--- Konec souboru ---")
+                            } else {
+                                onDocumentSelected(it, fileName, "text/plain")
                             }
+                        } catch (e: Exception) {
+                            onDocumentSelected(it, fileName, "application/octet-stream")
                         }
-                        onQueryChange(inputQuery + "\n\n--- Obsah souboru ($fileName) ---\n" + contentText + "\n--- Konec souboru ---")
                     }
                 }
             } catch (e: Exception) {
