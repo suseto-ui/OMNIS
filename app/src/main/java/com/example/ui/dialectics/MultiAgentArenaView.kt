@@ -46,6 +46,42 @@ fun MultiAgentArenaView(
     var showAgentASelector by remember { mutableStateOf(false) }
     var showAgentBSelector by remember { mutableStateOf(false) }
 
+    // Derive real-time active domain and dynamic scores from live turns or debate result
+    val latestTurn = liveTurns.lastOrNull()
+    val activeDomain = latestTurn?.highlightedDomains?.firstOrNull()
+
+    val liveScoresA = remember(liveTurns, debateResult) {
+        if (debateResult != null) {
+            debateResult!!.agentA8DScores
+        } else if (liveTurns.isNotEmpty()) {
+            val scores = mutableMapOf<String, Float>()
+            AgentArenaEngine.all8DDomains.forEach { domain ->
+                val turnsA = liveTurns.filter { it.agentId == selectedAgentA.id }
+                val lastScore = turnsA.lastOrNull()?.domainScores?.get(domain)
+                scores[domain] = lastScore ?: 0f
+            }
+            scores
+        } else {
+            emptyMap()
+        }
+    }
+
+    val liveScoresB = remember(liveTurns, debateResult) {
+        if (debateResult != null) {
+            debateResult!!.agentB8DScores
+        } else if (liveTurns.isNotEmpty()) {
+            val scores = mutableMapOf<String, Float>()
+            AgentArenaEngine.all8DDomains.forEach { domain ->
+                val turnsB = liveTurns.filter { it.agentId == selectedAgentB.id }
+                val lastScore = turnsB.lastOrNull()?.domainScores?.get(domain)
+                scores[domain] = lastScore ?: 0f
+            }
+            scores
+        } else {
+            emptyMap()
+        }
+    }
+
     fun startArenaDebate() {
         if (isDebating) return
         isDebating = true
@@ -274,6 +310,21 @@ fun MultiAgentArenaView(
                         }
                     }
                 }
+            }
+        }
+
+        // Dynamic 8D Influence Spiderweb Graph
+        if (liveTurns.isNotEmpty() || debateResult != null) {
+            item {
+                Dynamic8DInfluenceSpiderGraph(
+                    agentA = selectedAgentA,
+                    agentB = selectedAgentB,
+                    agentAScores = liveScoresA,
+                    agentBScores = liveScoresB,
+                    synthesizedScores = debateResult?.synthesized8DScores,
+                    activeDomain = activeDomain,
+                    isLive = isDebating
+                )
             }
         }
 
