@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Octagon / Matrix Boundary -->
+    <path
+        android:pathData="M40,24 L68,24 L84,40 L84,68 L68,84 L40,84 L24,68 L24,40 Z"
+        android:strokeWidth="2.5"
+        android:strokeColor="#00E5FF"
+        android:fillColor="#1000E5FF" />
+    <!-- Impact Cross Connectors -->
+    <path
+        android:pathData="M54,24 L54,42 M54,66 L54,84 M24,54 L42,54 M66,54 L84,54"
+        android:strokeWidth="2"
+        android:strokeColor="#7C4DFF" />
+    <!-- Central Cognitive Core (Rhombus / Node) -->
+    <path
+        android:pathData="M54,42 L66,54 L54,66 L42,54 Z"
+        android:strokeWidth="2.2"
+        android:strokeColor="#00E5FF"
+        android:fillColor="#7C4DFF" />
+    <!-- Quantum Nucleus -->
+    <path
+        android:pathData="M54,51 A3,3 0 1,1 53.99,51 Z"
+        android:fillColor="#FFFFFF" />
+</vector>

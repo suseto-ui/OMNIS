@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  # ==========================================================
+  # Database: PostgreSQL with pgvector extension pre-installed
+  # ==========================================================
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: omnis_pgvector
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: omnis_db
+      POSTGRES_USER: omnis_user
+      POSTGRES_PASSWORD: omnis_secure_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omnis_user -d omnis_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================
+  # Backend: Python 3.11 / FastAPI with Google GenAI SDK
+  # ==========================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: omnis_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://omnis_user:omnis_secure_pass@db:5432/omnis_db
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: gemini-3.1-pro-preview
+      PORT: 8000
+    ports:
+      - "8000:8000"
+
+  # ==========================================================
+  # Frontend: React 18 + Vite + Tailwind CSS Dashboard
+  # ==========================================================
+  frontend:
+    image: node:20-alpine
+    container_name: omnis_frontend
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://backend:8000
+    depends_on:
+      - backend
+
+volumes:
+  pgvector_data:

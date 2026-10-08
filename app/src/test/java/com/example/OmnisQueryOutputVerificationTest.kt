@@ -1,0 +1,398 @@
+package com.example
+
+import android.app.Application
+import androidx.test.core.app.ApplicationProvider
+import com.example.api.ExecutionPlanStep
+import com.example.api.HybridOmnisResponse
+import com.example.api.OmnisApiService
+import com.example.api.OmnisGeminiClient
+import com.example.api.ToolCallSpec
+import com.example.data.OmnisDao
+import com.example.data.OmnisRecord
+import com.example.data.OmnisRepository
+import com.example.data.MemoryFragment
+import com.example.data.OmnisArtifact
+import com.example.data.OmnisGoal
+import com.example.data.OmnisTelemetry
+import com.example.data.ThreadSummary
+import com.example.ui.OmnisViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import java.io.IOException
+
+class FakeOmnisDao : OmnisDao {
+    private val recordsFlow = MutableStateFlow<List<OmnisRecord>>(emptyList())
+    private val fragmentsFlow = MutableStateFlow<List<MemoryFragment>>(emptyList())
+    private val artifactsFlow = MutableStateFlow<List<OmnisArtifact>>(emptyList())
+    private val goalsFlow = MutableStateFlow<List<OmnisGoal>>(emptyList())
+    private val telemetryFlow = MutableStateFlow<List<OmnisTelemetry>>(emptyList())
+
+    override fun getAllRecords(): Flow<List<OmnisRecord>> = recordsFlow
+
+    override fun getRecordsByThread(threadId: String): Flow<List<OmnisRecord>> =
+        recordsFlow.map { list -> list.filter { it.threadId == threadId } }
+
+    override fun getRecordsByUser(userName: String): Flow<List<OmnisRecord>> =
+        recordsFlow.map { list -> list.filter { it.userName == userName } }
+
+    override fun getAllUserNames(): Flow<List<String>> =
+        recordsFlow.map { list -> list.mapNotNull { it.userName?.takeIf { name -> name.isNotBlank() } }.distinct() }
+
+    override fun getThreadsByUser(userName: String): Flow<List<ThreadSummary>> =
+        recordsFlow.map { records ->
+            records.filter { it.userName == userName }
+                .groupBy { it.threadId }
+                .map { (threadId, msgs) ->
+                    val last = msgs.maxByOrNull { it.timestamp }
+                    ThreadSummary(
+                        threadId = threadId,
+                        threadTitle = last?.threadTitle ?: "Thread",
+                        userName = userName,
+                        lastTimestamp = last?.timestamp ?: 0L,
+                        messageCount = msgs.size,
+                        lastContent = last?.content ?: ""
+                    )
+                }
+        }
+
+    override fun getAllThreads(): Flow<List<ThreadSummary>> =
+        recordsFlow.map { records ->
+            records.groupBy { it.threadId }
+                .map { (threadId, msgs) ->
+                    val last = msgs.maxByOrNull { it.timestamp }
+                    ThreadSummary(
+                        threadId = threadId,
+                        threadTitle = last?.threadTitle ?: "Thread",
+                        userName = last?.userName ?: "user",
+                        lastTimestamp = last?.timestamp ?: 0L,
+                        messageCount = msgs.size,
+                        lastContent = last?.content ?: ""
+                    )
+                }
+        }
+
+    override suspend fun deleteThread(threadId: String) {
+        recordsFlow.value = recordsFlow.value.filter { it.threadId != threadId }
+    }
+
+    override suspend fun updateThreadTitle(threadId: String, newTitle: String) {
+        recordsFlow.value = recordsFlow.value.map {
+            if (it.threadId == threadId) it.copy(threadTitle = newTitle) else it
+        }
+    }
+
+    override fun getLatestRecord(): Flow<OmnisRecord?> = recordsFlow.map { it.lastOrNull() }
+
+    override suspend fun insertRecord(record: OmnisRecord): Long {
+        recordsFlow.value = recordsFlow.value + record
+        return recordsFlow.value.size.toLong()
+    }
+
+    override suspend fun deleteSyncedRecords(maxSyncedId: Long) {
+        recordsFlow.value = recordsFlow.value.filter { it.id > maxSyncedId }
+    }
+
+    override suspend fun clearAll() {
+        recordsFlow.value = emptyList()
+    }
+
+    override suspend fun getUnsyncedCount(): Int = recordsFlow.value.count { !it.isSyncedToPostgres }
+
+    override suspend fun getUnsyncedRecords(limit: Int): List<OmnisRecord> {
+        return recordsFlow.value.filter { !it.isSyncedToPostgres }.take(limit)
+    }
+
+    override suspend fun markAllAsSynced() {
+        recordsFlow.value = recordsFlow.value.map { it.copy(isSyncedToPostgres = true) }
+    }
+
+    override suspend fun markRecordsAsSynced(ids: List<Long>) {
+        val idSet = ids.toSet()
+        recordsFlow.value = recordsFlow.value.map {
+            if (idSet.contains(it.id)) it.copy(isSyncedToPostgres = true) else it
+        }
+    }
+
+    override suspend fun getRecordCount(): Int = recordsFlow.value.size
+
+    override suspend fun insertFragment(fragment: MemoryFragment): Long {
+        fragmentsFlow.value = listOf(fragment) + fragmentsFlow.value
+        return fragmentsFlow.value.size.toLong()
+    }
+
+    override fun getAllFragments(): Flow<List<MemoryFragment>> = fragmentsFlow
+
+    override suspend fun deleteFragment(id: Long) {
+        fragmentsFlow.value = fragmentsFlow.value.filter { it.id != id }
+    }
+
+    override suspend fun insertArtifact(artifact: OmnisArtifact): Long {
+        artifactsFlow.value = listOf(artifact) + artifactsFlow.value
+        return artifactsFlow.value.size.toLong()
+    }
+
+    override fun getAllArtifacts(): Flow<List<OmnisArtifact>> = artifactsFlow
+
+    override suspend fun deleteArtifact(id: Long) {
+        artifactsFlow.value = artifactsFlow.value.filter { it.id != id }
+    }
+
+    override suspend fun insertGoal(goal: OmnisGoal): Long {
+        goalsFlow.value = listOf(goal) + goalsFlow.value
+        return goalsFlow.value.size.toLong()
+    }
+
+    override fun getAllGoals(): Flow<List<OmnisGoal>> = goalsFlow
+
+    override suspend fun deleteGoal(id: Long) {
+        goalsFlow.value = goalsFlow.value.filter { it.id != id }
+    }
+
+    override suspend fun updateGoalProgress(id: Long, status: String, progress: Float, tasksJson: String) {
+        goalsFlow.value = goalsFlow.value.map {
+            if (it.id == id) it.copy(status = status, progress = progress, tasksJson = tasksJson) else it
+        }
+    }
+
+    override suspend fun insertTelemetry(telemetry: OmnisTelemetry) {
+        telemetryFlow.value = listOf(telemetry) + telemetryFlow.value
+    }
+
+    override fun getRecentTelemetry(): Flow<List<OmnisTelemetry>> = telemetryFlow
+
+    override suspend fun clearTelemetry() {
+        telemetryFlow.value = emptyList()
+    }
+
+    override suspend fun insertRecords(records: List<OmnisRecord>) {
+        recordsFlow.value = recordsFlow.value + records
+    }
+
+    override suspend fun deleteBenchmarkRecords(): Int {
+        val before = recordsFlow.value.size
+        recordsFlow.value = recordsFlow.value.filter { it.threadId != "thread_benchmark" && !it.content.startsWith("[BENCHMARK]") }
+        return before - recordsFlow.value.size
+    }
+
+    override suspend fun getBenchmarkRecordCount(): Int {
+        return recordsFlow.value.count { it.threadId == "thread_benchmark" || it.content.startsWith("[BENCHMARK]") }
+    }
+
+    override suspend fun getRecentRecordsSync(limit: Int): List<OmnisRecord> {
+        return recordsFlow.value.reversed().take(limit)
+    }
+
+    override suspend fun getPagedRecordsByThread(threadId: String, limit: Int, offset: Int): List<OmnisRecord> {
+        return recordsFlow.value.filter { it.threadId == threadId }.drop(offset).take(limit)
+    }
+
+    override fun searchRecords(query: String, threadId: String?, limit: Int): Flow<List<OmnisRecord>> {
+        return recordsFlow.map { list ->
+            list.filter {
+                (it.content.contains(query, ignoreCase = true) || it.cognitiveProcess.contains(query, ignoreCase = true)) &&
+                (threadId == null || it.threadId == threadId)
+            }.take(limit)
+        }
+    }
+
+    override suspend fun pruneOldSyncedRecords(beforeTimestamp: Long): Int {
+        val before = recordsFlow.value.size
+        recordsFlow.value = recordsFlow.value.filter { !(it.timestamp < beforeTimestamp && it.isSyncedToPostgres) }
+        return before - recordsFlow.value.size
+    }
+
+    override suspend fun getThreadMessageCount(threadId: String): Int {
+        return recordsFlow.value.count { it.threadId == threadId }
+    }
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
+class OmnisQueryOutputVerificationTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    private lateinit var application: Application
+    private lateinit var fakeDao: FakeOmnisDao
+    private lateinit var repository: OmnisRepository
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        OmnisGeminiClient.ioDispatcher = testDispatcher
+        application = ApplicationProvider.getApplicationContext()
+        fakeDao = FakeOmnisDao()
+        repository = OmnisRepository(fakeDao)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+        OmnisGeminiClient.ioDispatcher = Dispatchers.IO
+        OmnisGeminiClient.customApiService = null
+    }
+
+    @Test
+    fun `verify successful query submission produces structured 8D output and updates state`() = runTest(testDispatcher) {
+        // Arrange mock API returning a deterministic HybridOmnisResponse
+        val fakeResponse = HybridOmnisResponse(
+            intent = "systems_architecture",
+            confidenceScore = 0.94f,
+            executionPlan = listOf(
+                ExecutionPlanStep(
+                    stepNumber = 1,
+                    actionDescription = "Provést sémantickou dekonstrukci dotazu a mapování entit",
+                    toolCall = ToolCallSpec(
+                        toolId = "semantic_analyzer",
+                        parameters = mapOf("depth" to "exhaustive")
+                    )
+                ),
+                ExecutionPlanStep(
+                    stepNumber = 2,
+                    actionDescription = "Vypočítat 8D tenzory a izolovat pákový bod systému",
+                    toolCall = ToolCallSpec(
+                        toolId = "impact_matrix_engine",
+                        parameters = mapOf("dimensions" to 8)
+                    )
+                )
+            ),
+            immediateResponse = "Strukturovaný návrh distribuované architektury byl úspěšně vygenerován.",
+            requiredOutputFormat = "markdown"
+        )
+
+        OmnisGeminiClient.customApiService = object : OmnisApiService {
+            override suspend fun processHybridIntent(userInput: String): HybridOmnisResponse {
+                return fakeResponse
+            }
+        }
+
+        val viewModel = OmnisViewModel(application, repository)
+        advanceUntilIdle()
+
+        // Act: Enter query and submit
+        val testQuery = "Jak optimalizovat distribuovaný výpočetní uzel pro nulovou chybovost?"
+        viewModel.onQueryChange(testQuery)
+        assertEquals(testQuery, viewModel.inputQuery.value)
+
+        viewModel.sendQuery()
+        // Input query should immediately be cleared
+        assertEquals("", viewModel.inputQuery.value)
+
+        if (viewModel.pendingGatewayReview.value != null) {
+            viewModel.bypassGatewayReview()
+        }
+
+        advanceUntilIdle()
+
+        // Assert: Verify state and output functionality
+        assertFalse(viewModel.isLoading.value)
+        assertEquals(0.94f, viewModel.simSec.value, 0.02f)
+        assertEquals(0.90f, viewModel.simSys.value, 0.02f)
+
+        val records = viewModel.records.first { it.size >= 2 }
+        val userRecord = records.find { it.role == "user" }
+        val asstRecord = records.find { it.role == "assistant" && it.content.contains("Strukturovaný návrh") }
+
+        assertNotNull("User record must be persisted", userRecord)
+        assertEquals(testQuery, userRecord?.content)
+
+        assertNotNull("Assistant record must be persisted", asstRecord)
+        assertTrue("Output answer must match synthesized content", asstRecord!!.content.contains("Strukturovaný návrh"))
+        assertTrue("Cognitive thoughts must detail intent and plan", asstRecord.cognitiveProcess.contains("systems_architecture"))
+        assertTrue("Follow-up questions must be populated", asstRecord.followUpQuestions.isNotBlank())
+        assertEquals(0.94f, asstRecord.compositeScore, 0.01f)
+        assertEquals(0.9f, asstRecord.valSys, 0.01f)
+        assertEquals(0.8f, asstRecord.valEcon, 0.01f)
+        assertEquals(1.0f, asstRecord.valLaw, 0.01f)
+    }
+
+    @Test
+    fun `verify zero-simulation policy when gateway is unreachable`() = runTest(testDispatcher) {
+        // Arrange: API throws network failure exception
+        OmnisGeminiClient.customApiService = object : OmnisApiService {
+            override suspend fun processHybridIntent(userInput: String): HybridOmnisResponse {
+                throw IOException("Unable to resolve host: gateway.omnis.cloud")
+            }
+        }
+
+        val viewModel = OmnisViewModel(application, repository)
+        advanceUntilIdle()
+
+        // Act: Submit query
+        viewModel.sendQuery("Test výpadku konektivity")
+        if (viewModel.pendingGatewayReview.value != null) {
+            viewModel.bypassGatewayReview()
+        }
+        advanceUntilIdle()
+
+        // Assert: Zero-simulation policy must be strictly honored
+        assertFalse(viewModel.isLoading.value)
+
+        // All simulation dimensions must drop to 0.0f
+        assertEquals(0.0f, viewModel.simSys.value, 0.001f)
+        assertEquals(0.0f, viewModel.simEcon.value, 0.001f)
+        assertEquals(0.0f, viewModel.simLaw.value, 0.001f)
+        assertEquals(0.0f, viewModel.simSec.value, 0.001f)
+
+        val records = fakeDao.getAllRecords().first { it.size >= 2 }
+        val errorRecord = records.find { it.role == "assistant" && it.compositeScore == 0.0f }
+        assertNotNull("Failure record must be recorded in Room database", errorRecord)
+        assertTrue(
+            "Answer must communicate gateway failure without hallucinating data",
+            errorRecord!!.content.contains("Kritické selhání při komunikaci s O.M.N.I.S. Gateway")
+        )
+        assertEquals("Network Failure / Schema Mismatch", errorRecord.cognitiveProcess)
+        assertEquals(0.0f, errorRecord.compositeScore, 0.001f)
+    }
+
+    @Test
+    fun `verify default runtime produces real structured cognitive result and no error message`() = runTest(testDispatcher) {
+        // Ensure customApiService is null (default production runtime)
+        OmnisGeminiClient.customApiService = null
+
+        val viewModel = OmnisViewModel(application, repository)
+        advanceUntilIdle()
+
+        // Act: User enters "znovu"
+        val query = "znovu"
+        viewModel.onQueryChange(query)
+        viewModel.sendQuery()
+        if (viewModel.pendingGatewayReview.value != null) {
+            viewModel.bypassGatewayReview()
+        }
+        advanceUntilIdle()
+
+        // Assert: Result must be a real synthesis, not an error
+        assertFalse(viewModel.isLoading.value)
+        assertTrue("System dimension must be non-zero", viewModel.simSys.value > 0.5f)
+        assertTrue("Security dimension must be non-zero", viewModel.simSec.value > 0.5f)
+
+        val records = fakeDao.getAllRecords().first { it.size >= 2 }
+        val asstRecord = records.find { it.role == "assistant" && it.content.contains("rekurzivní") || it.content.contains("O.M.N.I.S.") }
+        assertNotNull("Assistant synthesized record must be present", asstRecord)
+        assertFalse("Output must not contain error message", asstRecord!!.content.contains("Kritické selhání"))
+        assertTrue("Cognitive thoughts must be populated", asstRecord.cognitiveProcess.isNotBlank())
+        assertTrue("Follow up questions must be populated", asstRecord.followUpQuestions.isNotBlank())
+        assertTrue("Composite score must be positive", asstRecord.compositeScore > 0.5f)
+    }
+}
+

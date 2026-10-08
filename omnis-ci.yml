@@ -1,0 +1,38 @@
+name: O.M.N.I.S. Continuous Integration
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  quality-gate-and-test:
+    name: Quality Gate & Test Barrier
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --no-cache-dir pytest pytest-cov radon flake8 "httpx<0.28" fastapi sqlalchemy pydantic google-genai asyncpg
+
+      - name: Cyclomatic Complexity Barrier (<= 15)
+        run: |
+          radon cc backend/ -s -nc --total-average -a --max B
+
+      - name: Run Test Suite with Branch Coverage (>= 80%)
+        run: |
+          export PYTHONPATH=.
+          pytest backend/ --cov=backend --cov-branch --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=80 -v
+
+      - name: Quality Gate Barrier Check
+        run: |
+          export PYTHONPATH=.
+          python3 scripts/verify_quality_gate.py
