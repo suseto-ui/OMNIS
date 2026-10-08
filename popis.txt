@@ -1,7 +1,7 @@
-# O.M.N.I.S. (Omni-Modal Networked Intelligence System) — Technická a Architektonická Analýza
+# O.M.N.I.S. (Agentic Knowledge Graph & Invariant Inference Engine — AKGE-8D) — Technická a Architektonická Analýza
 
 Verze systému: 4.2 (Production Ready, Q1 2026)  
-Cílová platforma: Android OS (API 26–36) | Jetpack Compose M3 | Room SQLite | Google Cloud SQL PostgreSQL  
+Cílová platforma: Android OS (API 26–36) | Jetpack Compose M3 | Room SQLite | Google Cloud SQL PostgreSQL | Python FastAPI CSR Graph  
 Základní balíček: com.example | Runtime Application ID: com.aistudio.omnis.quantum.v2026
 
 ---
@@ -31,16 +31,16 @@ Aplikace O.M.N.I.S. je navržena podle principů Clean Architecture a Unidirecti
 │             KOGNITIVNÍ, BEZPEČNOSTNÍ A AUDITNÍ ENGINE                  │
 │                                                                        │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────┐  │
-│  │ GeminiApiService │  │ Prompt Gateway   │  │ Defense Tier Auditor │  │
-│  │ (REST / SSE)     │  │ & Token Optimizer│  │ (Bezpečnostní štít)  │  │
+│  │ GeminiApiService │  │ Refusal Ladder   │  │ Defense Tier Auditor │  │
+│  │ (REST / SSE)     │  │ Gatekeeper (G1-G6│  │ (Bezpečnostní štít)  │  │
 │  └──────────────────┘  └──────────────────┘  └──────────────────────┘  │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────┐  │
 │  │ 8D Vector Engine │  │ Causal Simulator │  │ Dialectic Engine     │  │
 │  │ (Multidoménovost)│  │ (Kontrafaktuály) │  │ (Teze/Antiteze/Synt) │  │
 │  └──────────────────┘  └──────────────────┘  └──────────────────────┘  │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────┐  │
-│  │ CircuitBreaker   │  │ BigDataBenchmark │  │ Self-Healing Engine  │  │
-│  │ (Pojistka výpadku│  │ (Stresové testy) │  │ (Integrita databáze) │  │
+│  │ CircuitBreaker   │  │ CSR Graph Engine │  │ ZK Audit Ledger      │  │
+│  │ (Pojistka výpadku│  │ (Topologie CSR)  │  │ (Kryptografické ZK)  │  │
 │  └──────────────────┘  └──────────────────┘  └──────────────────────┘  │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
@@ -67,103 +67,15 @@ Aplikace O.M.N.I.S. je navržena podle principů Clean Architecture a Unidirecti
 
 ### 2.1 Modul Kognitivního Jádra a AI Komunikace (com.example.ai, com.example.api)
 
-1. GeminiApiService:
-   - Účel: Zajišťuje síťovou komunikaci s REST API modelů Google Gemini (gemini-2.5-flash / gemini-2.5-pro).
-   - Vlastnosti: Podporuje jak kompletní blokové odpovědi, tak reaktivní proudové vysílání (Server-Sent Events streaming).
-   - Metody:
-     - generateContent(prompt, systemInstruction): Standardní asynchronní volání s návratem kompletního JSON payloadu.
-     - streamGenerateContent(prompt): Proudové vysílání tokenů do Flow<String> pro okamžitý výpis na obrazovce s minimální latencí.
-
-2. PromptGateway & PromptOptimizer:
-   - Účel: Brána předcházející odeslání dotazu do LLM. Detekuje nadbytečný text, chrání před prompt injection a redukuje tokenovou náročnost dotazů.
-   - Návaznost: Napojeno na DevPromptLab a PerformanceMonitor, kde eviduje ušetřené tokeny a finanční náklady.
-
-3. CircuitBreaker (com.example.defense):
-   - Účel: Softwarový jistič chránící aplikaci před kaskádovým selháním při výpadku sítě, chybách 429 (Rate Limit) nebo 5xx na straně API.
-   - Stavy: CLOSED (normální průchod), OPEN (blokace požadavků, okamžitý přechod na lokální deterministický fallback), HALF_OPEN (testovací požadavek na zotavení).
-
----
+1. GeminiApiService: Zajišťuje síťovou komunikaci s REST API modelů Google Gemini (gemini-2.5-flash / gemini-2.5-pro) a reaktivní proudové vysílání tokenů přes Server-Sent Events (SSE).
+2. RefusalLadderGatekeeper: Provádí 6-úrovňovou verifikaci (G1 až G6) garantující nulovou halucinaci a ověření normativních standardů (ISO/IEC, EU AI Act, NIS2).
+3. CircuitBreaker (com.example.defense): Softwarový jistič chránící aplikaci před kaskádovým selháním při výpadku sítě nebo vyčerpání kvóty API.
 
 ### 2.2 Modul 8D Vektorové Matice a Analytiky (com.example.data, com.example.ui.octagon)
-
-Systém O.M.N.I.S. analyzuje každou myšlenku v osmirozměrném vektorovém prostoru:
-- valSys (Systémová inteligence): Provázanost prvků, architektura, kybernetika.
-- valEcon (Ekonomická efektivita): Náklady, návratnost, alokace zdrojů.
-- valPsych (Psychologie & Kognice): Mentální zátěž, lidský faktor, uživatelská adaptace.
-- valEco (Ekologie & Udržitelnost): Energetická stopa, dlouhodobá udržitelnost.
-- valLaw (Legislativa & Soulad): Právní normy, EU AI Act, shoda s licencemi.
-- valSec (Bezpečnost & Odolnost): Informační bezpečnost, integrita, šifrování.
-- valPhys (Fyzikální & Hardwarová realita): Výkon hardware, paměťové stropy, teplota.
-- valSoc (Společenský dopad): Etika, komunikace, sociální koheze.
-
-Rozšiřující funkce:
-- OmnisRecord.to8DVector(): Transformuje databázový záznam do mapy Map<String, Float>.
-- OctagonDashboard.kt: Vykresluje interaktivní radarový (pavučinový) graf pomocí Jetpack Compose Canvas s podporou fixace jednotlivých os (toggleDomainFixation).
+Systém analyzuje každý podnět v osmirozměrném vektorovém prostoru [SYS, ECON, PSYCH, ECO, LAW, SEC, PHYS, SOC] s výpočtem 28-párového tenzoru vzájemných vazeb.
 
 ---
 
-### 2.3 Modul Simulací a Dialektiky (com.example.ui.causal, com.example.ui.dialectics)
-
-1. CausalSimulatorView:
-   - Umožňuje modelovat scénáře typu "Co se stane, když...". Uživatel mění vstupy (např. navýšení rozpočtu o 30 % nebo snížení bezpečnostních kontrol) a algoritmus extrapoluje dopad na všech 8 domén.
-
-2. DialecticEngineView:
-   - Implementuje hegelovskou triádu myšlení: Formulace Teze, odvození kritické Antiteze a následné nalezení vyšší holistické Syntézy.
-
----
-
-### 2.4 Modul Persistence a Úložiště (com.example.data)
-
-1. OmnisDatabase (Room SQLite v12):
-   - Centrální lokální databáze.
-   - Obsahuje indexy: [threadId, timestamp], [userName, timestamp], [isSyncedToPostgres].
-   - Podporuje destruktivní migraci pro vývoj a inMemoryDatabaseBuilder pro testy.
-
-2. OmnisDao:
-   - Poskytuje reaktivní Flow dotazy i dávkové operace:
-   - insertRecord(record) / insertRecords(list): Atomické vkládání zpráv.
-   - deleteBenchmarkRecords(): Rychlé promazání syntetických zpráv podle indexu.
-   - getPagedRecordsByThread(threadId, limit, offset): Stránkování velkých vláken pro prevenci zahlcení paměti.
-   - pruneOldSyncedRecords(timestamp): Automatické čištění starých synchronizovaných záznamů.
-
-3. CloudSqlSyncManager:
-   - Zajišťuje replikaci lokálních dat do vzdálené PostgreSQL databáze přes JDBC driver.
-   - Udržuje frontu nesynchronizovaných záznamů (isSyncedToPostgres == false) a provádí dávkovou transakční synchronizaci.
-
----
-
-### 2.5 Modul Zátěžového Testování a Telemetrie Paměti (com.example.monitoring)
-
-1. BigDataBenchmarkManager:
-   - Statický Singleton řídící simulaci masivních objemů dat a profilaci paměti JVM Heap.
-   - Generátor: Zapisuje 1 000 až 10 000 syntetických zpráv v transakčních dávkách po 250 ks. Využívá Dispatchers.IO a volá yield() mezi dávkami, což eliminuje zamrzání UI a garantuje 60 snímků za sekundu.
-   - Měření latence: Provádí exaktní stopování dotazů COUNT(*), SELECT 100, SELECT 500, SELECT 1000 a textového vyhledávání LIKE.
-   - Čištění: Izolované odstranění syntetických dat bez dotčení uživatelských dat.
-
-2. LiveMemoryGraph.kt:
-   - Komponenta Compose Canvas vykreslující hladkou Bezierovu křivku vytížení operační paměti v reálném čase.
-   - Zobrazuje vodorovnou přerušovanou čáru na úrovni 75 % kapacity paměti (varovný strop) a dynamicky mění barvy (zelená -> oranžová -> červená).
-
----
-
-## 3. Přehled Metod: Statické vs. Variabilní a Možnosti Úprav
-
-Class / Component | Method Type | Method Name | Purpose and Customization
-------------------|-------------|-------------|──────────────────────────
-BigDataBenchmarkManager | Statická (Singleton) | generateStressRecords(context, count) | Generuje dávky syntetických zpráv. Lze měnit velikost dávky BATCH_CHUNK_SIZE (výchozí 250) pro optimalizaci slabších zařízení.
-BigDataBenchmarkManager | Statická (Singleton) | sampleMemory() | Vzorkuje paměť JVM Runtime. Vrací alokovanou, celkovou a maximální RAM v MB.
-BigDataBenchmarkManager | Statická (Singleton) | runQuerySpeedBenchmark(context) | Spouští stopování Room dotazů. Výsledky jsou publikovány do stressState StateFlow.
-ProductionAuditManager | Statická (Singleton) | runComprehensiveAudit(context) | Provádí 360° audit zabezpečení, Play Store politik a stability. Lze přidávat nová auditní pravidla do seznamu checks.
-PerformanceMonitor | Statická (Singleton) | recordRequest(latency, tokens, isBatch) | Eviduje latenci a úsporu tokenů. Využívá atomické proměnné AtomicLong a AtomicInteger pro thread-safety.
-OmnisViewModel | Variabilní (Instanční) | sendQuery(overridePrompt) | Hlavní řídicí bod dotazování. Orchestruje bránu PromptGateway, volání GeminiApiService a zápis do OmnisDao.
-OmnisViewModel | Variabilní (Instanční) | triggerCloudSqlSync() | Spouští na pozadí asynchronní replikaci do PostgreSQL.
-OmnisViewModel | Variabilní (Instanční) | pruneOldDatabaseRecords(daysOld) | Prořeže lokální záznamy starší než X dní, které již byly zazálohovány do cloudu.
-
----
-
-## 4. Škálování a Produkční Připravenost
-
-Aplikace je plně škálovatelná pro práci s desítkami tisíc zpráv:
-- Indexace: Všechny kritické sloupce (threadId, timestamp, isSyncedToPostgres) mají dedikované B-Tree indexy v SQLite.
-- Stránkování (Paging): Zobrazení historie neprovádí načtení celé databáze do paměti RAM najednou, ale používá limit/offset dotazy.
-- Plovoucí telemetrická fronta: Historie paměti je omezena na fixních 60 vzorků, což zabraňuje nekonečnému růstu spotřeby paměti grafu.
+## 3. Prezentační Úrovně a RBAC
+- STANDARD_USER: Skryté technické logy a tenzory, čistý uživatelský chat, srozumitelná lidská řeč.
+- ADMIN_OPERATOR: Surové 8D vektory, CSR topologie, telemetrie RAM/latencí, ZK-SNARK kryptografický otisk a oprávnění MODIFY_SYSTEM_STATE.

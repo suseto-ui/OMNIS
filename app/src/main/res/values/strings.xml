@@ -1,3 +1,55 @@
 <resources>
     <string name="app_name">O.M.N.I.S.</string>
+    <string name="app_subtitle">AKGE-8D Agentic Knowledge Graph Engine</string>
+    <string name="app_description">Systém pro kognitivní řízení a 8D analýzu v reálném čase.</string>
+
+    <!-- Navigation & Core Screens -->
+    <string name="nav_chat">Kognitivní Chat</string>
+    <string name="nav_cockpit">Operační Kokpit</string>
+    <string name="nav_goals">Autonomní Cíle</string>
+    <string name="nav_scenario">Scenario Architect</string>
+    <string name="nav_nexus">Neural Nexus</string>
+    <string name="nav_octagon">8D Radar &amp; Analýza</string>
+    <string name="nav_arena">Multi-Agent Arena</string>
+    <string name="nav_epistemic">Epistemic Memory</string>
+    <string name="nav_admin_hub">Admin Hub &amp; Diagnostika</string>
+    <string name="nav_prompt_lab">Dev Prompt Lab</string>
+    <string name="nav_audit">Produkční Audit &amp; Benchmark</string>
+    <string name="nav_zk_ledger">ZK Audit Ledger</string>
+
+    <!-- User Roles & RBAC -->
+    <string name="role_standard_user">Běžný Uživatel (Standard Mode)</string>
+    <string name="role_standard_desc">Srozumitelná lidská řeč, skryté technické logy a přehledná doporučení.</string>
+    <string name="role_admin_operator">Administrátor (ADMIN_OPERATOR)</string>
+    <string name="role_admin_desc">Surové 8D tenzory, CSR topologie, telemetrie a manuální přepisy stavu (MODIFY_SYSTEM_STATE).</string>
+    <string name="role_expert">Expertní Analytik</string>
+    <string name="role_expert_desc">Detailní kognitivní stopy, hodnocení domén a pokročilé nastavení vah.</string>
+
+    <!-- Refusal Ladder Gatekeeper (G1-G6) & Diagnostics -->
+    <string name="gate_g1_entry">G1: Identifikace Vstupních Uzlů v 8D Ontologii</string>
+    <string name="gate_g2_concept">G2: Konceptuální Provázání a Sémantický Kontext</string>
+    <string name="gate_g3_causal">G3: Verifikace Spojité Kauzální Cesty v CSR Grafu</string>
+    <string name="gate_g4_evidence">G4: Ověření Důkazních Standardů (ISO/IEC, EU AI Act, NIS2)</string>
+    <string name="gate_g5_integrity">G5: Kontrola Integrity a Retrakce Zastaralých Premis</string>
+    <string name="gate_g6_entropy">G6: Logická Dedukce a Výpočet Shannonovy Entropie</string>
+
+    <!-- User Facing Messages & Error Fallbacks -->
+    <string name="msg_user_friendly_error">Omlouváme se, požadavek nebylo možné v této chvíli plně zpracovat. Zkuste prosím dotaz doplňujícím způsobem upřesnit.</string>
+    <string name="msg_grounded_refusal">Dotaz neprošel bezpečnostními a faktickými branami O.M.N.I.S. Důvod: Nedostatečné důkazní ukotvení. Doporučujeme doplnit kontext nebo specifikovat konkrétní doménu.</string>
+    <string name="msg_offline_simulation">[OFFLINE SIMULACE] Odpověď vygenerována lokálním deterministickým fallbackem.</string>
+    <string name="msg_override_active">VÝSTRAHA: Aktivní manuální zásah administrátora (OVERRIDE_ACTIVE).</string>
+
+    <!-- Chat & Input Controls -->
+    <string name="chat_input_hint">Položte dotaz pro 8D kognitivní rozbor...</string>
+    <string name="chat_send">Odeslat</string>
+
+    <!-- 8D Domains -->
+    <string name="domain_sys">Systémová architektura (SYS)</string>
+    <string name="domain_econ">Ekonomická efektivita (ECON)</string>
+    <string name="domain_psych">Kognitivní a psychologická pohoda (PSYCH)</string>
+    <string name="domain_eco">Ekologická udržitelnost (ECO)</string>
+    <string name="domain_law">Legislativa a soulad (LAW)</string>
+    <string name="domain_sec">Informační bezpečnost (SEC)</string>
+    <string name="domain_phys">Hardwarová a fyzikální realita (PHYS)</string>
+    <string name="domain_soc">Společenský dopad a etika (SOC)</string>
 </resources>
