@@ -34,6 +34,58 @@ fun DialecticEngineView(
     onSendToChat: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var selectedModeTab by remember { mutableIntStateOf(0) } // 0: 4-Agent Deliberation, 1: Multi-Agent Arena
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(OmnisBgDark)
+    ) {
+        TabRow(
+            selectedTabIndex = selectedModeTab,
+            containerColor = OmnisCardDark,
+            contentColor = OmnisCyan,
+            divider = { HorizontalDivider(color = OmnisBorderDark) }
+        ) {
+            Tab(
+                selected = selectedModeTab == 0,
+                onClick = { selectedModeTab = 0 },
+                text = {
+                    Text(
+                        text = "🏛️ 4-AGENTNÍ SYNTÉZA",
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+            )
+            Tab(
+                selected = selectedModeTab == 1,
+                onClick = { selectedModeTab = 1 },
+                text = {
+                    Text(
+                        text = "⚔️ MULTI-AGENTNÍ ARÉNA (DUEL 8D)",
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+            )
+        }
+
+        if (selectedModeTab == 1) {
+            MultiAgentArenaView(onSendToChat = onSendToChat)
+        } else {
+            DialecticStandardContent(onSendToChat = onSendToChat)
+        }
+    }
+}
+
+@Composable
+private fun DialecticStandardContent(
+    onSendToChat: (String) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
     val coroutineScope = rememberCoroutineScope()
     var inputThesis by remember { mutableStateOf(DialecticEngine.standardDebatePresets.first()) }
     var isDeliberating by remember { mutableStateOf(false) }
