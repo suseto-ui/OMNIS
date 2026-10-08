@@ -79,6 +79,30 @@ object ScenarioLibrary {
             "Prolomení asymetrických šifer a nutnost post-kvantové migrace.",
             0.3f, -0.1f, -0.2f, 0.0f, 0.1f, -0.5f, 0.3f, -0.1f,
             OmnisAmber
+        ),
+        ScenarioEvent(
+            "post_quantum_shock", "Post-Kvantový Bezpečnostní Šok",
+            "Okamžitý požadavek na PQC migrace napříč všemi 8D vrstvami.",
+            0.2f, -0.3f, -0.2f, 0.0f, 0.2f, -0.6f, 0.1f, -0.2f,
+            OmnisAmber
+        ),
+        ScenarioEvent(
+            "supply_chain_collapse", "Kolaps Čipových & Logistických Řetězců",
+            "Kritický výpadek dodávek akcelerátorů a fyzické infrastruktury.",
+            -0.4f, -0.6f, -0.3f, 0.1f, -0.1f, -0.3f, -0.5f, -0.3f,
+            Color.Red
+        ),
+        ScenarioEvent(
+            "blackout_grid_failure", "Masivní Výpadek Energetické Sítě",
+            "Kaskádový blackout a přechod na autonomní ultra-low-power uzly.",
+            -0.5f, -0.4f, -0.4f, 0.2f, 0.0f, -0.4f, -0.6f, -0.2f,
+            OmnisViolet
+        ),
+        ScenarioEvent(
+            "deepfake_disinfo_flood", "Syntetický Informační Útok",
+            "Koordinovaný informační útok zpochybňující integritu datových zdrojů.",
+            -0.2f, -0.1f, -0.6f, 0.0f, -0.3f, -0.4f, 0.0f, -0.6f,
+            OmnisCyan
         )
     )
 }

@@ -34,14 +34,16 @@ object DialecticEngine {
         "Autonomní AI rozhodování v kritické infrastruktuře: Centralizované vs. Distribuované",
         "Regulační striktnost AI Act vs. Technologická inovační rychlost v EU",
         "Energetická optimalizace datových center vs. Globální ekologický limit zdrojů",
-        "Kvantové šifrování vs. Požadavky státní bezpečnosti na zpětnou dekripci"
+        "Kvantové šifrování vs. Požadavky státní bezpečnosti na zpětnou dekripci",
+        "Post-Kvantová migrace PQC vs. Odolnost stávající banking infrastruktury",
+        "Kognitivní autonomie agentů vs. Deterministické brány Refusal Ladder (G1–G6)"
     )
 
     suspend fun conductDialecticDebate(
         thesis: String,
         domain: String = "SYSTEMS_INTELLIGENCE"
     ): DialecticSynthesis {
-        // High-precision epistemic deliberation simulation
+        // High-precision epistemic deliberation simulation across 4 specialized agents
         delay(600)
 
         val words = thesis.trim().split("\\s+".toRegex())
@@ -49,57 +51,68 @@ object DialecticEngine {
 
         val perspectives = listOf(
             DialecticPerspective(
-                agentName = "Nexus-Alpha (Technologist)",
-                roleTitle = "Technologická efektivita & Škálovatelnost",
-                viewpoint = "Prosazuje maximální výpočetní autonomii a minimální latenci přes dedikované decentralizované modely. Argumentuje, že prodlevy v lidském schvalování zvyšují entropii systému.",
-                divergenceScore = (0.65f + complexityWeight * 0.25f).coerceIn(0.1f, 0.95f),
-                epistemicConfidence = 0.88f,
+                agentName = "Architekt (Arch-Omega)",
+                roleTitle = "Kognitivní Architektura & 8D Tenzorový Návrh",
+                viewpoint = "Navrhuje optimální 8D reprezentaci a tenzorové přemostění. Argumentuje, že systémová škálovatelnost a vysoká propustnost kognitivních procesů vyžadují dynamickou CSR matici bez nadbytečných bariér.",
+                divergenceScore = (0.65f + complexityWeight * 0.2f).coerceIn(0.1f, 0.95f),
+                epistemicConfidence = 0.92f,
                 keyCounterpoints = listOf(
-                    "Příliš striktní regulace vede k arbitráži v jurisdikcích bez bezpečnostních standardů.",
-                    "Architektonická redundance kompenzuje pravděpodobnost lokálního selhání uzlu."
+                    "Algoritmická redundance kompenzuje pravděpodobnost lokálního selhání uzlu.",
+                    "Snížení latence při CSR grafové navigaci přináší až 40% úsporu kognitivní energie."
                 )
             ),
             DialecticPerspective(
-                agentName = "Aegis-Theta (Ethicist & Legal)",
-                roleTitle = "Normativní integrita, Právo & Společenský dopad",
-                viewpoint = "Kriticky rozporuje nekontrolovanou expanzi. Požaduje striktní 'Circuit Breakers', transparentní auditní stopu a deterministickou odpovědnost před nasazením do produkce.",
-                divergenceScore = (0.75f - complexityWeight * 0.15f).coerceIn(0.2f, 0.92f),
-                epistemicConfidence = 0.91f,
+                agentName = "Skeptik (Skept-Beta)",
+                roleTitle = "Antiteze, Zranitelnosti & Černé Labutě",
+                viewpoint = "Kriticky podrobuje tezi stresovému testu. Hledá skryté korelativní trhliny, nekontrolovaný nárůst Shannonovy entropie a hrozbu kauzálních smyček v nepřímých vazbách.",
+                divergenceScore = (0.80f - complexityWeight * 0.1f).coerceIn(0.2f, 0.95f),
+                epistemicConfidence = 0.89f,
                 keyCounterpoints = listOf(
-                    "Systémové zkreslení (bias) v trénovacích datech nelze neutralizovat pouhým navýšením parametrů.",
-                    "Zákonná shoda s AI Act a ochrana soukromí jsou neobchodovatelné axiomy."
+                    "Riziko neočekávané kaskádové selhání v případě výpadku hraničních uzlů.",
+                    "Neověřené kognitivní předpoklady mohou při zátěži způsobit nekontrolovanou halucinaci."
                 )
             ),
             DialecticPerspective(
-                agentName = "Gaia-Sigma (Ecological & Physical)",
-                roleTitle = "Termodynamické limity & Udržitelnost",
-                viewpoint = "Analyzuje energetickou náročnost a hardwarový otisk. Poukazuje na fyzikální bariéry křemíkových struktur a nutnost optimalizovat spotřebu paměti a tokenů.",
-                divergenceScore = 0.52f,
-                epistemicConfidence = 0.84f,
+                agentName = "Regulátor (Regul-Gamma)",
+                roleTitle = "Normativní Integrita & Brány G1–G6",
+                viewpoint = "Vyžaduje striktní soulad se standardy ISO/IEC/IEEE, NIST SP 800-207, EU AI Act a NIS2. Prosazuje bezvýhradnou funkčnost Refusal Ladderu a nepustí neprověřená data bez auditní stopy.",
+                divergenceScore = 0.45f,
+                epistemicConfidence = 0.96f,
                 keyCounterpoints = listOf(
-                    "Exponenciální nároky na chlazení a energii limitují nekonečný lineární růst.",
-                    "Je nezbytné zavést index energetické návratnosti kognitivního výpočtu (EROCI)."
+                    "Zákonná shoda a etické invarianty jsou absolutní priorita před rychlostí výpočtu.",
+                    "Každý výstup musí mít kryptograficky ověřitelný ZK-SNARK otisk a doložitelnou citaci."
+                )
+            ),
+            DialecticPerspective(
+                agentName = "Inženýr (Engine-Delta)",
+                roleTitle = "Exekuční Syntéza & Zátěžová Odolnost",
+                viewpoint = "Převádí akademický spor do reálného KSP/Kotlin 2.0 kódu a Room SQLite datového modelu. Zabezpečuje stálou paměťovou efektivitu, řízení vláken a deterministický výsledek.",
+                divergenceScore = 0.35f,
+                epistemicConfidence = 0.94f,
+                keyCounterpoints = listOf(
+                    "Sledování RAM a optimalizace obsluhy vláken brání pádům aplikace na mobilních zařízeních.",
+                    "Pevné datové typy a Pydantic v2 validace zaručují stabilitu rozhraní."
                 )
             )
         )
 
         val avgDivergence = perspectives.map { it.divergenceScore }.average().toFloat()
-        val consensusIndex = (1.0f - abs(perspectives[0].divergenceScore - perspectives[1].divergenceScore)).coerceIn(0.1f, 0.98f)
-        val uncertainty = ((1.0f - consensusIndex) * 0.7f + (1.0f - avgDivergence) * 0.3f).coerceIn(0.08f, 0.85f)
-        val resilience = ((consensusIndex * 0.6f + (1.0f - uncertainty) * 0.4f)).coerceIn(0.2f, 0.99f)
+        val consensusIndex = (1.0f - abs(perspectives[0].divergenceScore - perspectives[1].divergenceScore)).coerceIn(0.15f, 0.98f)
+        val uncertainty = ((1.0f - consensusIndex) * 0.6f + (1.0f - avgDivergence) * 0.4f).coerceIn(0.05f, 0.80f)
+        val resilience = ((consensusIndex * 0.65f + (1.0f - uncertainty) * 0.35f)).coerceIn(0.3f, 0.99f)
 
-        val synthesisText = "Syntéza integruje pragmatický technologický výkon Nexus-Alpha s formálními bezpečnostními mantinely Aegis-Theta v energetickém koridoru Gaia-Sigma. Doporučuje se hybridní model s autonomním výkonem ohraničeným deterministickými invariancemi."
+        val synthesisText = "Syntéza úspěšně slazuje tezi Architekta se skepsemi Agentů Skeptika a Regulátora. Inženýrský model potvrzuje možnost implementace při dodržení 6 bran Refusal Ladderu (G1–G6) a garanci ochrany paměti."
 
         val guidelines = listOf(
-            "Implementovat víceúrovňový Circuit Breaker s prahovou hodnotou entropie < 0.35.",
-            "Zavést transparentní forenzní auditní logy přístupné pouze certifikovaným operátorům.",
-            "Optimalizovat paměťovou a výpočetní stopu pomocí lokální cache a streamingových oken.",
-            "Pravidelně podrobovat hypotézy kontrafaktuálnímu testování v kauzálním simulátoru."
+            "Aplikovat 6-úrovňový Refusal Ladder (G1–G6) na všechny příchozí i odchozí zprávy.",
+            "Udržovat Shannonovu entropii na hranici S < 0.35 s automatickým vyvoláním fallbacku.",
+            "Registrovat každý dokončený požadavek do ZK Auditního deníku s unikatním SHA-256 commit otiskem.",
+            "Zabezpečit automatické skrývání interních lazení pro STANDARD_USER a zpřístupnit surová telemetrická data pro ADMIN_OPERATOR."
         )
 
         return DialecticSynthesis(
             coreThesis = thesis,
-            antithesisSummary = "Konflikt mezi neomezenou škálovatelností autonomního výkonu a nezbytností absolutní právní a termodynamické kontroly.",
+            antithesisSummary = "Konflikt mezi maximalizací autonomního výkonu Architekta a striktními bezpečnostními limity Regulátora se Skeptikem.",
             synthesizedResolution = synthesisText,
             systemicResilienceScore = resilience,
             epistemicUncertainty = uncertainty,
