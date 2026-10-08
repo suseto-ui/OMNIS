@@ -46,6 +46,9 @@ fun MultiAgentArenaView(
     var showAgentASelector by remember { mutableStateOf(false) }
     var showAgentBSelector by remember { mutableStateOf(false) }
 
+    val historyList by AgentArenaEngine.debateHistoryState.collectAsState()
+    var comparePair by remember { mutableStateOf<Pair<ArenaDebateResult, ArenaDebateResult>?>(null) }
+
     // Derive real-time active domain and dynamic scores from live turns or debate result
     val latestTurn = liveTurns.lastOrNull()
     val activeDomain = latestTurn?.highlightedDomains?.firstOrNull()
@@ -665,6 +668,32 @@ fun MultiAgentArenaView(
                 }
             }
         }
+
+        // History Panel
+        item {
+            ArenaHistoryPanel(
+                historyList = historyList,
+                onLoadDebate = { debate ->
+                    selectedAgentA = debate.agentA
+                    selectedAgentB = debate.agentB
+                    problemText = debate.problemStatement
+                    liveTurns = debate.turns
+                    debateResult = debate
+                },
+                onCompareDebates = { debate1, debate2 ->
+                    comparePair = Pair(debate1, debate2)
+                }
+            )
+        }
+    }
+
+    // Comparison Modal Dialog
+    comparePair?.let { pair ->
+        Arena8DComparisonModal(
+            debateA = pair.first,
+            debateB = pair.second,
+            onDismiss = { comparePair = null }
+        )
     }
 
     // Agent Selector Dialogs

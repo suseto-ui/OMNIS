@@ -108,7 +108,7 @@ object AgentArenaEngine {
             "Zapsat kryptografický potvrzovací otisk $zkCommitmentHash do ZK-SNARK řetězce."
         )
 
-        return ArenaDebateResult(
+        val result = ArenaDebateResult(
             problemStatement = problemStatement,
             agentA = agentA,
             agentB = agentB,
@@ -121,6 +121,54 @@ object AgentArenaEngine {
             synthesisSummary = synthesisSummary,
             actionableGuidelines = actionableGuidelines,
             zkCommitmentHash = zkCommitmentHash
+        )
+
+        // Save to active history state
+        debateHistoryState.value = listOf(result) + debateHistoryState.value
+
+        return result
+    }
+
+    // Dynamic History State Flow
+    val debateHistoryState = kotlinx.coroutines.flow.MutableStateFlow<List<ArenaDebateResult>>(generatePresetHistory())
+
+    private fun generatePresetHistory(): List<ArenaDebateResult> {
+        val agent1 = AgentArenaLibrary.presetArchetypes[0] // Conservative Analyst
+        val agent2 = AgentArenaLibrary.presetArchetypes[1] // Radical Innovator
+        val agent3 = AgentArenaLibrary.presetArchetypes[2] // Skeptic Auditor
+        val agent4 = AgentArenaLibrary.presetArchetypes[3] // Pragmatic Engineer
+
+        return listOf(
+            ArenaDebateResult(
+                debateId = "hist-001",
+                problemStatement = "Kvantová migrace bankovní infrastruktury: Okamžitý přechod vs. Postupné testování",
+                agentA = agent1,
+                agentB = agent2,
+                turns = emptyList(),
+                agentA8DScores = mapOf("SYS" to 0.4f, "ECON" to 0.3f, "PSYCH" to 0.5f, "ECO" to 0.6f, "LAW" to 0.9f, "SEC" to 0.95f, "PHYS" to 0.4f, "SOC" to 0.5f),
+                agentB8DScores = mapOf("SYS" to 0.9f, "ECON" to 0.85f, "PSYCH" to 0.3f, "ECO" to 0.2f, "LAW" to 0.3f, "SEC" to 0.4f, "PHYS" to 0.9f, "SOC" to 0.4f),
+                synthesized8DScores = mapOf("SYS" to 0.65f, "ECON" to 0.58f, "PSYCH" to 0.4f, "ECO" to 0.4f, "LAW" to 0.6f, "SEC" to 0.68f, "PHYS" to 0.65f, "SOC" to 0.45f),
+                divergenceIndex = 0.52f,
+                consensusIndex = 0.74f,
+                synthesisSummary = "Dosrženo postupné fázové nasazení s bezpečnostním obalem ZK-SNARK pro zamezení rizika v doméně SEC.",
+                actionableGuidelines = listOf("Nasadit kvantově odolné šifrování na hranici LAW a SEC", "Ponechat záložní CSR cluster pro rollback"),
+                zkCommitmentHash = "9F8B2C4E"
+            ),
+            ArenaDebateResult(
+                debateId = "hist-002",
+                problemStatement = "Autonomní AI v řízení letového provozu: Bezvýhradný automat vs. Člověk v rozhodovací smyčce",
+                agentA = agent3,
+                agentB = agent4,
+                turns = emptyList(),
+                agentA8DScores = mapOf("SYS" to 0.7f, "ECON" to 0.2f, "PSYCH" to 0.8f, "ECO" to 0.5f, "LAW" to 0.85f, "SEC" to 0.9f, "PHYS" to 0.5f, "SOC" to 0.7f),
+                agentB8DScores = mapOf("SYS" to 0.85f, "ECON" to 0.7f, "PSYCH" to 0.4f, "ECO" to 0.6f, "LAW" to 0.5f, "SEC" to 0.7f, "PHYS" to 0.85f, "SOC" to 0.5f),
+                synthesized8DScores = mapOf("SYS" to 0.78f, "ECON" to 0.45f, "PSYCH" to 0.6f, "ECO" to 0.55f, "LAW" to 0.68f, "SEC" to 0.8f, "PHYS" to 0.68f, "SOC" to 0.6f),
+                divergenceIndex = 0.38f,
+                consensusIndex = 0.82f,
+                synthesisSummary = "Hibridní model řízení letů s autonomní mikrosekundovou korekcí a lidským schválením u strategických manévrů.",
+                actionableGuidelines = listOf("Garantovat výpočetní latenci pod 2ms v doméně PHYS", "Implementovat hradítka Refusal Ladder G1-G6"),
+                zkCommitmentHash = "3A7D91B2"
+            )
         )
     }
 
