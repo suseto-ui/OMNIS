@@ -18,6 +18,10 @@ import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import com.example.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -149,6 +153,56 @@ fun OmnisCockpitView(
                     )
                 }
                 SystemHealthGauge(healthScore)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Sci-Fi Hero Banner Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(130.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .testTag("hero_banner_card"),
+            colors = CardDefaults.cardColors(containerColor = OmnisCardDark),
+            border = BorderStroke(1.dp, OmnisCyan.copy(alpha = 0.4f))
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Image(
+                    painter = painterResource(id = R.drawable.img_omnis_hero_banner),
+                    contentDescription = "O.M.N.I.S. 8D Hero Banner",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color(0xDD0B0F19))
+                            )
+                        )
+                )
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = "AKGE-8D COGNITIVE INTELLIGENCE",
+                        color = OmnisCyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        text = "Multidisciplinární autonomní rozhodování v reálném čase",
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
 

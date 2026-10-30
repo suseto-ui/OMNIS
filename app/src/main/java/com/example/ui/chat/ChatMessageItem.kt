@@ -21,6 +21,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import com.example.data.OmnisRecord
 import com.example.ui.OmnisMarkdownText
 import com.example.ui.OmnisStyleSheet
@@ -57,12 +63,23 @@ fun ChatMessageItem(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = if (isUser) Icons.Default.Person else Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = if (isUser) OmnisStyleSheet.Colors.VioletSynthesis else OmnisStyleSheet.Colors.CyanAccent,
-                            modifier = Modifier.size(14.dp)
-                        )
+                        if (isUser) {
+                            Image(
+                                painter = painterResource(id = R.drawable.img_omnis_avatar),
+                                contentDescription = "Operator Avatar",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = OmnisStyleSheet.Colors.CyanAccent,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
                         Text(
                             text = if (isUser) "OPERÁTOR" else "O.M.N.I.S. CORE",
                             color = if (isUser) OmnisStyleSheet.Colors.VioletSynthesis else OmnisStyleSheet.Colors.CyanAccent,
