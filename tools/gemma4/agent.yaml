@@ -1,0 +1,29 @@
+# agent.yaml - Gemma 4 Competition Config
+agent_name: "gemma4-patch-specialist"
+version: "1.0.0"
+
+# Omezení nástrojů pro zajištění bezpečnosti v sandboxu
+allowed_tools:
+  - run_command
+  - edit_file
+  - search_similar_code
+  - code_localizer
+
+# Konfigurace primárních pravidel
+rules:
+  - rule: "test_isolation"
+    description: "Nikdy neupravovat soubory v adresáři tests/ nebo pytest.ini."
+    action: "deny_edit"
+    path_pattern: "^(tests/|pytest.ini)"
+
+  - rule: "precision_first"
+    description: "Prohledávání symbolů provádět výhradně přes rg (ripgrep)."
+    action: "enforce_tool"
+    tool: "run_command"
+    args: ["rg", "-n", "--type=py", "<symbol>"]
+
+# Nastavení modelu (vzhledem k L4x4 prostředí)
+model_settings:
+  adapter_path: "adapters/adapter_model.safetensors"
+  context_window: 8192
+  temperature: 0.1 # Nízká teplota pro přesné opravy kódu

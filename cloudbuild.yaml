@@ -1,0 +1,100 @@
+# ==========================================================
+# Google Cloud Build Pipeline for O.M.N.I.S.
+# Quality Gate Barrier -> Unit & Branch Tests -> Cloud Run Deploy
+# ==========================================================
+
+steps:
+  # Step 0: Quality Gate Barrier & Invariant Unit Tests
+  - name: "python:3.11-slim"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        set -e
+        echo "=== [CI/CD Step 1] Installing Verification Dependencies ==="
+        pip install --no-cache-dir pytest pytest-cov radon flake8 "httpx<0.28" fastapi sqlalchemy pydantic google-genai asyncpg
+
+        echo "=== [CI/CD Step 2] Cyclomatic Complexity Gate (Max CC <= 15) ==="
+        radon cc backend/ -s -nc --total-average -a --max B
+
+        echo "=== [CI/CD Step 3] Combined Condition/Line Coverage (Strict >= 80%) ==="
+        export PYTHONPATH=.
+        pytest backend/ --cov=backend --cov-branch --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=80 -v
+
+        echo "=== [CI/CD Step 4] Executing Automated Quality Gate Barrier ==="
+        python3 scripts/verify_quality_gate.py
+        echo "QUALITY GATE PASSED: Zero Debt Barrier verified."
+
+  # Step 0.5: Resolve existing Cloud Run service URL to a workspace file
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        URL=$$(gcloud run services describe ${_SERVICE_NAME} --region=${_REGION} --format='value(status.url)' 2>/dev/null || echo "")
+        echo "$$URL" > /workspace/backend_url.txt
+
+  # Step 1: Build Docker Container Image (Only reached if Quality Gate PASSED)
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        docker build \
+          --build-arg VITE_API_URL="$$(cat /workspace/backend_url.txt)" \
+          -t "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${_TAG}" \
+          -t "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:latest" \
+          -f "Dockerfile" \
+          .
+
+  # Step 2: Push Container Image to Google Artifact Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${_TAG}"
+
+  # Step 3: Deploy to Google Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "${_SERVICE_NAME}"
+      - "--image"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${_TAG}"
+      - "--region"
+      - "${_REGION}"
+      - "--platform"
+      - "managed"
+      - "--ingress"
+      - "internal-and-cloud-load-balancing"
+      - "--set-env-vars"
+      - "GEMINI_MODEL=gemini-3.1-pro-preview"
+      - "--set-secrets"
+      - "GEMINI_API_KEY=GEMINI_API_KEY:latest,DATABASE_URL=OMNIS_DATABASE_URL:latest"
+      - "--vpc-connector"
+      - "omnis-vpc-conn"
+      - "--vpc-egress"
+      - "private-ranges-only"
+      - "--service-account"
+      - "omnis-cloud-run@${PROJECT_ID}.iam.gserviceaccount.com"
+      - "--memory"
+      - "1Gi"
+      - "--cpu"
+      - "1"
+      - "--min-instances"
+      - "0"
+      - "--max-instances"
+      - "10"
+
+images:
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${_TAG}"
+
+substitutions:
+  _REGION: "europe-west1"
+  _TAG: "manual"
+  _REPOSITORY: "omnis-repo"
+  _SERVICE_NAME: "omnis-backend"
+
+options:
+  logging: CLOUD_LOGGING_ONLY

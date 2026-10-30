@@ -1,0 +1,28 @@
+*.iml
+.gradle
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+*.aab
+.build-outputs/
+__pycache__/
+*.pyc
+*.tar.gz
+
+# Keystore & Secrets
+debug.keystore
+debug.keystore.base64
+*.keystore
+*.jks
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+!.env.example

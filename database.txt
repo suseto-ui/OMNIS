@@ -1,0 +1,75 @@
+# O.M.N.I.S. – DATABÁZOVÝ PRŮVODCE A KONFIGURACE DATABASE_URL
+
+Tento dokument shrnuje doporučené databázové řešení pro aplikaci O.M.N.I.S. a návod na získání připojovacího řetězce (DATABASE_URL).
+
+---
+
+## 1. VÝCHOZÍ STAV (BEZ NUTNOSTI EXTERNÍ DATABÁZE)
+Mobilní aplikace O.M.N.I.S. má plně integrovanou lokální **Room Database (SQLite v11)**:
+- Funguje ihned po spuštění "out-of-the-box" bez jakékoliv konfigurace.
+- 100% offline provoz (ukládá konverzační vlákna, 8D matice, fragmenty, cíle i artefakty).
+- Není vyžadován žádný `DATABASE_URL` ani externí server.
+
+---
+
+## 2. KDY A PROČ POUŽÍT CLOUDOVOU / EXTERNÍ DATABÁZI?
+Externí databáze je potřeba pouze v případě:
+1. Provozování centralizovaného Python/FastAPI backendu (`backend/`).
+2. Sémantického vyhledávání s vektorovou pamětí (RAG s `pgvector` a HNSW indexem).
+3. Synchronizace konverzačních vláken a telemetrie napříč více zařízeními.
+
+**Doporučený typ databáze:** **PostgreSQL (verze 15+) s rozšířením `pgvector`**.
+
+---
+
+## 3. KDE ZÍSKAT BEZPLATNOU POSTGRESQL DATABÁZI (DATABASE_URL)?
+
+### A) Neon.tech (Doporučeno – rychlé a moderní)
+1. Zaregistrujte se zdarma na [https://neon.tech](https://neon.tech).
+2. Vytvořte nový projekt (vyberte region nejblíže uživatelům, např. Frankfurt / EU Central).
+3. Na Dashboardu v sekci **Connection Details** přepněte na **Connection string**.
+4. Zkopírujte URI ve formátu:
+   `postgresql://neondb_owner:HEZKE_HESLO@ep-cool-project.eu-central-1.aws.neon.tech/neondb?sslmode=require`
+5. V SQL editoru na Neonu aktivujte vektorové rozšíření:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS vector;
+   ```
+
+### B) Supabase (Alternativa s bohatou administrací)
+1. Zaregistrujte se zdarma na [https://supabase.com](https://supabase.com).
+2. Vytvořte nový projekt a zadejte heslo k databázi.
+3. Přejděte do **Project Settings -> Database -> Connection string -> URI**.
+4. Zkopírujte URI řetězec.
+
+### C) Google Cloud SQL (Produkční GCP prostředí)
+1. V Google Cloud Console vytvořte instanci **Cloud SQL for PostgreSQL**.
+2. Nastavte privátní IP nebo povolte autorizované sítě.
+3. Parametry připojení odpovídají formátu:
+   `postgresql://omnis_user:heslo@10.x.x.x:5432/omnis_db`
+
+### D) Lokální Docker (Zero-Cost pro vývoj)
+Spusťte předpřipravený kontejner z kořene projektu:
+```bash
+docker compose up -d postgres
+```
+Výchozí lokální URL:
+`postgresql://omnis_user:your-secure-database-password@localhost:5432/omnis_db`
+
+---
+
+## 4. FORMÁTY DATABASE_URL A JEJICH UMÍSTĚNÍ
+
+### Pro Python / FastAPI Backend (asyncpg):
+Vložte do souboru `.env` nebo do proměnných prostředí:
+```env
+DATABASE_URL=postgresql+asyncpg://omnis_user:heslo@host:5432/omnis_db?ssl=require
+```
+
+### Pro Android Aplikaci (JDBC / Cloud SQL přímý zápis):
+Vložte do `.env` nebo v AI Studio Secrets panelu:
+```env
+CLOUDSQL_HOST=host.neon.tech
+CLOUDSQL_DB=omnis_db
+CLOUDSQL_USER=omnis_user
+CLOUDSQL_PASSWORD=vase_tajne_heslo
+```
