@@ -271,6 +271,44 @@ app.include_router(thread_router)
 app.include_router(admin_router)
 app.include_router(sync_router)
 
+# ==========================================================
+# Matematický & Topologický Rámec (FÁZE 12)
+# ==========================================================
+topology_router = APIRouter(prefix="/api/topology", tags=["Topological & Stability Metrics"])
+
+@topology_router.get("/metrics")
+async def get_topology_metrics(v: int = 8, e: int = 28, f: int = 8):
+    """Vrací Eulerovu charakteristiku a Bettiho čísla kognitivního prostoru."""
+    try:
+        from backend.topology import calculate_euler_characteristic, calculate_betti_numbers
+        chi = calculate_euler_characteristic(v, e, f)
+        betti = calculate_betti_numbers(v, e, f)
+        return {"status": "success", "euler_characteristic_chi": chi, "betti_numbers": betti}
+    except Exception as exc:
+        return {"status": "error", "detail": str(exc)}
+
+@topology_router.post("/cascade-risk")
+async def evaluate_cascade_risk(payload: dict):
+    """Vyhodnotí perkolační kaskádové riziko napříč doménami."""
+    try:
+        from backend.percolation import eval_cascade_risk
+        status = eval_cascade_risk(payload.get("domains_status", {}))
+        return {"status": "success", "cascade_status": status}
+    except Exception as exc:
+        return {"status": "error", "detail": str(exc)}
+
+@topology_router.get("/token-budget")
+async def get_token_budget_recommendation(sigma: float = 0.15):
+    """Vrátí adaptivní alokaci tokenů na základě systémového pnutí sigma."""
+    try:
+        from backend.token_manager import calculate_token_budget
+        budget = calculate_token_budget(sigma)
+        return {"status": "success", "sigma": sigma, "budget": budget}
+    except Exception as exc:
+        return {"status": "error", "detail": str(exc)}
+
+app.include_router(topology_router)
+
 @app.get("/download/apk", tags=["System"])
 async def download_apk():
     """Endpoint pro přímé stažení nejnovějšího APK balíčku do mobilního zařízení."""
