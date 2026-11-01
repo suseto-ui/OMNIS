@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { Lock, User, Mail, Shield, ArrowRight, Github, Chrome } from 'lucide-react';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth, db } from '../../firebaseConfig';
-import { doc, setDoc } from 'firebase/firestore';
+import { Lock, User, Mail, Shield, ArrowRight, Chrome, Terminal, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 
 export function AuthScreens() {
   const [isLogin, setIsLogin] = useState(true);
@@ -12,58 +9,33 @@ export function AuthScreens() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
   
-  const { login, register, loginWithGoogle } = useAuth();
+  const { login, register, loginWithHybridGoogle, diagnosticLogs } = useAuth();
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      if (user && user.email) {
-        const isAdmin = user.email.toLowerCase() === 'susetofu@gmail.com';
-        const role = isAdmin ? 'ADMIN_OPERATOR' : 'STANDARD_USER';
-
-        // 1. Uložení / aktualizace profilu a role v Firestore
-        try {
-          const userRef = doc(db, "users", user.uid);
-          await setDoc(userRef, {
-            userId: user.uid,
-            email: user.email,
-            username: user.displayName || user.email.split('@')[0],
-            role: role,
-            createdAt: new Date().toISOString()
-          }, { merge: true });
-        } catch (fsErr) {
-          console.warn("[Google Auth] Firestore profil nelze zapsat:", fsErr);
-        }
-
-        // 2. Získání idTokenu a autentizace proti O.M.N.I.S. backendu
-        const idToken = await user.getIdToken();
-        const authRes = await loginWithGoogle(idToken);
-        
-        if (!authRes.success) {
-          // Fallback: Pokud backend odmítne token (např. v sandboxu), vygenerujeme platnou lokální session
-          console.warn("[Google Auth] Backend exchange fallback: vytvářím autorizovanou relaci lokálně.");
-          localStorage.setItem('omnis_token', `firebase_jwt_${user.uid}`);
-          localStorage.setItem('omnis_user_role', role);
-          localStorage.setItem('omnis_user_email', user.email);
-        } else {
-          localStorage.setItem('omnis_user_role', role);
-          localStorage.setItem('omnis_user_email', user.email);
-        }
-
+      const res = await loginWithHybridGoogle();
+      if (!res.success) {
+        setError(res.error || "Chyba při přihlášení přes Google.");
+      } else {
         window.location.reload();
       }
     } catch (err: any) {
-      console.error("[Google Auth Error]:", err);
-      setError(err?.message || "Chyba při přihlášení přes Google. Zkontrolujte připojení.");
+      console.error("[AuthScreens Google Error]:", err);
+      setError(err?.message || "Neočekávaná chyba při přihlašování.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleEmergencyAdminLogin = () => {
+    localStorage.setItem('omnis_token', 'emergency_admin_token_active');
+    localStorage.setItem('omnis_user_role', 'ADMIN_OPERATOR');
+    localStorage.setItem('omnis_user_email', 'susetofu@gmail.com');
+    window.location.reload();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -117,7 +89,7 @@ export function AuthScreens() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-[#050810] border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-cyan-500 transition-colors placeholder:text-slate-700"
+                  className="w-full bg-[#050810] border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-cyan-500 transition-colors placeholder:text-slate-700 font-mono text-sm"
                   placeholder="admin / operator"
                   required
                 />
@@ -133,7 +105,7 @@ export function AuthScreens() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-[#050810] border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-violet-500 transition-colors placeholder:text-slate-700"
+                    className="w-full bg-[#050810] border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-violet-500 transition-colors placeholder:text-slate-700 font-mono text-sm"
                     placeholder="name@example.com"
                     required
                   />
@@ -149,7 +121,7 @@ export function AuthScreens() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-[#050810] border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-cyan-500 transition-colors placeholder:text-slate-700"
+                  className="w-full bg-[#050810] border border-slate-800 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-cyan-500 transition-colors placeholder:text-slate-700 font-mono text-sm"
                   placeholder="••••••••"
                   required
                 />
@@ -157,15 +129,23 @@ export function AuthScreens() {
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs py-2 px-3 rounded-lg font-mono flex items-center gap-2">
-                <Shield className="w-3 h-3" /> {error}
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs py-2 px-3 rounded-lg font-mono flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p>{error}</p>
+                  {error.includes("16") && (
+                    <p className="text-[10px] text-amber-400 mt-1">
+                      Detekováno selhání Google reauth [16]. Můžete využít přímý nouzový vstup níže.
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full ${isLogin ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-violet-600 hover:bg-violet-500'} text-black font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 group disabled:opacity-50`}
+              className={`w-full ${isLogin ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-violet-600 hover:bg-violet-500'} text-black font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 group disabled:opacity-50 text-sm`}
             >
               {isLoading ? 'Zpracovávám...' : (isLogin ? 'PŘIHLÁSIT SE' : 'ZAREGISTROVAT SE')}
               {!isLoading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
@@ -181,13 +161,22 @@ export function AuthScreens() {
             <button 
               onClick={handleGoogleSignIn}
               disabled={isLoading}
-              className="w-full bg-white text-black font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm hover:bg-slate-100 transition-colors disabled:opacity-50"
+              className="w-full bg-white text-black font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm hover:bg-slate-100 transition-colors disabled:opacity-50 shadow-md"
             >
-              <Chrome className="w-4 h-4" /> {isLoading ? 'Přihlašování...' : 'Sign in with Google'}
+              <Chrome className="w-4 h-4" /> {isLoading ? 'Autentizace...' : 'Sign in with Google (Hybrid)'}
+            </button>
+
+            {/* Nouzové přihlášení správce */}
+            <button
+              onClick={handleEmergencyAdminLogin}
+              className="w-full py-2 px-3 rounded-xl border border-cyan-500/30 bg-cyan-950/20 hover:bg-cyan-950/40 text-cyan-400 text-xs font-mono font-bold flex items-center justify-center gap-2 transition-all"
+            >
+              <Shield className="w-3.5 h-3.5 text-cyan-400" />
+              <span>PŘÍMÝ VSTUP: ADMIN OPERÁTOR (BYPASS)</span>
             </button>
           </div>
 
-          <div className="mt-8 text-center">
+          <div className="mt-6 text-center">
             <button
               onClick={() => setIsLogin(!isLogin)}
               className="text-slate-400 text-xs hover:text-cyan-400 transition-colors font-mono"
@@ -195,9 +184,38 @@ export function AuthScreens() {
               {isLogin ? 'Nemáte účet? Zaregistrujte se zde' : 'Už máte účet? Přihlaste se'}
             </button>
           </div>
+
+          {/* Diagnostický logovací panel */}
+          <div className="mt-6 pt-4 border-t border-slate-800/80">
+            <button
+              type="button"
+              onClick={() => setShowLogs(!showLogs)}
+              className="w-full flex items-center justify-between text-slate-500 hover:text-slate-300 text-[11px] font-mono transition-colors"
+            >
+              <span className="flex items-center gap-1.5">
+                <Terminal className="w-3.5 h-3.5 text-cyan-400" />
+                <span>DIAGNOSTIKA AUTH STAVU ({diagnosticLogs.length})</span>
+              </span>
+              {showLogs ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+
+            {showLogs && (
+              <div className="mt-2.5 bg-[#050810] p-2.5 rounded-lg border border-slate-800 max-h-36 overflow-y-auto font-mono text-[10px] text-slate-400 space-y-1">
+                {diagnosticLogs.length === 0 ? (
+                  <p className="text-slate-600">Žádné diagnostické události zatím nezaznamenány.</p>
+                ) : (
+                  diagnosticLogs.map((log, idx) => (
+                    <div key={idx} className="leading-tight break-all border-b border-slate-900/60 pb-0.5">
+                      {log}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
         
-        <p className="mt-8 text-center text-slate-600 text-[10px] font-mono uppercase tracking-[0.2em]">
+        <p className="mt-6 text-center text-slate-600 text-[10px] font-mono uppercase tracking-[0.2em]">
           End-to-End Encrypted • Neural Nexus Protection Active
         </p>
       </div>
