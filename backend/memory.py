@@ -98,6 +98,31 @@ async def sync_threads(
                 )
                 db.add(new_conv)
                 synced_count += 1
+            else:
+                existing_conv.title = t.get("title", existing_conv.title)
+                existing_conv.updated_at = datetime.now(timezone.utc)
+                db.add(existing_conv)
+
+            # Synchronizace jednotlivých zpráv ve vlákně
+            messages_list = t.get("messages", [])
+            for m in messages_list:
+                m_id = m.get("id")
+                if not m_id:
+                    continue
+                m_stmt = select(Message).where(Message.id == str(m_id))
+                m_res = await db.execute(m_stmt)
+                existing_msg = m_res.scalar_one_or_none()
+                if not existing_msg:
+                    new_msg = Message(
+                        id=str(m_id),
+                        conversation_id=str(t_id),
+                        role=m.get("role", "user"),
+                        content=m.get("content") or m.get("text", ""),
+                        cognitive_thoughts=m.get("cognitive_process") or m.get("cognitive_thoughts", ""),
+                        follow_up_questions=m.get("follow_up_questions") or [],
+                        created_at=datetime.now(timezone.utc)
+                    )
+                    db.add(new_msg)
         
         await db.commit()
         return {
