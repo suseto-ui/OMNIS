@@ -61,7 +61,12 @@ export interface ConsequenceForensics {
   identified_vectors: any[];
   t_plus_1_systemic_drift: string;
   thermodynamic_entropy_spike?: string;
+  cascades_order_1?: any[];
+  cascades_order_2?: any[];
+  cascades_order_3?: any[];
+  do_calculus_matrix?: Record<string, number>;
 }
+
 
 export interface TokenUsageMetric {
   prompt_tokens: number;
@@ -838,8 +843,35 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
                         </span>
                       </div>
                     </div>
+
+                    {/* Kaskády dopadů 2. a 3. řádu */}
+                    {(msg.consequence_forensics.cascades_order_1 || msg.consequence_forensics.cascades_order_2) && (
+                      <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                        <span className="text-[10px] font-mono font-bold text-cyan-400 block uppercase tracking-wider">
+                          Kauzální Kaskáda 1., 2. & 3. Řádu:
+                        </span>
+                        <div className="grid grid-cols-1 gap-1.5 font-mono text-[10px]">
+                          {(msg.consequence_forensics.cascades_order_1 || []).map((c: any, i: number) => (
+                            <div key={`c1-${i}`} className="bg-slate-950 p-2 rounded border border-cyan-900/40 text-slate-300">
+                              <span className="text-cyan-400 font-bold">[T+1 Přímý] {c.title || c.domain}:</span> {c.cascade_description}
+                            </div>
+                          ))}
+                          {(msg.consequence_forensics.cascades_order_2 || []).map((c: any, i: number) => (
+                            <div key={`c2-${i}`} className="bg-slate-950 p-2 rounded border border-violet-900/40 text-slate-300">
+                              <span className="text-violet-400 font-bold">[T+2 Sekundární] {c.title || c.domain}:</span> {c.cascade_description}
+                            </div>
+                          ))}
+                          {(msg.consequence_forensics.cascades_order_3 || []).map((c: any, i: number) => (
+                            <div key={`c3-${i}`} className="bg-slate-950 p-2 rounded border border-amber-900/40 text-slate-300">
+                              <span className="text-amber-400 font-bold">[T+3 Terciární Drift] {c.title || c.domain}:</span> {c.cascade_description}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+
 
                 {/* Autopoietic Rating (Star Feedback) */}
                 <div className="pt-2 flex items-center justify-between text-xs text-slate-400 font-mono border-t border-slate-800/60">

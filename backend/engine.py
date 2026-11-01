@@ -43,3 +43,58 @@ async def self_heal_prompt(req: SelfHealingRequest) -> SelfHealingResponse:
     result = PromptEngine.analyze_and_heal_prompt(req.prompt, req.domain or "SYSTEMS_INTELLIGENCE")
     record = PromptCorrectionRecord(**result)
     return SelfHealingResponse(status="SUCCESS", correction=record)
+
+from backend.schemas import CoSynthesisRequest, CoSynthesisResponse
+from backend.risk_forensics import ConsequenceRiskAnalyzer
+
+@engine_router.post("/co-synthesize-input", response_model=CoSynthesisResponse)
+async def co_synthesize_input(req: CoSynthesisRequest) -> CoSynthesisResponse:
+    """
+    Vykoná před-exekuční rozbor vstupu operátora, predikuje T+1/T+2/T+3 kaskádu dopadů v 8D a navrhne 3 varianty spoludoplnění.
+    """
+    domain = req.ontology_domain or "SYSTEMS_INTELLIGENCE"
+    raw_query = req.query.strip()
+
+    analyzer = ConsequenceRiskAnalyzer(primary_payload={"query": raw_query}, domain_context={"ontology_domain": domain})
+    forensics = analyzer.evaluate_cascade_effects()
+
+    gaps = []
+    if len(raw_query.split()) < 6:
+        gaps.append("Dotaz má nízkou sémantickou hustotu – chybí specifikace cílů a omezení.")
+    if "?" not in raw_query and not raw_query.startswith("Navrhni") and not raw_query.startswith("Vytvoř"):
+        gaps.append("Chybí explicitní vyžadovaný formát výstupu (artefakt vs. kognitivní syntéza).")
+
+    proposals = [
+        {
+            "id": "prop_transdisciplinary",
+            "title": "Transdisciplinární (8D Holistická rozšířenost)",
+            "addition": f"{raw_query}\n[Požadavek: Proveď transdisciplinární křížení s důrazem na 8D Oktagon a kaskádu dopadů 2. a 3. řádu v doménách {domain} a SEC]."
+        },
+        {
+            "id": "prop_security_governance",
+            "title": "Bezpečnostní & Regulatorní (EU AI Act & Zero-Trust)",
+            "addition": f"{raw_query}\n[Požadavek: Vynutit Zero-Trust verifikaci, auditní otisk CommitmentHash a soulad s EU AI Act čl. 13 a 14]."
+        },
+        {
+            "id": "prop_deterministic_action",
+            "title": "Exekuční & Artefaktová (Win-Win-Win Akční plán)",
+            "addition": f"{raw_query}\n[Požadavek: Vygenerovat okamžitě spustitelný artefakt a akční milníky s poměrem úsilí k páce 1:10]."
+        }
+    ]
+
+    cascade_preview = {
+        "risk_index": forensics.risk_index,
+        "risk_level": forensics.risk_level,
+        "cascades_order_1": [asdict(c) for c in forensics.cascades_order_1],
+        "cascades_order_2": [asdict(c) for c in forensics.cascades_order_2],
+        "cascades_order_3": [asdict(c) for c in forensics.cascades_order_3],
+        "do_calculus_matrix": forensics.do_calculus_matrix
+    }
+
+    return CoSynthesisResponse(
+        status="SUCCESS",
+        original_query=raw_query,
+        detected_gaps=gaps if gaps else ["Dotaz vykazuje vysokou jasnost a kompletnost."],
+        cascade_preview=cascade_preview,
+        completion_proposals=proposals
+    )

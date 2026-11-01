@@ -1,62 +1,67 @@
-# Plán refaktorizace zpracování promptů a real-time self-healing korekce
+# Plán Autonomní Kauzální Kognice, Dopadů 2. & 3. Řádu a Interaktivního Spoludoplňovače Vstupu
 
-Tento plán popisuje celkovou architekturu a kroky pro refaktorizaci logiky prompt enginu, automatickou korekci logických procesů, real-time self-healing zpětnou vazbu a zpřehlednění výstupů v celém ekosystému O.M.N.I.S. (Backend, Frontend, Android).
-
----
-
-## 1. Architektura Self-Healing Prompt Enginu (Backend)
-
-### A. Modul Korekce a Rekonvalescence (`backend/gemini/prompt_engine.py` & `backend/omnis_pipeline.py`)
-- **Self-Healing Feedback Loop:**
-  - Implementovat autonomní hodnotitel výstupů, který po syntéze vyhodnotí entropii $S = -\sum p_i \ln p_i$, 8D matici dopadů a průchod 6 branami (G1–G6).
-  - Pokud výstup vykazuje sémantickou nekonzistenci, vysokou entropii ($S > 0.55$) nebo nedostatečné ukotvení, systém automaticky zkoriguje prompt a provede 1-krokovou mikrokorekci ještě před navrácením odpovědi uživateli.
-- **Strukturované Pydantic v2 Schéma Pro Korekční Záznam:**
-  - `PromptCorrectionRecord`:
-    - `original_prompt`: Původní dotaz
-    - `detected_inconsistencies`: Detekované logické rozporuplnosti nebo slepé skvrny
-    - `corrected_prompt_context`: Zpřesněný a rekonvalescovaný prompt
-    - `confidence_score`: Skóre jistoty po korekci (0.0 až 1.0)
-    - `healing_actions_applied`: Seznam aplikovaných úprav (např. doplnění systémových invariatů, redukce balastu)
+Tento plán popisuje rozšíření systému O.M.N.I.S. o autonomní kognitivní analýzu dopadů 2. a 3. řádu (T+2 a T+3 časové kaskády), deterministickou kauzalitu Do-Calculus a interaktivní před-exekuční spoludoplňovač vstupu s našeptávačem souvislostí.
 
 ---
 
-## 2. Real-Time Interaktivní Korekce & UI Praktiky (Frontend)
+## 1. Backend: Kauzální Kaskáda 2. a 3. Řádu & Co-Synthesis Engine
 
-### A. Komponenta Self-Healing Prompt Monitor (`frontend/src/components/SelfHealingPromptMonitor.tsx`)
-- Zobrazení real-time diagnostiky promptu přímo v chatovacím rozhraní:
-  - **Kognitivní zdraví promptu (Prompt Health Index):** Procentuální vyjádření čistoty a logické konzistence.
-  - **Detekované anomálie & auto-korekce:** Zobrazení původního vs. zkororigovaného kontextu.
-  - **Interaktivní tlačítka akcí:**
-    - "Aplikovat doporučenou korekci"
-    - "Rozbalit plný self-healing diagnostický protokol"
+### A. Rozšíření Forenzního Modulu (`backend/risk_forensics.py`)
+- **T+2 a T+3 Kaskádové Vektory Dopadů:**
+  - Implementovat sekvenční vyhodnocování reakčních řetězců:
+    - **1. řád (T+1):** Přímé, okamžité systémové a bezpečnostní dopady.
+    - **2. řád (T+2):** Nezamýšlené sekundární reakce (např. dominový efekt v ekonomické a právní doméně).
+    - **3. řád (T+3):** Terciární dlouhodobý drift, systémové kolize a emergující chování.
+- **Kauzální Do-Calculus Matrix ($P(Y \mid do(X=x))$):**
+  - Výpočet přímého intervence v 8D prostoru s vyčíslením dojezdových vln do souvisejících domén.
 
-### B. Zpřehlednění a Zjednodušení Výstupů (`frontend/src/omnisEngine.ts` & `frontend/src/components/MessageBubble.tsx`)
-- Aplikace principu **Progressive Disclosure**:
-  - Pro `STANDARD_USER`: Čistý, srozumitelný strukturovaný výstup bez zbytečného technického balastu.
-  - Pro `ADMIN_OPERATOR`: Jedním klikem rozbalitelné záložky s 8D maticí, CSR topologií, PoN logem a self-healing záznamem.
+### B. Endpoint Před-Exekuční Analýzy a Spoludoplňovače (`backend/engine.py` & `backend/gemini/prompt_engine.py`)
+- **`POST /api/omnis/co-synthesize-input`:**
+  - Převezme rozpracovaný nebo kompletní dotaz operátora.
+  - Vypočítá v real-time:
+    1. Sémantické díry a nedořečené souvislosti.
+    2. Předběžnou kaskádu dopadů 2. a 3. řádu.
+    3. 3 variantní návrhy na doplnění/dokreslení dotazu (např. *Konzervativní, Bezpečnostní, Transdisciplinární*).
 
 ---
 
-## 3. Mobilní & Android Synchronizace (`app/src/main/java/com/example/ui/`)
+## 2. Frontend: Interaktivní Před-Exekuční Rozbor & Našeptávač
 
-### A. Self-Healing Indikátor v Jetpack Compose
-- Přidání vizuálního indikátoru do `OmnisChatScreen` / `MessageItem`, který zobrazuje:
-  - Odznak `[SELF-HEALING ACTIVE]`
-  - Stav kognitivního zdraví a aplikované korekce
-- Automatická synchronizace self-healing telemetrie s PostgreSQL přes `/api/sync/telemetry`.
+### A. Interaktivní Spoludoplňovač Vstupního Pole (`frontend/src/components/InteractiveCoSynthesisModal.tsx` & `ChatInputBar`)
+- **Našeptávač & Spoludoplňovač v Chatovacím Poli:**
+  - Dynamické detekování klíčových pojmů během psaní.
+  - Nabídka inteligentního doplňování souvislostí a navazujících doménových parametrů.
+- **Před-exekuční Modal Modal "Kauzální Rozbor Vstupu" (`InteractiveCoSynthesisModal.tsx`):**
+  - Tlačítko **"Analýza dopadů 2. a 3. řádu"** vedle tlačítka odeslat.
+  - Zobrazení stromové struktury kaskády dopadů:
+    - `T+1` Přímý dopad $\to$ `T+2` Sekundární efekt $\to$ `T+3` Terciární systémový drift.
+  - Možnost vybrat navrženou variantu spoludoplnění a jedním klikem ji vložit do promptu.
+
+### B. Vylepšená Karta Zprávy s Kaskádou 2. a 3. Řádu (`frontend/src/components/MessageBubble.tsx`)
+- Přidání interaktivního panelu **"Kauzální Řetězec Dopadů 2. a 3. Řádu"**:
+  - Přehledné vizuální karty ukazující návazné systémové kaskády, pravděpodobnost a mitigační doporučení.
+
+---
+
+## 3. Mobilní & Android Integrace (`app/src/main/java/com/example/ui/`)
+
+### A. Kaskádový Panel v Jetpack Compose (`app/src/main/java/com/example/ui/chat/Response8dUpliftCard.kt`)
+- Zobrazení T+1..T+3 kaskádového stromu přímo v mobilním zobrazení.
+- Možnost prokliknout jednotlivé uzly dopadů pro detailní náhled.
 
 ---
 
 ## 4. Postup Implementace
 
 1. **Backend (Fáze 1):**
-   - Vytvoření modulu self-healing v `backend/gemini/prompt_engine.py`.
-   - Propojení s `assemble_omnis_cognitive_cycle` v `backend/omnis_pipeline.py`.
+   - Aktualizace `backend/risk_forensics.py` o T+2 a T+3 sekvence a Do-Calculus.
+   - Přidání `/api/omnis/co-synthesize-input` v `backend/engine.py`.
 2. **Frontend (Fáze 2):**
-   - Vytvoření `SelfHealingPromptMonitor.tsx`.
-   - Integrace do `MessageBubble.tsx` a `App.tsx`.
+   - Vytvoření `InteractiveCoSynthesisModal.tsx`.
+   - Úprava `MessageBubble.tsx` pro zobrazení kaskády dopadů 2./3. řádu.
+   - Propojení s chatovacím polem v `App.tsx`.
 3. **Android (Fáze 3):**
-   - Aktualizace Android kognitivního zobrazení a synchronizace s backendem.
+   - Doplnění zobrazení T+2/T+3 kaskád v Compose UI.
 4. **Verifikace a Sestavení (Fáze 4):**
-   - Sestavení aplikace a otestování `compile_applet`.
-   - Sestavení APK a Git synchronizace.
+   - Zkompilování aplikace (`compile_applet`).
+   - Sestavení Android APK a synchronizace do GitHub repozitáře.

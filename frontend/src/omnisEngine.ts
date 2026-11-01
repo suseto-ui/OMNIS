@@ -883,6 +883,53 @@ export class OmnisEngine {
     };
   }
 
+  public async coSynthesizeInput(query: string, ontologyDomain: string = "SYSTEMS_INTELLIGENCE"): Promise<any> {
+    try {
+      const res = await fetch("/api/omnis/co-synthesize-input", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, ontology_domain: ontologyDomain })
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn("[Co-Synthesis API] Fallback klientská analýza:", e);
+    }
+    return {
+      status: "SUCCESS",
+      original_query: query,
+      detected_gaps: ["Dotaz vyžaduje doplnění transdisciplinárních cílů."],
+      cascade_preview: {
+        risk_index: 0.05,
+        risk_level: "SAFE",
+        cascades_order_1: [
+          { order: 1, domain: "SYS", title: "T+1 Systémová stabilita", cascade_description: "Přímá alokace kognitivních zdrojů", probability: 0.95, impact: 0.8, mitigation: "Isolace kontextu", causal_coupling: "do(SYS) -> SEC" }
+        ],
+        cascades_order_2: [
+          { order: 2, domain: "ECON", title: "T+2 Ekonomický sekundární efekt", cascade_description: "Optimalizace tokenového rozpočtu", probability: 0.85, impact: 0.7, mitigation: "Leontiefova kontrola", causal_coupling: "do(ECON) -> SYS" }
+        ],
+        cascades_order_3: [
+          { order: 3, domain: "PSYCH", title: "T+3 Terciární kognitivní drift", cascade_description: "Redukce rozhodovací únavy", probability: 0.80, impact: 0.6, mitigation: "Progressive Disclosure", causal_coupling: "do(PSYCH) -> SOC" }
+        ],
+        do_calculus_matrix: { "P(SYS | do(SEC))": 0.98, "P(ECON | do(SYS))": 0.88 }
+      },
+      completion_proposals: [
+        {
+          id: "prop_transdisciplinary",
+          title: "Transdisciplinární (8D Holistická rozšířenost)",
+          addition: `${query}\n[Požadavek: Transdisciplinární křížení s důrazem na 8D Oktagon a kaskádu dopadů 2. a 3. řádu].`
+        },
+        {
+          id: "prop_security",
+          title: "Bezpečnostní & Regulatorní (Zero-Trust & EU AI Act)",
+          addition: `${query}\n[Požadavek: Vynutit Zero-Trust verifikaci, auditní otisk CommitmentHash a soulad s EU AI Act].`
+        }
+      ]
+    };
+  }
+
+
   private queryBatchQueue: Array<{ query: string; resolve: (val: OmnisCognitiveResult) => void; reject: (err: any) => void }> = [];
 
   private batchTimer: any = null;

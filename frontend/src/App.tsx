@@ -30,9 +30,10 @@ import { ChatThread, ToastType, UserRole } from "./types";
 import { ApiKeyRotatorModal } from "./components/admin/ApiKeyRotatorModal";
 import { useChatThreads } from "./hooks/useChatThreads";
 import { useGeminiMonitor } from "./hooks/useGeminiMonitor";
-import { useAuth } from "./hooks/useAuth";
 import { AuthScreens } from "./components/auth/AuthScreens";
 import { ProfilePage } from "./components/user/ProfilePage";
+import { InteractiveCoSynthesisModal, CoSynthesisData } from "./components/InteractiveCoSynthesisModal";
+
 
 export type { ChatThread };
 
@@ -102,6 +103,10 @@ export default function App() {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [showAiActModal, setShowAiActModal] = useState(false);
+  const [showCoSynthesisModal, setShowCoSynthesisModal] = useState(false);
+  const [coSynthesisData, setCoSynthesisData] = useState<CoSynthesisData | null>(null);
+  const [isCoSynthesizing, setIsCoSynthesizing] = useState(false);
+
 
   const [inputQuery, setInputQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -510,7 +515,23 @@ export default function App() {
     }
   }, [inputQuery, isLoading, messages, ontologyDomain, updateActiveThreadMessages, triggerFallback, attachedFile, activeThreadId, setIsInputCognitiveLocked, setLockedQuery]);
 
+  const handleAnalyzeAndCoSynthesize = useCallback(async () => {
+    if (!inputQuery.trim()) return;
+    setIsCoSynthesizing(true);
+    try {
+      const data = await omnisEngine.coSynthesizeInput(inputQuery, ontologyDomain);
+      setCoSynthesisData(data);
+      setShowCoSynthesisModal(true);
+    } catch (e) {
+      console.error("Co-Synthesis Analysis failed:", e);
+      showToast("Analýza dopadů selhala, pokračuji se standardním zpracováním", "error");
+    } finally {
+      setIsCoSynthesizing(false);
+    }
+  }, [inputQuery, ontologyDomain, showToast]);
+
   const handleRefineMessage = useCallback(async (msgId: string, originalContent: string, instruction: string) => {
+
     if (!instruction) return;
     try {
       const refinementQuery = `[Refaktoruj tento výstup]:\n\n${originalContent}\n\nPokyny: ${instruction}`;
@@ -1750,6 +1771,16 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
                     {isListening ? <Mic className="w-4 h-4 text-white animate-bounce" /> : <MicOff className="w-4 h-4" />}
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={handleAnalyzeAndCoSynthesize}
+                    disabled={isLoading || isCoSynthesizing || !inputQuery.trim()}
+                    title="Před-exekuční kauzální rozbor vstupu & kaskáda dopadů 2. a 3. řádu (T+1..T+3)"
+                    className="w-9 h-9 rounded-xl flex items-center justify-center transition-all flex-shrink-0 cursor-pointer text-cyan-400 hover:text-white hover:bg-cyan-950/60 border border-cyan-500/30 hover:border-cyan-400 disabled:opacity-40"
+                  >
+                    <Network className={`w-4 h-4 ${isCoSynthesizing ? 'animate-spin text-cyan-300' : ''}`} />
+                  </button>
+
                   <button 
                     type="submit" 
                     disabled={isLoading || (!inputQuery.trim() && !attachedFile)}
@@ -1758,6 +1789,7 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
                     <Send className="w-4 h-4" />
                   </button>
                 </div>
+
               </form>
             </div>
           </div>
@@ -2111,6 +2143,19 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
           onClose={() => setShowAiActModal(false)}
         />
       )}
+
+      {/* CO-SYNTHESIS & PRE-EXECUTION CASCADE MODAL */}
+      {showCoSynthesisModal && coSynthesisData && (
+        <InteractiveCoSynthesisModal
+          data={coSynthesisData}
+          onClose={() => setShowCoSynthesisModal(false)}
+          onExecute={(queryToRun) => {
+            setInputQuery(queryToRun);
+            handleSendQuery(queryToRun);
+          }}
+        />
+      )}
+
 
       {/* TOAST NOTIFICATION O.M.N.I.S. SYSTEM STATUS */}
       {toast.visible && (

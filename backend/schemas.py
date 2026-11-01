@@ -151,3 +151,21 @@ class SelfHealingResponse(BaseModel):
     status: str = "SUCCESS"
     correction: PromptCorrectionRecord
     timestamp: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
+
+# ==========================================================
+# Co-Synthesis & Pre-Execution Analysis Schémata
+# ==========================================================
+
+class CoSynthesisRequest(BaseModel):
+    query: str
+    ontology_domain: Optional[str] = "SYSTEMS_INTELLIGENCE"
+    user_role: Optional[str] = "ADMIN_OPERATOR"
+
+class CoSynthesisResponse(BaseModel):
+    status: str = "SUCCESS"
+    original_query: str
+    detected_gaps: List[str]
+    cascade_preview: Dict[str, Any]
+    completion_proposals: List[Dict[str, str]]
+    timestamp: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
+
