@@ -33,6 +33,8 @@ import { useGeminiMonitor } from "./hooks/useGeminiMonitor";
 import { AuthScreens } from "./components/auth/AuthScreens";
 import { ProfilePage } from "./components/user/ProfilePage";
 import { InteractiveCoSynthesisModal, CoSynthesisData } from "./components/InteractiveCoSynthesisModal";
+import { LatentCausalSidebar, LatentCausalState } from "./components/LatentCausalSidebar";
+
 
 
 export type { ChatThread };
@@ -106,6 +108,12 @@ export default function App() {
   const [showCoSynthesisModal, setShowCoSynthesisModal] = useState(false);
   const [coSynthesisData, setCoSynthesisData] = useState<CoSynthesisData | null>(null);
   const [isCoSynthesizing, setIsCoSynthesizing] = useState(false);
+
+  // Latent Causal Discovery State
+  const [isLatentSidebarOpen, setIsLatentSidebarOpen] = useState(false);
+  const [latentCausalData, setLatentCausalData] = useState<LatentCausalState | null>(null);
+  const [isLatentLoading, setIsLatentLoading] = useState(false);
+
 
 
   const [inputQuery, setInputQuery] = useState("");
@@ -515,6 +523,19 @@ export default function App() {
     }
   }, [inputQuery, isLoading, messages, ontologyDomain, updateActiveThreadMessages, triggerFallback, attachedFile, activeThreadId, setIsInputCognitiveLocked, setLockedQuery]);
 
+  const refreshLatentCausality = useCallback(async (queryText?: string) => {
+    const textToAnalyze = queryText || inputQuery || "O.M.N.I.S. transdisciplinární kognitivní syntéza";
+    setIsLatentLoading(true);
+    try {
+      const stateData = await omnisEngine.analyzeLatentCausality(textToAnalyze, ontologyDomain);
+      setLatentCausalData(stateData);
+    } catch (err) {
+      console.warn("Latent causality refresh failed:", err);
+    } finally {
+      setIsLatentLoading(false);
+    }
+  }, [inputQuery, ontologyDomain]);
+
   const handleAnalyzeAndCoSynthesize = useCallback(async () => {
     if (!inputQuery.trim()) return;
     setIsCoSynthesizing(true);
@@ -522,13 +543,15 @@ export default function App() {
       const data = await omnisEngine.coSynthesizeInput(inputQuery, ontologyDomain);
       setCoSynthesisData(data);
       setShowCoSynthesisModal(true);
+      refreshLatentCausality(inputQuery);
     } catch (e) {
       console.error("Co-Synthesis Analysis failed:", e);
       showToast("Analýza dopadů selhala, pokračuji se standardním zpracováním", "error");
     } finally {
       setIsCoSynthesizing(false);
     }
-  }, [inputQuery, ontologyDomain, showToast]);
+  }, [inputQuery, ontologyDomain, showToast, refreshLatentCausality]);
+
 
   const handleRefineMessage = useCallback(async (msgId: string, originalContent: string, instruction: string) => {
 
@@ -2155,6 +2178,23 @@ Proveď hloubkovou dekompozici následující odpovědi a rozlož kognitivní pr
           }}
         />
       )}
+
+      {/* LATENT CAUSAL DISCOVERY SIDEBAR */}
+      <LatentCausalSidebar
+        data={latentCausalData}
+        isLoading={isLatentLoading}
+        isOpen={isLatentSidebarOpen}
+        onToggle={() => {
+          const nextState = !isLatentSidebarOpen;
+          setIsLatentSidebarOpen(nextState);
+          if (nextState && !latentCausalData) {
+            refreshLatentCausality();
+          }
+        }}
+        onRefresh={() => refreshLatentCausality()}
+      />
+
+
 
 
       {/* TOAST NOTIFICATION O.M.N.I.S. SYSTEM STATUS */}

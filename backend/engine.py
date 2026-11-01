@@ -98,3 +98,12 @@ async def co_synthesize_input(req: CoSynthesisRequest) -> CoSynthesisResponse:
         cascade_preview=cascade_preview,
         completion_proposals=proposals
     )
+
+from backend.latent_causal_engine import LatentCausalEngine, LatentCausalState
+
+@engine_router.post("/analyze-latent-causality", response_model=LatentCausalState)
+async def analyze_latent_causality(req: CoSynthesisRequest) -> LatentCausalState:
+    """
+    Vykoná analýzu skrytých kauzálních vazeb, Bettiho čísel, perkolace p_c a vytvoří PoN ledovec.
+    """
+    return LatentCausalEngine.analyze_query_causality(req.query)

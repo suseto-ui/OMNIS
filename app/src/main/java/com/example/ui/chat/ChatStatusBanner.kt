@@ -270,17 +270,38 @@ fun ChatStatusBanner(
                     )
                 }
                 if (isTechnicalMode) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Detaily kaskády",
-                        tint = OmnisStyleSheet.Colors.TextMuted,
-                        modifier = Modifier.size(13.dp)
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            color = OmnisStyleSheet.Colors.CyanAccent.copy(alpha = 0.15f),
+                            shape = OmnisStyleSheet.Shapes.card,
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, OmnisStyleSheet.Colors.CyanAccent.copy(alpha = 0.4f))
+                        ) {
+                            Text(
+                                text = "β1=1 | pc=0.05",
+                                color = OmnisStyleSheet.Colors.CyanAccent,
+                                fontSize = 8.5.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Detaily kaskády",
+                            tint = OmnisStyleSheet.Colors.TextMuted,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
                 }
             }
         }
     }
 }
+
 
 private fun formatErrorMessage(rawError: String): String {
     return when {

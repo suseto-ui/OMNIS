@@ -1,67 +1,63 @@
-# Plán Autonomní Kauzální Kognice, Dopadů 2. & 3. Řádu a Interaktivního Spoludoplňovače Vstupu
+# Důkladný plán implementace: Oborová Fokusace, Latent Causal Discovery & Živý Panel Progressive Disclosure
 
-Tento plán popisuje rozšíření systému O.M.N.I.S. o autonomní kognitivní analýzu dopadů 2. a 3. řádu (T+2 a T+3 časové kaskády), deterministickou kauzalitu Do-Calculus a interaktivní před-exekuční spoludoplňovač vstupu s našeptávačem souvislostí.
-
----
-
-## 1. Backend: Kauzální Kaskáda 2. a 3. Řádu & Co-Synthesis Engine
-
-### A. Rozšíření Forenzního Modulu (`backend/risk_forensics.py`)
-- **T+2 a T+3 Kaskádové Vektory Dopadů:**
-  - Implementovat sekvenční vyhodnocování reakčních řetězců:
-    - **1. řád (T+1):** Přímé, okamžité systémové a bezpečnostní dopady.
-    - **2. řád (T+2):** Nezamýšlené sekundární reakce (např. dominový efekt v ekonomické a právní doméně).
-    - **3. řád (T+3):** Terciární dlouhodobý drift, systémové kolize a emergující chování.
-- **Kauzální Do-Calculus Matrix ($P(Y \mid do(X=x))$):**
-  - Výpočet přímého intervence v 8D prostoru s vyčíslením dojezdových vln do souvisejících domén.
-
-### B. Endpoint Před-Exekuční Analýzy a Spoludoplňovače (`backend/engine.py` & `backend/gemini/prompt_engine.py`)
-- **`POST /api/omnis/co-synthesize-input`:**
-  - Převezme rozpracovaný nebo kompletní dotaz operátora.
-  - Vypočítá v real-time:
-    1. Sémantické díry a nedořečené souvislosti.
-    2. Předběžnou kaskádu dopadů 2. a 3. řádu.
-    3. 3 variantní návrhy na doplnění/dokreslení dotazu (např. *Konzervativní, Bezpečnostní, Transdisciplinární*).
+Tento plán detailně popisuje architekturu a postup implementace tří klíčových kognitivních modulů systému O.M.N.I.S.:
 
 ---
 
-## 2. Frontend: Interaktivní Před-Exekuční Rozbor & Našeptávač
+## 1. Oborová Fokusace & Adaptivní CSR Tenziometr (`backend/csr_graph.py` & `backend/domain_dictionaries.py`)
 
-### A. Interaktivní Spoludoplňovač Vstupního Pole (`frontend/src/components/InteractiveCoSynthesisModal.tsx` & `ChatInputBar`)
-- **Našeptávač & Spoludoplňovač v Chatovacím Poli:**
-  - Dynamické detekování klíčových pojmů během psaní.
-  - Nabídka inteligentního doplňování souvislostí a navazujících doménových parametrů.
-- **Před-exekuční Modal Modal "Kauzální Rozbor Vstupu" (`InteractiveCoSynthesisModal.tsx`):**
-  - Tlačítko **"Analýza dopadů 2. a 3. řádu"** vedle tlačítka odeslat.
-  - Zobrazení stromové struktury kaskády dopadů:
-    - `T+1` Přímý dopad $\to$ `T+2` Sekundární efekt $\to$ `T+3` Terciární systémový drift.
-  - Možnost vybrat navrženou variantu spoludoplnění a jedním klikem ji vložit do promptu.
-
-### B. Vylepšená Karta Zprávy s Kaskádou 2. a 3. Řádu (`frontend/src/components/MessageBubble.tsx`)
-- Přidání interaktivního panelu **"Kauzální Řetězec Dopadů 2. a 3. Řádu"**:
-  - Přehledné vizuální karty ukazující návazné systémové kaskády, pravděpodobnost a mitigační doporučení.
+### A. Autonomní Detekce & Dynamická Váhovost CsrKnowledgeGraph
+- **Dynamický oborový slovník (`domain_dictionaries.py`):**
+  - Autonomní modul pro extrakci oborových slovníků (FinTech, Průmysl 4.0 / Výroba, HealthTech, CyberSec, BioTech, Smart Governance) na základě sémantické hustoty a "Motýlího efektu" (Butterfly Effect Expansion).
+- **Adaptivní 28-párový Tenziometr v `CsrKnowledgeGraph`:**
+  - Zachování 8 základních dimenzí (SYS, ECON, PSYCH, ECO, LAW, SEC, PHYS, SOC).
+  - Dynamické přenaštění vah v CSR matici podle detekovaného oboru (např. v Průmyslu má vazba `PHYS-ECO` váhu 0.95, ve FinTechu vazba `ECON-LAW` váhu 0.98).
 
 ---
 
-## 3. Mobilní & Android Integrace (`app/src/main/java/com/example/ui/`)
+## 2. Latent Causal Discovery Engine (`backend/latent_causal_engine.py` & `backend/percolation.py`)
 
-### A. Kaskádový Panel v Jetpack Compose (`app/src/main/java/com/example/ui/chat/Response8dUpliftCard.kt`)
-- Zobrazení T+1..T+3 kaskádového stromu přímo v mobilním zobrazení.
-- Možnost prokliknout jednotlivé uzly dopadů pro detailní náhled.
+### A. Topologická Analýza Síťových Děr & Bettiho Čísla ($\beta_1$)
+- **Výpočet Bettiho čísel ($\beta_1$):**
+  - Detekce 1-dimenzionálních cyklů a "kognitivních děr" v grafech závislostí.
+  - Výpočet kritického prahu perkolation threshold $p_c \approx 0.38$.
+- **Autonomní Kontrafaktuální Simulace Do-Calculus ($P(Y \mid do(X=x))$):**
+  - Asynchronní 4-agentní simulace (Architekt, Skeptik, Regulátor, Inženýr) běží na pozadí.
+  - Odhaluje skryté kaskádové zranitelnosti (např. *"Úspora v cloudu za 3 měsíce způsobí vyhoření týmu a bezpečnostní mezeru"*).
+  - Vytváří neprůstřelný kryptografický **Proof of Necessity (PoN)**.
 
 ---
 
-## 4. Postup Implementace
+## 3. Živý Postranní Panel & Progressive Disclosure (`frontend/src/components/LatentCausalSidebar.tsx`)
+
+### A. Živý Postranní Panel v Reálném Čase (`LatentCausalSidebar.tsx`)
+- Zobrazení v pravé části rozhraní:
+  - **Bettiho čísla ($\beta_1$):** Počet detekovaných cyklických zranitelností a síťových trhlin.
+  - **Perkolační Tenzometr ($p_c$):** Vizuální ukazatel s varovným prahem při $p_c \ge 0.38$.
+  - **Motýlí Efekt & Skryté Vazby:** Zobrazení neviditelných kauzálních řetězců dopadů 2. a 3. řádu.
+  - **PoN (Proof of Necessity) Ledovec:** Tlačítko pro postupné odkrývání (Progressive Disclosure) hluboké 8D důkazní matice pro administrátora.
+
+---
+
+## 4. Mobilní & Android Integrace (`app/src/main/java/com/example/ui/`)
+
+### A. Topologický Pás v Jetpack Compose (`app/src/main/java/com/example/ui/chat/ChatStatusBanner.kt`)
+- Zobrazení živého stavu perkolace $p_c$ a Bettiho čísla $\beta_1$ přímo v záhlaví chatu.
+- Možnost rozbalit PoN detail na mobilním zařízení.
+
+---
+
+## 5. Postup Implementace
 
 1. **Backend (Fáze 1):**
-   - Aktualizace `backend/risk_forensics.py` o T+2 a T+3 sekvence a Do-Calculus.
-   - Přidání `/api/omnis/co-synthesize-input` v `backend/engine.py`.
+   - Vytvoření `backend/domain_dictionaries.py` a úprava `backend/csr_graph.py`.
+   - Vytvoření `backend/latent_causal_engine.py` pro Bettiho čísla $\beta_1$ a perkolaci $p_c$.
+   - Přidání endpointu `GET /api/omnis/latent-causal-stream` a `POST /api/omnis/analyze-latent-causality`.
 2. **Frontend (Fáze 2):**
-   - Vytvoření `InteractiveCoSynthesisModal.tsx`.
-   - Úprava `MessageBubble.tsx` pro zobrazení kaskády dopadů 2./3. řádu.
-   - Propojení s chatovacím polem v `App.tsx`.
+   - Vytvoření `LatentCausalSidebar.tsx`.
+   - Propojení s `App.tsx` a živým kognitivním stavovým strojem.
 3. **Android (Fáze 3):**
-   - Doplnění zobrazení T+2/T+3 kaskád v Compose UI.
+   - Aktualizace Compose UI komponent pro zobrazení perkolace a Bettiho čísel.
 4. **Verifikace a Sestavení (Fáze 4):**
    - Zkompilování aplikace (`compile_applet`).
-   - Sestavení Android APK a synchronizace do GitHub repozitáře.
+   - Vygenerování instalačního balíčku APK a Git synchronizace.
