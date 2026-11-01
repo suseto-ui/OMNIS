@@ -1,0 +1,83 @@
+name: O.M.N.I.S. GitHub Actions CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: europe-west1
+  SERVICE_NAME: omnis-backend
+  REPOSITORY: omnis-repo
+
+jobs:
+  quality-gate-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Quality Gate & Test Toolchain
+        run: |
+          pip install --no-cache-dir pytest pytest-cov radon flake8 "httpx<0.28" fastapi sqlalchemy pydantic google-genai asyncpg
+
+      - name: Cyclomatic Complexity Audit (Max CC <= 15)
+        run: |
+          echo "=== Quality Gate: Cyclomatic Complexity Audit ==="
+          radon cc backend/ -s -nc --total-average -a --max B
+
+      - name: Run Backend Invariant Tests with Branch Coverage (>= 80%)
+        run: |
+          export PYTHONPATH=.
+          pytest backend/ --cov=backend --cov-branch --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=80 -v
+
+      - name: Enforce SonarQube Quality Gate Barrier Formula
+        run: |
+          export PYTHONPATH=.
+          python3 scripts/verify_quality_gate.py
+
+      - name: Google Cloud Authentication
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Ensure Artifact Registry Exists
+        run: |
+          gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
+            --location=${{ env.REGION }} || \
+          gcloud artifacts repositories create ${{ env.REPOSITORY }} \
+            --repository-format=docker --location=${{ env.REGION }}
+
+      - name: Build and Push Container Image
+        run: |
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+
+      - name: Deploy to Google Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --ingress internal-and-cloud-load-balancing \
+            --set-env-vars GEMINI_MODEL=gemini-3.1-pro-preview \
+            --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest,DATABASE_URL=OMNIS_DATABASE_URL:latest \
+            --vpc-connector omnis-vpc-conn \
+            --vpc-egress private-ranges-only \
+            --service-account omnis-cloud-run@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+            --memory 1Gi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 10

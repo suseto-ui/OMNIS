@@ -1,0 +1,65 @@
+--- app/src/main/java/com/example/api/OmnisGeminiClient.kt
++++ app/src/main/java/com/example/api/OmnisGeminiClient.kt
+@@ -282,4 +282,60 @@
+             deterministicOmnisSynthesis(query, domain)
+         }
+     }
++
++    suspend fun extractTextFromImage(base64Image: String): String? = withContext(ioDispatcher) {
++        val apiKey = BuildConfig.GEMINI_API_KEY
++        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
++            Log.w(TAG, "GEMINI_API_KEY is not configured, cannot extract text from image.")
++            return@withContext null
++        }
++
++        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey"
++        try {
++            val requestJson = JSONObject().apply {
++                val contentsArr = JSONArray().apply {
++                    val userContent = JSONObject().apply {
++                        put("role", "user")
++                        val partsArr = JSONArray().apply {
++                            put(JSONObject().apply {
++                                put("inlineData", JSONObject().apply {
++                                    put("mimeType", "image/jpeg")
++                                    put("data", base64Image)
++                                })
++                            })
++                            put(JSONObject().apply {
++                                put("text", "Extrahuj veškerý text z tohoto obrázku přesně tak, jak je napsán. Nepřidávej žádný dodatečný kontext, vysvětlování ani úvod. Pokud na obrázku není text, vrať prázdný řetězec.")
++                            })
++                        }
++                        put("parts", partsArr)
++                    }
++                    put(userContent)
++                }
++                put("contents", contentsArr)
++                
++                val genConfig = JSONObject().apply {
++                    put("temperature", 0.0)
++                }
++                put("generationConfig", genConfig)
++            }
++
++            val mediaType = "application/json; charset=utf-8".toMediaType()
++            val requestBody = requestJson.toString().toRequestBody(mediaType)
++            val request = Request.Builder().url(url).post(requestBody).build()
++
++            val response = okHttpClient.newCall(request).execute()
++            if (!response.isSuccessful) return@withContext null
++
++            val bodyString = response.body?.string() ?: return@withContext null
++            val root = JSONObject(bodyString)
++            val candidates = root.optJSONArray("candidates") ?: return@withContext null
++            if (candidates.length() == 0) return@withContext null
++            val first = candidates.getJSONObject(0)
++            val content = first.optJSONObject("content") ?: return@withContext null
++            val parts = content.optJSONArray("parts") ?: return@withContext null
++            if (parts.length() == 0) return@withContext null
++            return@withContext parts.getJSONObject(0).optString("text")?.trim()
++        } catch (e: Exception) {
++            Log.e(TAG, "Gemini API image extraction failed", e)
++            return@withContext null
++        }
++    }
+ }

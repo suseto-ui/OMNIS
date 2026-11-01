@@ -1,0 +1,47 @@
+{
+  "name": "OMNIS Strict Quality Gate - Zero Debt Barrier",
+  "conditions": [
+    {
+      "metric": "new_coverage",
+      "op": "LT",
+      "error": "80.0",
+      "description": "Kombinované pokrytí nového kódu (CT + CF + LC) / (2 * B + EL) musí být alespoň 80 %."
+    },
+    {
+      "metric": "new_branch_coverage",
+      "op": "LT",
+      "error": "80.0",
+      "description": "Pokrytí podmínek a větví (CT a CF) na novém kódu musí být alespoň 80 %."
+    },
+    {
+      "metric": "new_line_coverage",
+      "op": "LT",
+      "error": "80.0",
+      "description": "Řádkové pokrytí na novém kódu musí být alespoň 80 %."
+    },
+    {
+      "metric": "cognitive_complexity",
+      "op": "GT",
+      "error": "15",
+      "description": "Cyklomatická / kognitivní složitost libovolné metody nesmí překročit 15."
+    },
+    {
+      "metric": "new_vulnerabilities",
+      "op": "GT",
+      "error": "0",
+      "description": "Nulová tolerance pro bezpečnostní zranitelnosti (OWASP Top 10)."
+    },
+    {
+      "metric": "new_bugs",
+      "op": "GT",
+      "error": "0",
+      "description": "Nulová tolerance pro nově zanesené softwarové vady a NPE rizika."
+    },
+    {
+      "metric": "new_duplicated_lines_density",
+      "op": "GT",
+      "error": "3.0",
+      "description": "Hustota duplicitního kódu nesmí překročit 3 %."
+    }
+  ]
+}
