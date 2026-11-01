@@ -116,3 +116,57 @@ class PromptEngine:
                 parts.append(f"[{i}] {mem}")
         parts.append(f"DOTAZ OPERÁTORA:\n{user_query}")
         return "\n\n".join(parts)
+
+    @classmethod
+    def analyze_and_heal_prompt(
+        cls,
+        user_query: str,
+        domain: str = "SYSTEMS_INTELLIGENCE",
+        context_memories: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Vyhodnotí logickou čistotu promptu, detekuje anomálie, neúplnosti a sémantický šum,
+        a vygeneruje rekonvalescovaný prompt se self-healing zpětnou vazbou.
+        """
+        cleaned, is_safe, detected_injections = cls.sanitize_input(user_query)
+        inconsistencies = []
+        healing_actions = []
+
+        # 1. Kontrola délky a neúplnosti
+        query_stripped = cleaned.strip()
+        if len(query_stripped) < 5:
+            inconsistencies.append("Dotaz je extrémně krátký nebo neúplný (Cognitive Lock candidate).")
+            healing_actions.append("Doplnění základní kognitivní struktury a požadavku na autorizaci.")
+
+        # 2. Kontrola injekčních vektorů
+        if not is_safe:
+            inconsistencies.append(f"Detekováni injekční vektory: {', '.join(detected_injections)}")
+            healing_actions.append("Neutralizace a sanace bezpečnostních injekcí.")
+
+        # 3. Kontrola víceznačností a otázek bez doménového zařazení
+        if "?" in query_stripped and len(query_stripped.split()) < 4:
+            inconsistencies.append("Víceznačný dotaz s nízkou sémantickou hustotou.")
+            healing_actions.append("Ukotvení v doméně " + domain + " a rozšíření o prvotní principy (First Principles).")
+
+        # Výpočet indexu zdraví promptu (Prompt Health Index 0-100)
+        penalty = len(inconsistencies) * 15.0 + (0.0 if is_safe else 25.0)
+        health_index = float(round(max(40.0, min(100.0, 99.5 - penalty)), 1))
+        confidence = float(round(max(0.60, min(1.0, (health_index / 100.0) * 0.98)), 2))
+
+        # Konstrukce korigovaného promptu
+        corrected = query_stripped
+        if not is_safe:
+            corrected = f"[BEZPEČNĚ_SANATED_INPUT] {cleaned}"
+
+        if health_index < 80.0:
+            corrected = f"Optimalizovaný požadavek pro doménu {domain}:\n{corrected}\n[Ukotvení: Strukturovaná syntéza bez sémantického balastu]"
+
+        return {
+            "original_prompt": user_query,
+            "detected_inconsistencies": inconsistencies,
+            "corrected_prompt": corrected,
+            "confidence_score": confidence,
+            "prompt_health_index": health_index,
+            "healing_actions_applied": healing_actions if healing_actions else ["Prověřeno: Prompt vykazuje vysokou logickou integritu (bez nutnosti zásahu)"],
+            "requires_user_authorization": len(query_stripped) < 4
+        }

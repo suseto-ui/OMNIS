@@ -134,7 +134,25 @@ fun ChatMessageItem(
                             fontFamily = FontFamily.Monospace,
                             letterSpacing = 0.5.sp
                         )
+
+                        if (!isUser) {
+                            Surface(
+                                color = OmnisCyan.copy(alpha = 0.12f),
+                                border = BorderStroke(0.5.dp, OmnisCyan.copy(alpha = 0.4f)),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = "SELF-HEALING",
+                                    color = OmnisCyan,
+                                    fontSize = 7.5.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
                     }
+
 
                     // Volitelný čip spolehlivosti
                     if (!isUser && showConfidencePillsPref && record.confidenceScore > 0f) {

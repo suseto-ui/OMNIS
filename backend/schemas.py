@@ -128,3 +128,26 @@ class HealthCheckResponse(BaseModel):
     service: str = "O.M.N.I.S. Core Gateway"
     version: str = "4.5"
     timestamp: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
+
+# ==========================================================
+# Self-Healing & Prompt Logic Korekční Schémata
+# ==========================================================
+
+class PromptCorrectionRecord(BaseModel):
+    original_prompt: str
+    detected_inconsistencies: List[str] = Field(default_factory=list)
+    corrected_prompt: str
+    confidence_score: float = Field(default=0.95, ge=0.0, le=1.0)
+    prompt_health_index: float = Field(default=98.5, ge=0.0, le=100.0)
+    healing_actions_applied: List[str] = Field(default_factory=list)
+    requires_user_authorization: bool = False
+
+class SelfHealingRequest(BaseModel):
+    prompt: str
+    domain: Optional[str] = "SYSTEMS_INTELLIGENCE"
+    user_role: Optional[str] = "ADMIN_OPERATOR"
+
+class SelfHealingResponse(BaseModel):
+    status: str = "SUCCESS"
+    correction: PromptCorrectionRecord
+    timestamp: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))

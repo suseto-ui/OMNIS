@@ -38,6 +38,8 @@ import { omnisEngine, MultiAgentDeliberationResult, RefusalLadderEvaluation, eva
 import { RefusalLadderBadge } from "./RefusalLadderBadge";
 import { UserRole } from "../types";
 
+import { SelfHealingPromptMonitor, PromptCorrectionData } from "./SelfHealingPromptMonitor";
+
 // Import or replicate types
 export interface ImpactMatrixScores {
   sys: number;
@@ -80,11 +82,13 @@ export interface MessageItem {
   adversarial_score?: number;
   flagged_issues?: string[];
   refusal_ladder?: RefusalLadderEvaluation;
+  prompt_correction?: PromptCorrectionData;
   isStreaming?: boolean;
   streamingPhase?: string;
   isOverrideActive?: boolean;
   created_at: string;
 }
+
 
 interface MessageBubbleProps {
   msg: MessageItem;
@@ -466,6 +470,16 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({
             </div>
           );
         })()}
+
+        {/* Self-Healing Prompt Monitor Display */}
+        {msg.prompt_correction && (
+          <div className="mb-4">
+            <SelfHealingPromptMonitor 
+              correction={msg.prompt_correction} 
+              onApplyCorrection={(text) => onSendQuery(text)} 
+            />
+          </div>
+        )}
 
         {/* Cognitive Process (Introspection Accordion) */}
         {msg.cognitive_process && (

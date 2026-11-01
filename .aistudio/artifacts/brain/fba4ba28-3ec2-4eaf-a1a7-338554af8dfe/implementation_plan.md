@@ -1,57 +1,62 @@
-# Kompletní mapa provázaností systému O.M.N.I.S. & Refaktoring hybridní autentizace
+# Plán refaktorizace zpracování promptů a real-time self-healing korekce
 
-## 1. Analýza architektury a provázaností (Frontend, Middle, Backend, Android)
+Tento plán popisuje celkovou architekturu a kroky pro refaktorizaci logiky prompt enginu, automatickou korekci logických procesů, real-time self-healing zpětnou vazbu a zpřehlednění výstupů v celém ekosystému O.M.N.I.S. (Backend, Frontend, Android).
 
-```
-[Klient Android (Kotlin Compose)]
-   │
-   ├─► CredentialManager / GetSignInWithGoogleOption
-   │      │
-   │      ├─► (1) Firebase Auth SDK (GoogleAuthProvider.getCredential)
-   │      │      └── Získání Firebase ID Tokenu + User objektu
-   │      │
-   │      ├─► (2) Backend Cloud Run (/api/auth/google)
-   │      │      └── Ověření tokenu, uložení do PostgreSQL, vydání JWT
-   │      │
-   │      └─► (3) Lokální Session (OmnisAuthService / Room DB)
-   │             └── Vytvoření AuthSession + nastavení Role (ADMIN_OPERATOR pro susetofu@gmail.com)
-   │
-[Web Frontend (React / Vite)]
-   │
-   ├─► GoogleAuthProvider + signInWithPopup(auth, provider)
-   │      ├─► Firestore (users/{uid}) -> uložení role a profilu
-   │      ├─► Backend API (/api/auth/google) -> získání JWT access_token
-   │      └─► localStorage fallback -> omnis_token, omnis_user_role
-   │
-[Backend FastAPI (Cloud Run / Local)]
-   │
-   ├─► /api/auth/google: Ověření OAuth tokenu + automatické přiřazení role
-   ├─► /api/auth/login, /api/auth/register: Klasické PBKDF2 hesla
-   ├─► /api/threads & /api/memory/sync: Obousměrná synchronizace
-   └─► PostgreSQL / Cloud SQL: Tabulky users, conversations, messages, omnis_syntheses
-```
+---
 
-## 2. Příčina potíží na mobilu (Android CredentialManager)
-1. **Chybějící aktivace `OmnisAuthService` relace v `OmnisLoginScreen.kt`:**
-   Po úspěšném `signInWithCredential` v Androidu kód volal pouze `onLoginSuccess()`, ale **neaktualizoval** stav `OmnisAuthService.currentUserRole` ani `OmnisAuthService.isAuthenticated`. Proto `OmnisMainScreen` považoval uživatele stále za nepřihlášeného!
-2. **Přísná závislost na CredentialManageru bez hybridního fallbacku:**
-   Pokud uživatel nemá v telefonu Google Play Services, nebo pokud dialog selže (např. zrušení uživatelem, chybějící SHA-1 otisk pro daný build), aplikace skončila s chybovou hláškou.
-3. **Chybějící role mapping v Androidu:**
-   Pokud se přihlásil `susetofu@gmail.com`, nebyla role nastavena na `UserRole.ADMIN_OPERATOR`.
+## 1. Architektura Self-Healing Prompt Enginu (Backend)
 
-## 3. Akční plán implementace hybridního fallbacku
+### A. Modul Korekce a Rekonvalescence (`backend/gemini/prompt_engine.py` & `backend/omnis_pipeline.py`)
+- **Self-Healing Feedback Loop:**
+  - Implementovat autonomní hodnotitel výstupů, který po syntéze vyhodnotí entropii $S = -\sum p_i \ln p_i$, 8D matici dopadů a průchod 6 branami (G1–G6).
+  - Pokud výstup vykazuje sémantickou nekonzistenci, vysokou entropii ($S > 0.55$) nebo nedostatečné ukotvení, systém automaticky zkoriguje prompt a provede 1-krokovou mikrokorekci ještě před navrácením odpovědi uživateli.
+- **Strukturované Pydantic v2 Schéma Pro Korekční Záznam:**
+  - `PromptCorrectionRecord`:
+    - `original_prompt`: Původní dotaz
+    - `detected_inconsistencies`: Detekované logické rozporuplnosti nebo slepé skvrny
+    - `corrected_prompt_context`: Zpřesněný a rekonvalescovaný prompt
+    - `confidence_score`: Skóre jistoty po korekci (0.0 až 1.0)
+    - `healing_actions_applied`: Seznam aplikovaných úprav (např. doplnění systémových invariatů, redukce balastu)
 
-1. **Android (`OmnisLoginScreen.kt`):**
-   - Implementovat kompletní zpracování přihlášeného Firebase uživatele:
-     - Detekce e-mailu (pokud `susetofu@gmail.com` -> `UserRole.ADMIN_OPERATOR`).
-     - Uložení aktivní `AuthSession` do `OmnisAuthService`.
-     - Výměna Firebase ID Tokenu s backendem přes `OmnisAuthService.loginWithGoogle(context, idToken)` s bezpečným lokálním fallbackem.
-   - Přidat tlačítko **"Rychlý Admin přístup (Nouzový režim / Offline)"**, které umožní okamžité spuštění plné administrátorské konzole v případě potíží se sítí nebo Google Play Services.
-2. **Frontend (`AuthScreens.tsx`):**
-   - Ověřit a pojistit hybridní přihlášení, aby lokální session byla vytvořena okamžitě i při výpadku spojení s backendem.
-3. **Backend (`auth_router.py`):**
-   - Ošetřit token exchange i pro testovací / debug buildy.
-4. **Verifikace a sestavení:**
-   - Zkompilovat Android aplikaci pomocí `compile_applet`.
-   - Vytvořit nový debug balíček `Omnis-install.apk`.
-   - Provést push na GitHub.
+---
+
+## 2. Real-Time Interaktivní Korekce & UI Praktiky (Frontend)
+
+### A. Komponenta Self-Healing Prompt Monitor (`frontend/src/components/SelfHealingPromptMonitor.tsx`)
+- Zobrazení real-time diagnostiky promptu přímo v chatovacím rozhraní:
+  - **Kognitivní zdraví promptu (Prompt Health Index):** Procentuální vyjádření čistoty a logické konzistence.
+  - **Detekované anomálie & auto-korekce:** Zobrazení původního vs. zkororigovaného kontextu.
+  - **Interaktivní tlačítka akcí:**
+    - "Aplikovat doporučenou korekci"
+    - "Rozbalit plný self-healing diagnostický protokol"
+
+### B. Zpřehlednění a Zjednodušení Výstupů (`frontend/src/omnisEngine.ts` & `frontend/src/components/MessageBubble.tsx`)
+- Aplikace principu **Progressive Disclosure**:
+  - Pro `STANDARD_USER`: Čistý, srozumitelný strukturovaný výstup bez zbytečného technického balastu.
+  - Pro `ADMIN_OPERATOR`: Jedním klikem rozbalitelné záložky s 8D maticí, CSR topologií, PoN logem a self-healing záznamem.
+
+---
+
+## 3. Mobilní & Android Synchronizace (`app/src/main/java/com/example/ui/`)
+
+### A. Self-Healing Indikátor v Jetpack Compose
+- Přidání vizuálního indikátoru do `OmnisChatScreen` / `MessageItem`, který zobrazuje:
+  - Odznak `[SELF-HEALING ACTIVE]`
+  - Stav kognitivního zdraví a aplikované korekce
+- Automatická synchronizace self-healing telemetrie s PostgreSQL přes `/api/sync/telemetry`.
+
+---
+
+## 4. Postup Implementace
+
+1. **Backend (Fáze 1):**
+   - Vytvoření modulu self-healing v `backend/gemini/prompt_engine.py`.
+   - Propojení s `assemble_omnis_cognitive_cycle` v `backend/omnis_pipeline.py`.
+2. **Frontend (Fáze 2):**
+   - Vytvoření `SelfHealingPromptMonitor.tsx`.
+   - Integrace do `MessageBubble.tsx` a `App.tsx`.
+3. **Android (Fáze 3):**
+   - Aktualizace Android kognitivního zobrazení a synchronizace s backendem.
+4. **Verifikace a Sestavení (Fáze 4):**
+   - Sestavení aplikace a otestování `compile_applet`.
+   - Sestavení APK a Git synchronizace.

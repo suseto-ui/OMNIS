@@ -1,6 +1,6 @@
 {
-  "summary":  "Kompletní mapa provázaností systému O.M.N.I.S. (Frontend, Backend, Mobile/Android, Firebase Firestore, PostgreSQL/Cloud SQL) a plán optimalizace hybridní autentizace s okamžitým fallbackem.",
-  "updatedAt":  "2026-11-01T21:01:04.800905409Z",
+  "summary":  "Plan refaktorizace a rekonvalescence logiky zpracování promptů, self-healing zpětné vazby, korekce logických procesů a interaktivních funkčních praktik.",
+  "updatedAt":  "2026-11-01T21:18:16.058208864Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -84,7 +84,7 @@ class Phase5Result(BaseModel):
 
 
 class OmnisAssemblyOutput(BaseModel):
-    """Složený výstup všech 5 fází O.M.N.I.S. včetně prospektivní forenzní analýzy rizik."""
+    """Složený výstup všech 5 fází O.M.N.I.S. včetně prospektivní forenzní analýzy rizik a self-healing korekce."""
     phase1: Phase1Result
     phase2: Phase2Result
     phase3: Phase3Result
@@ -95,6 +95,7 @@ class OmnisAssemblyOutput(BaseModel):
     follow_up_questions: List[str]
     composite_score: float
     risk_forensics: Optional[ConsequenceForensicsResult] = None
+    prompt_correction: Optional[Dict[str, Any]] = None
 
 
 # ==========================================================
@@ -539,6 +540,9 @@ def assemble_omnis_cognitive_cycle(
         f"[Forenzní analýza]: Vyhodnoceny T+1..T+N kaskády (Rizikový index: {risk_results.risk_index}, Úroveň: {risk_results.risk_level})."
     )
 
+    from backend.gemini.prompt_engine import PromptEngine
+    prompt_corr = PromptEngine.analyze_and_heal_prompt(raw_query, ontology_domain, context_memories)
+
     return OmnisAssemblyOutput(
         phase1=p1,
         phase2=p2,
@@ -550,4 +554,5 @@ def assemble_omnis_cognitive_cycle(
         follow_up_questions=p5.reflexive_questions,
         composite_score=p5.composite_score,
         risk_forensics=risk_results,
+        prompt_correction=prompt_corr,
     )

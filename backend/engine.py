@@ -25,8 +25,21 @@ async def synthesize_five_phases(request: QueryRequest) -> dict:
         "phase4": asdict(output.phase4),
         "phase5": asdict(output.phase5),
         "risk_forensics": asdict(output.risk_forensics) if output.risk_forensics else None,
+        "prompt_correction": output.prompt_correction,
         "formatted_answer": output.formatted_answer,
         "cognitive_process": output.cognitive_process,
         "follow_up_questions": output.follow_up_questions,
         "composite_score": output.composite_score,
     }
+
+from backend.schemas import SelfHealingRequest, SelfHealingResponse, PromptCorrectionRecord
+from backend.gemini.prompt_engine import PromptEngine
+
+@engine_router.post("/self-heal-prompt", response_model=SelfHealingResponse)
+async def self_heal_prompt(req: SelfHealingRequest) -> SelfHealingResponse:
+    """
+    Vykoná real-time self-healing analýzu promptu, detekuje anomálie a vrátí zkororigovaný prompt.
+    """
+    result = PromptEngine.analyze_and_heal_prompt(req.prompt, req.domain or "SYSTEMS_INTELLIGENCE")
+    record = PromptCorrectionRecord(**result)
+    return SelfHealingResponse(status="SUCCESS", correction=record)

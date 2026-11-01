@@ -475,6 +475,7 @@ export default function App() {
                 token_usage: data.token_usage,
                 adversarial_score: data.adversarial_score,
                 flagged_issues: data.flagged_issues,
+                prompt_correction: data.prompt_correction,
                 isOverrideActive: isOverride,
                 isStreaming: false,
                 streamingPhase: undefined,
@@ -483,6 +484,7 @@ export default function App() {
             : m
         )
       );
+
       
       // Successfully processed, remove from local state buffer
       setLocalQueryBuffer(prev => prev.filter(item => item !== q));
