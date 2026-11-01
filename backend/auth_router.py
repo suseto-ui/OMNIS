@@ -18,7 +18,7 @@ user_router = APIRouter(prefix="/api/user", tags=["User Profile"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-GOOGLE_CLIENT_ID = get_secret("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_ID = get_secret("GOOGLE_CLIENT_ID", "1098834450200-d32hucnf0ve068o1calg0ef2o9q7lb4l.apps.googleusercontent.com")
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
     payload = decode_access_token(token)

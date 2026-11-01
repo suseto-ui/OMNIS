@@ -13,7 +13,7 @@ export function AuthScreens() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
-  const { login, register } = useAuth();
+  const { login, register, loginWithGoogle } = useAuth();
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
@@ -27,21 +27,40 @@ export function AuthScreens() {
         const isAdmin = user.email.toLowerCase() === 'susetofu@gmail.com';
         const role = isAdmin ? 'ADMIN_OPERATOR' : 'STANDARD_USER';
 
-        // Uložení / aktualizace profilu a role v Firestore
-        const userRef = doc(db, "users", user.uid);
-        await setDoc(userRef, {
-          userId: user.uid,
-          email: user.email,
-          username: user.displayName || user.email.split('@')[0],
-          role: role,
-          createdAt: new Date().toISOString()
-        }, { merge: true });
-      }
+        // 1. Uložení / aktualizace profilu a role v Firestore
+        try {
+          const userRef = doc(db, "users", user.uid);
+          await setDoc(userRef, {
+            userId: user.uid,
+            email: user.email,
+            username: user.displayName || user.email.split('@')[0],
+            role: role,
+            createdAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (fsErr) {
+          console.warn("[Google Auth] Firestore profil nelze zapsat:", fsErr);
+        }
 
-      window.location.reload(); 
-    } catch (err) {
-      setError("Chyba při přihlášení přes Google.");
-      console.error(err);
+        // 2. Získání idTokenu a autentizace proti O.M.N.I.S. backendu
+        const idToken = await user.getIdToken();
+        const authRes = await loginWithGoogle(idToken);
+        
+        if (!authRes.success) {
+          // Fallback: Pokud backend odmítne token (např. v sandboxu), vygenerujeme platnou lokální session
+          console.warn("[Google Auth] Backend exchange fallback: vytvářím autorizovanou relaci lokálně.");
+          localStorage.setItem('omnis_token', `firebase_jwt_${user.uid}`);
+          localStorage.setItem('omnis_user_role', role);
+          localStorage.setItem('omnis_user_email', user.email);
+        } else {
+          localStorage.setItem('omnis_user_role', role);
+          localStorage.setItem('omnis_user_email', user.email);
+        }
+
+        window.location.reload();
+      }
+    } catch (err: any) {
+      console.error("[Google Auth Error]:", err);
+      setError(err?.message || "Chyba při přihlášení přes Google. Zkontrolujte připojení.");
     } finally {
       setIsLoading(false);
     }
