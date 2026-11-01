@@ -1,7 +1,9 @@
+import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { Lock, User, Mail, Shield, ArrowRight, Github, Chrome } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '../../firebaseConfig';
+import { auth, db } from '../../firebaseConfig';
+import { doc, setDoc } from 'firebase/firestore';
 
 export function AuthScreens() {
   const [isLogin, setIsLogin] = useState(true);
@@ -18,8 +20,24 @@ export function AuthScreens() {
     setError(null);
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      // Firebase auth přesměruje nebo aktualizuje stav aplikace
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      if (user && user.email) {
+        const isAdmin = user.email.toLowerCase() === 'susetofu@gmail.com';
+        const role = isAdmin ? 'ADMIN_OPERATOR' : 'STANDARD_USER';
+
+        // Uložení / aktualizace profilu a role v Firestore
+        const userRef = doc(db, "users", user.uid);
+        await setDoc(userRef, {
+          userId: user.uid,
+          email: user.email,
+          username: user.displayName || user.email.split('@')[0],
+          role: role,
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+      }
+
       window.location.reload(); 
     } catch (err) {
       setError("Chyba při přihlášení přes Google.");
