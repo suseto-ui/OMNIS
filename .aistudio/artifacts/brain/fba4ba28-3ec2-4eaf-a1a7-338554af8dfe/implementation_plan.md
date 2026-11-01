@@ -1,88 +1,57 @@
-# O.M.N.I.S. - Dokončení nasazení do plně samostatného provozu na Google Cloud
+# Kompletní mapa provázaností systému O.M.N.I.S. & Refaktoring hybridní autentizace
 
-Implementační plán pro dokončení samostatného produkčního provozu ekosystému O.M.N.I.S. na Google Cloud Platform (GCP) s využitím bezserverové infrastruktury Cloud Run, Cloud SQL PostgreSQL databáze, Google Cloud Secret Manageru a automatické synchronizace mobilní aplikace Android.
-
----
-
-## User Review & Critical Decisions
-
-> [!IMPORTANT]
-> **Potvrzená rozhodnutí uživatelem v Fázi 1:**
-> 1. **Databázová persistence:** **Cloud SQL PostgreSQL s automatickým zálohováním** (přímá podpora `asyncpg` a `pgvector` rozšíření pro kognitivní paměť).
-> 2. **Správa tajných klíčů:** **Google Cloud Secret Manager** (bezpečné načítání JWT klíčů, Gemini API klíčů a databázových přístupů bez rizika úniku).
-> 3. **Škálování a rozpočet:** **Free Tier optimalizovaný režim** (`min-instances = 0`, `max-instances = 3`, 512 MiB RAM, 1 vCPU) s nulovými náklady v nečinnosti (pod $5/měsíc).
-
----
-
-## 1. Overview & Core Concept
-
-Cílem je převést systém O.M.N.I.S. do stavu 100% autoremoceného a samostatně schopného produkčního provozu na Google Cloud Platform:
-- **FastAPI Backend na Cloud Run:** Zabezpečený REST & gRPC Gateway s automatickou rotací klíčů, zpracováním 8D dialectiky a kognitivního enginu.
-- **Cloud SQL PostgreSQL:** Trvalé úložistě uživatelských profilů, konverzačních vláken, zpráv a Impact Matrix vektorů.
-- **Secret Manager & IAM:** Striktní správa přístupových práv přes samostatný Service Account `omnis-cloud-run@${PROJECT_ID}.iam.gserviceaccount.com`.
-- **Android Client Sync:** Mobilní klient (Kotlin / Jetpack Compose) plynule komunikuje s Cloud Run API, zobrazuje stav konektivity a podporuje offline režim.
-
----
-
-## 2. User Experience & Visual Design
-
-### Klíčové uživatelské toky (User Flows)
-1. **Plynulý start aplikace:**
-   - Android aplikace otestuje spojení s Cloud Run `/api/v1/health`.
-   - Pokud je Cloud Run aktivní, zobrazí se zelený stavový odznak `☁️ ONLINE`. Pokud je zařízení bez internetu nebo Cloud Run spí, odznak indikuje `📡 OFFLINE` a aplikace funguje z lokální SQLite mezipaměti.
-2. **Přihlášení a správa profilu:**
-   - Uživatel se přihlásí přes Google Sign-In nebo jméno/heslo.
-   - Profilové údaje, avatar a preference jsou synchronizovány s Cloud SQL PostgreSQL.
-3. **Persistentní kognitivní relace:**
-   - Každé konverzační vlákno a odpověď 8D enginu jsou atomicky ukládány do databáze v cloudu s podporou pozdějšího vyhledávání.
-
----
-
-## 3. Key Product Decisions & Trade-Offs
-
-### Rozhodnutí 1: Cloud SQL PostgreSQL + Asyncpg Connection Pooling
-*   *Zvolený přístup:* Integrovaná konektivita přes Cloud SQL Auth Proxy nebo přímé Unix/TCP socket spojení v SQLAlchemy s `asyncpg` a `pool_pre_ping=True`.
-*   *Proč:* Zabezpečuje ochranu před výpadky spojení při škálování Cloud Run na nulu a udržuje rychlé reakční doby.
-
-### Rozhodnutí 2: Hybridní Secret Manager Client
-*   *Zvolený přístup:* Použití `backend/gcp_secrets.py` s in-memory cachingem (TTL 300 s).
-*   *Proč:* Zabraňuje nadbytečnému zpoplatněnému volání Secret Manager API při každém HTTP dotazu.
-
----
-
-## 4. Technical Architecture & Data Strategy
-
-### Diagram produkční architektury GCP
+## 1. Analýza architektury a provázaností (Frontend, Middle, Backend, Android)
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                   GCP Production Architecture                           │
-│                                                                        │
-│  ┌───────────────────────┐          ┌──────────────────────────────┐   │
-│  │ Android App (Client)  │ ───────> │ Cloud Run (FastAPI Backend)  │   │
-│  │ (Kotlin / Compose)    │  HTTPS   │ - 512 MiB RAM / 1 vCPU       │   │
-│  └───────────────────────┘          │ - min: 0 / max: 3 instances  │   │
-│                                     └──────────────┬───────────────┘   │
-│                                                    │                   │
-│                     ┌──────────────────────────────┼───────────────┐   │
-│                     │                              │               │   │
-│                     ▼                              ▼               │   │
-│      ┌────────────────────────────┐  ┌───────────────────────────┐ │   │
-│      │ Cloud SQL PostgreSQL       │  │ GCP Secret Manager        │ │   │
-│      │ - User profiles & threads  │  │ - JWT Secret              │ │   │
-│      │ - 8D Impact Matrix metrics │  │ - Gemini API Keys         │ │   │
-│      └────────────────────────────┘  └───────────────────────────┘ │   │
-└────────────────────────────────────────────────────────────────────────┘
+[Klient Android (Kotlin Compose)]
+   │
+   ├─► CredentialManager / GetSignInWithGoogleOption
+   │      │
+   │      ├─► (1) Firebase Auth SDK (GoogleAuthProvider.getCredential)
+   │      │      └── Získání Firebase ID Tokenu + User objektu
+   │      │
+   │      ├─► (2) Backend Cloud Run (/api/auth/google)
+   │      │      └── Ověření tokenu, uložení do PostgreSQL, vydání JWT
+   │      │
+   │      └─► (3) Lokální Session (OmnisAuthService / Room DB)
+   │             └── Vytvoření AuthSession + nastavení Role (ADMIN_OPERATOR pro susetofu@gmail.com)
+   │
+[Web Frontend (React / Vite)]
+   │
+   ├─► GoogleAuthProvider + signInWithPopup(auth, provider)
+   │      ├─► Firestore (users/{uid}) -> uložení role a profilu
+   │      ├─► Backend API (/api/auth/google) -> získání JWT access_token
+   │      └─► localStorage fallback -> omnis_token, omnis_user_role
+   │
+[Backend FastAPI (Cloud Run / Local)]
+   │
+   ├─► /api/auth/google: Ověření OAuth tokenu + automatické přiřazení role
+   ├─► /api/auth/login, /api/auth/register: Klasické PBKDF2 hesla
+   ├─► /api/threads & /api/memory/sync: Obousměrná synchronizace
+   └─► PostgreSQL / Cloud SQL: Tabulky users, conversations, messages, omnis_syntheses
 ```
 
----
+## 2. Příčina potíží na mobilu (Android CredentialManager)
+1. **Chybějící aktivace `OmnisAuthService` relace v `OmnisLoginScreen.kt`:**
+   Po úspěšném `signInWithCredential` v Androidu kód volal pouze `onLoginSuccess()`, ale **neaktualizoval** stav `OmnisAuthService.currentUserRole` ani `OmnisAuthService.isAuthenticated`. Proto `OmnisMainScreen` považoval uživatele stále za nepřihlášeného!
+2. **Přísná závislost na CredentialManageru bez hybridního fallbacku:**
+   Pokud uživatel nemá v telefonu Google Play Services, nebo pokud dialog selže (např. zrušení uživatelem, chybějící SHA-1 otisk pro daný build), aplikace skončila s chybovou hláškou.
+3. **Chybějící role mapping v Androidu:**
+   Pokud se přihlásil `susetofu@gmail.com`, nebyla role nastavena na `UserRole.ADMIN_OPERATOR`.
 
-## Akční plán kroků k dokončení nasazení
+## 3. Akční plán implementace hybridního fallbacku
 
-1. **Krok 1: Kontrola a aktualizace Terraform / GCP skriptů:**
-   - Ověřit nastavení `main.tf`, `iam.tf` a `variables.tf` pro Cloud Run a Secret Manager.
-   - Spustit a ověřit `scripts/setup_gcp_project.sh`.
-2. **Krok 2: Ověření databázové vrstvy backendu:**
-   - Zkontrolovat `backend/database.py` a `backend/gcp_secrets.py` pro bezchybnou inicializaci v cloudu.
-3. **Krok 3: Finální sestavení a test klientské kompilace:**
-   - Spustit `compile_applet` a provést synchronizaci do Git repozitáře `suseto-ui/OMNIS`.
+1. **Android (`OmnisLoginScreen.kt`):**
+   - Implementovat kompletní zpracování přihlášeného Firebase uživatele:
+     - Detekce e-mailu (pokud `susetofu@gmail.com` -> `UserRole.ADMIN_OPERATOR`).
+     - Uložení aktivní `AuthSession` do `OmnisAuthService`.
+     - Výměna Firebase ID Tokenu s backendem přes `OmnisAuthService.loginWithGoogle(context, idToken)` s bezpečným lokálním fallbackem.
+   - Přidat tlačítko **"Rychlý Admin přístup (Nouzový režim / Offline)"**, které umožní okamžité spuštění plné administrátorské konzole v případě potíží se sítí nebo Google Play Services.
+2. **Frontend (`AuthScreens.tsx`):**
+   - Ověřit a pojistit hybridní přihlášení, aby lokální session byla vytvořena okamžitě i při výpadku spojení s backendem.
+3. **Backend (`auth_router.py`):**
+   - Ošetřit token exchange i pro testovací / debug buildy.
+4. **Verifikace a sestavení:**
+   - Zkompilovat Android aplikaci pomocí `compile_applet`.
+   - Vytvořit nový debug balíček `Omnis-install.apk`.
+   - Provést push na GitHub.
