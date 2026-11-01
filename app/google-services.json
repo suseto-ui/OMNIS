@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1098834450200",
+    "project_id": "omnis-508519",
+    "storage_bucket": "omnis-508519.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1098834450200:android:77a327a2d9d0867907706d",
+        "android_client_info": {
+          "package_name": "com.aistudio.omnis.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1098834450200-hg32cf9c448h9oojeruk64s82e9js8le.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.omnis.app",
+            "certificate_hash": "1233587a8bd80466112076a8e6cc690cfddb851d"
+          }
+        },
+        {
+          "client_id": "1098834450200-d32hucnf0ve068o1calg0ef2o9q7lb4l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyACPYG9kNF8Tii8vVqFN-Ns9Lcv6_OQaJY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1098834450200-d32hucnf0ve068o1calg0ef2o9q7lb4l.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

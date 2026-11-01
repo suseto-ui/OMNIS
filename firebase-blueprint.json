@@ -1,0 +1,52 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Uživatelský profil a oprávnění",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase UID" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["STANDARD_USER", "ADMIN_OPERATOR"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "role", "createdAt"]
+    },
+    "ChatThread": {
+      "title": "ChatThread",
+      "description": "Konverzační vlákno",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "createdAt"]
+    },
+    "SystemMetrics": {
+      "title": "SystemMetrics",
+      "description": "Systémové metriky",
+      "type": "object",
+      "properties": {
+        "tokens": { "type": "integer" },
+        "syncStatus": { "type": "string" },
+        "threats": { "type": "integer" }
+      },
+      "required": ["tokens", "syncStatus", "threats"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "Profil uživatele"
+    },
+    "/users/{userId}/threads/{threadId}": {
+      "schema": { "$ref": "ChatThread" },
+      "description": "Vlákna uživatele"
+    },
+    "/system/metrics": {
+      "schema": { "$ref": "SystemMetrics" },
+      "description": "Globální systémové metriky"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementační plán pro dokončení plnohodnotného samostatného provozu O.M.N.I.S. na Google Cloud Platform (Cloud Run, Cloud SQL PostgreSQL, Secret Manager, IAM, Terraform a Android App Sync).",
+  "updatedAt":  "2026-10-31T17:21:55.406113601Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

@@ -1,0 +1,79 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build_apk:
+    name: Build & Publish Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant Execute Permission to Gradle Wrapper
+        run: chmod +x gradlew || true
+
+      - name: Build Debug APK
+        run: |
+          if [ -f "./gradlew" ]; then
+            ./gradlew assembleDebug --no-daemon --stacktrace
+          else
+            gradle assembleDebug --no-daemon --stacktrace
+          fi
+
+      - name: Prepare APK Artifact
+        run: |
+          mkdir -p release-apk
+          APK_PATH=$(find app/build/outputs/apk/debug/ -name "*.apk" | head -n 1)
+          if [ -n "$APK_PATH" ]; then
+            cp "$APK_PATH" release-apk/Omnis-install.apk
+            echo "APK ready at release-apk/Omnis-install.apk"
+          else
+            echo "ERROR: APK file not found!" && exit 1
+          fi
+
+      - name: Upload APK Artifact (Actions Run)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Omnis-install-apk
+          path: release-apk/Omnis-install.apk
+          retention-days: 14
+
+      - name: Create or Update GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: latest-build
+          name: "O.M.N.I.S. Latest Build (v1.0)"
+          body: |
+            ### 🚀 Automatický build O.M.N.I.S. APK
+            Tento balíček je automaticky sestaven a publikován po každém commitu do hlavní větve `main`.
+            
+            - **Soubor:** `Omnis-install.apk`
+            - **Commit:** ${{ github.sha }}
+            - **Datum sestavení:** ${{ github.event.head_commit.timestamp }}
+            
+            #### 📲 Stažení do mobilu:
+            Stáhněte přiložený soubor `Omnis-install.apk` přímo v prohlížeči v telefonu a spusťte instalaci.
+          files: release-apk/Omnis-install.apk
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

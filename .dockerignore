@@ -1,0 +1,27 @@
+# Správa verzí
+.git
+.gitignore
+
+# Python virtuální prostředí a vygenerované cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Node.js závislosti a lokální buildy frontendu
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Vývojové nástroje, IDE a systémové soubory
+.vscode/
+.idea/
+.DS_Store
+
+# CI/CD konfigurace (v kontejneru nejsou za běhu potřeba)
+cloudbuild.yaml
+omnis-ci.yml

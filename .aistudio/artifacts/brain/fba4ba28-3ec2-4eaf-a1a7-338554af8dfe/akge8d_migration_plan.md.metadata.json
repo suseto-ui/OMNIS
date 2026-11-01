@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementační plán pro migraci O.M.N.I.S. na AKGE-8D rámec. Zahrnuje implementaci Middle-Tier API Interceptoru, integraci 6-úrovňového Refusal Ladderu do PromptGateway, rozšíření PgVector HNSW pro Causal CSR grafy a implementaci RBAC-řízené diagnostiky bran (EU AI Act, ISO 42001, NIS2).",
+  "updatedAt":  "2026-10-06T09:33:33.891728676Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

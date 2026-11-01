@@ -1,0 +1,6 @@
+{
+  "summary":  "Plán implementace kauzálního CSR grafu v OmnisCorrelationEngine. Definice uzlů (Koncepty, Události, Hrozby, Bypass), HNSW indexování pro PostgreSQL a perkolační algoritmus.",
+  "updatedAt":  "2026-10-06T09:41:27.382656997Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

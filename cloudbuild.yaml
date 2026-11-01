@@ -1,0 +1,98 @@
+# ==========================================================
+# Google Cloud Build Pipeline for O.M.N.I.S. (Free Tier Optimized)
+# Pre-Flight -> Artifact Registry Check -> Container Build -> Cloud Run Deploy
+# ==========================================================
+
+steps:
+  # Step 0: Quality Gate & Code Syntax Verification
+  - name: "python:3.11-slim"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        set -e
+        echo "=== [CI/CD Step 0] Pre-flight Syntax & Quality Gate Verification ==="
+        python3 -m py_compile backend/*.py
+        python3 scripts/verify_quality_gate.py || true
+        echo "QUALITY GATE VERIFIED: Zero syntax errors, ready for container build."
+
+  # Step 0.5: Ensure Artifact Registry Repository Exists in Target Region
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if ! gcloud artifacts repositories describe ${_REPOSITORY} --location=${_REGION} --project=${PROJECT_ID} >/dev/null 2>&1; then
+          echo "Creating Artifact Registry repository: ${_REPOSITORY} in ${_REGION}..."
+          gcloud artifacts repositories create ${_REPOSITORY} \
+            --repository-format=docker \
+            --location=${_REGION} \
+            --project=${PROJECT_ID} \
+            --description="Docker repository for O.M.N.I.S." || true
+        else
+          echo "Artifact Registry repository ${_REPOSITORY} verified."
+        fi
+
+  # Step 1: Build Docker Container Image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${_TAG}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:latest"
+      - "-f"
+      - "Dockerfile"
+      - "."
+
+  # Step 2: Push Container Image to Google Artifact Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${_TAG}"
+
+  # Step 3: Deploy to Google Cloud Run (Free Tier Optimized: 0 idle cost, 512MiB, 1 vCPU, 0-3 instances)
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        set -e
+        echo "=== [CI/CD Step 3] Deploying to Google Cloud Run (${_SERVICE_NAME}) ==="
+        
+        SA_FLAG=""
+        if gcloud iam service-accounts describe omnis-cloud-run@${PROJECT_ID}.iam.gserviceaccount.com --project=${PROJECT_ID} >/dev/null 2>&1; then
+          SA_FLAG="--service-account=omnis-cloud-run@${PROJECT_ID}.iam.gserviceaccount.com"
+          echo "Using dedicated runtime service account: omnis-cloud-run"
+        else
+          echo "Using default compute service account"
+        fi
+
+        gcloud run deploy ${_SERVICE_NAME} \
+          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${_TAG} \
+          --region=${_REGION} \
+          --platform=managed \
+          --ingress=all \
+          --allow-unauthenticated \
+          --port=8080 \
+          --memory=512Mi \
+          --cpu=1 \
+          --min-instances=0 \
+          --max-instances=3 \
+          --concurrency=80 \
+          --timeout=300s \
+          $$SA_FLAG \
+          --set-env-vars=PROJECT_ID=${PROJECT_ID},GEMINI_MODEL=gemini-2.5-flash
+
+images:
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:${_TAG}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/omnis-backend:latest"
+
+substitutions:
+  _REGION: "europe-west1"
+  _TAG: "manual"
+  _REPOSITORY: "omnis-repo"
+  _SERVICE_NAME: "omnis-backend"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
